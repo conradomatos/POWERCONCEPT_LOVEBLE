@@ -462,7 +462,7 @@ export type Database = {
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
-      app_role: "admin" | "rh" | "financeiro"
+      app_role: "admin" | "rh" | "financeiro" | "super_admin"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
     }
@@ -593,7 +593,7 @@ export const Constants = {
   public: {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
-      app_role: ["admin", "rh", "financeiro"],
+      app_role: ["admin", "rh", "financeiro", "super_admin"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
     },
