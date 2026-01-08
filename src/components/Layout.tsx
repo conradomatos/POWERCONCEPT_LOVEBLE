@@ -7,7 +7,9 @@ import {
   LayoutDashboard, 
   LogOut,
   Upload,
-  Shield
+  Shield,
+  Building2,
+  FolderKanban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +30,8 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/collaborators', label: 'Colaboradores', icon: Users },
+    { path: '/empresas', label: 'Empresas', icon: Building2 },
+    { path: '/projetos', label: 'Projetos', icon: FolderKanban },
     { path: '/import', label: 'Importar CSV', icon: Upload, roles: ['admin', 'rh'] as const },
   ];
 
