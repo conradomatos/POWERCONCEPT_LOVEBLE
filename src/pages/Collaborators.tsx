@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 import { formatCPF } from '@/lib/cpf';
-import { Plus, Search, Pencil, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Eye, DollarSign } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -201,14 +201,24 @@ export default function Collaborators() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleView(collaborator)}
+                              title="Ver detalhes"
                             >
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => navigate(`/collaborators/${collaborator.id}/costs`)}
+                              title="Custos"
+                            >
+                              <DollarSign className="h-4 w-4" />
                             </Button>
                             {canEdit && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleEdit(collaborator)}
+                                title="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
