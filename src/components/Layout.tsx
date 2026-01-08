@@ -10,7 +10,8 @@ import {
   Shield,
   Building2,
   FolderKanban,
-  CalendarDays
+  CalendarDays,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +35,8 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/empresas', label: 'Empresas', icon: Building2 },
     { path: '/projetos', label: 'Projetos', icon: FolderKanban },
     { path: '/planejamento', label: 'Planejamento', icon: CalendarDays },
-    { path: '/import', label: 'Importar CSV', icon: Upload, roles: ['admin', 'rh'] as const },
+    { path: '/import', label: 'Importar Colaboradores', icon: Upload, roles: ['admin', 'rh'] as const },
+    { path: '/import-apontamentos', label: 'Importar Apontamentos', icon: Clock, roles: ['admin', 'rh'] as const },
   ];
 
   if (hasRole('admin')) {

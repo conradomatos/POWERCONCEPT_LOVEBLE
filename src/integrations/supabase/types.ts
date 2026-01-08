@@ -128,6 +128,75 @@ export type Database = {
           },
         ]
       }
+      apontamentos_horas_dia: {
+        Row: {
+          colaborador_id: string
+          cpf: string
+          created_at: string
+          data: string
+          falta_horas: number
+          fonte: string
+          horas_100: number
+          horas_50: number
+          horas_normais: number
+          horas_noturnas: number
+          id: string
+          os: string
+          projeto_id: string
+          updated_at: string
+          warning_sem_custo: boolean
+        }
+        Insert: {
+          colaborador_id: string
+          cpf: string
+          created_at?: string
+          data: string
+          falta_horas?: number
+          fonte?: string
+          horas_100?: number
+          horas_50?: number
+          horas_normais?: number
+          horas_noturnas?: number
+          id?: string
+          os: string
+          projeto_id: string
+          updated_at?: string
+          warning_sem_custo?: boolean
+        }
+        Update: {
+          colaborador_id?: string
+          cpf?: string
+          created_at?: string
+          data?: string
+          falta_horas?: number
+          fonte?: string
+          horas_100?: number
+          horas_50?: number
+          horas_normais?: number
+          horas_noturnas?: number
+          id?: string
+          os?: string
+          projeto_id?: string
+          updated_at?: string
+          warning_sem_custo?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apontamentos_horas_dia_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamentos_horas_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collaborator_history: {
         Row: {
           changed_at: string
@@ -213,6 +282,90 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      custo_projeto_dia: {
+        Row: {
+          colaborador_id: string
+          cpf: string
+          created_at: string
+          custo_100: number | null
+          custo_50: number | null
+          custo_hora: number | null
+          custo_normal: number | null
+          custo_noturno: number | null
+          custo_total: number | null
+          data: string
+          falta_horas: number
+          horas_100: number
+          horas_50: number
+          horas_normais: number
+          horas_noturnas: number
+          id: string
+          observacao: string | null
+          projeto_id: string
+          status: Database["public"]["Enums"]["custo_status"]
+          updated_at: string
+        }
+        Insert: {
+          colaborador_id: string
+          cpf: string
+          created_at?: string
+          custo_100?: number | null
+          custo_50?: number | null
+          custo_hora?: number | null
+          custo_normal?: number | null
+          custo_noturno?: number | null
+          custo_total?: number | null
+          data: string
+          falta_horas?: number
+          horas_100?: number
+          horas_50?: number
+          horas_normais?: number
+          horas_noturnas?: number
+          id?: string
+          observacao?: string | null
+          projeto_id: string
+          status: Database["public"]["Enums"]["custo_status"]
+          updated_at?: string
+        }
+        Update: {
+          colaborador_id?: string
+          cpf?: string
+          created_at?: string
+          custo_100?: number | null
+          custo_50?: number | null
+          custo_hora?: number | null
+          custo_normal?: number | null
+          custo_noturno?: number | null
+          custo_total?: number | null
+          data?: string
+          falta_horas?: number
+          horas_100?: number
+          horas_50?: number
+          horas_normais?: number
+          horas_noturnas?: number
+          id?: string
+          observacao?: string | null
+          projeto_id?: string
+          status?: Database["public"]["Enums"]["custo_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custo_projeto_dia_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custo_projeto_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       custos_colaborador: {
         Row: {
@@ -463,6 +616,7 @@ export type Database = {
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
       app_role: "admin" | "rh" | "financeiro" | "super_admin"
+      custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
     }
@@ -594,6 +748,7 @@ export const Constants = {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
       app_role: ["admin", "rh", "financeiro", "super_admin"],
+      custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
     },
