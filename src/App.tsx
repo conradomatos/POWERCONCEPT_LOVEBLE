@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Collaborators from "./pages/Collaborators";
 import ImportCSV from "./pages/ImportCSV";
+import ImportApontamentos from "./pages/ImportApontamentos";
 import Admin from "./pages/Admin";
 import CollaboratorCosts from "./pages/CollaboratorCosts";
 import Empresas from "./pages/Empresas";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/empresas" element={<Empresas />} />
             <Route path="/projetos" element={<Projetos />} />
             <Route path="/import" element={<ImportCSV />} />
+            <Route path="/import-apontamentos" element={<ImportApontamentos />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/collaborators/:id/costs" element={<CollaboratorCosts />} />
             <Route path="/collaborators/:id/defaults" element={<CollaboratorDefaults />} />
