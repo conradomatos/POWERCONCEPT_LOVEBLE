@@ -12,6 +12,8 @@ import Admin from "./pages/Admin";
 import CollaboratorCosts from "./pages/CollaboratorCosts";
 import Empresas from "./pages/Empresas";
 import Projetos from "./pages/Projetos";
+import Planejamento from "./pages/Planejamento";
+import CollaboratorDefaults from "./pages/CollaboratorDefaults";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/import" element={<ImportCSV />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/collaborators/:id/costs" element={<CollaboratorCosts />} />
+            <Route path="/collaborators/:id/defaults" element={<CollaboratorDefaults />} />
+            <Route path="/planejamento" element={<Planejamento />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

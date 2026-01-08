@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      alocacoes_blocos: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          data_fim: string
+          data_inicio: string
+          id: string
+          observacao: string | null
+          prioridade: number | null
+          projeto_id: string
+          tipo: Database["public"]["Enums"]["alocacao_tipo"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fim: string
+          data_inicio: string
+          id?: string
+          observacao?: string | null
+          prioridade?: number | null
+          projeto_id: string
+          tipo?: Database["public"]["Enums"]["alocacao_tipo"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string
+          data_inicio?: string
+          id?: string
+          observacao?: string | null
+          prioridade?: number | null
+          projeto_id?: string
+          tipo?: Database["public"]["Enums"]["alocacao_tipo"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alocacoes_blocos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alocacoes_blocos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alocacoes_padrao: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          data_fim: string | null
+          data_inicio: string
+          id: string
+          observacao: string | null
+          projeto_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          id?: string
+          observacao?: string | null
+          projeto_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          id?: string
+          observacao?: string | null
+          projeto_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alocacoes_padrao_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alocacoes_padrao_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collaborator_history: {
         Row: {
           changed_at: string
@@ -301,6 +415,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_alocacao_por_data: {
+        Args: {
+          p_colaborador_id: string
+          p_data: string
+          p_tipo?: Database["public"]["Enums"]["alocacao_tipo"]
+        }
+        Returns: {
+          id: string
+          projeto_codigo: string
+          projeto_id: string
+          projeto_nome: string
+        }[]
+      }
       get_custo_vigente: {
         Args: { p_colaborador_id: string; p_data_referencia?: string }
         Returns: {
@@ -329,6 +456,7 @@ export type Database = {
       }
     }
     Enums: {
+      alocacao_tipo: "planejado" | "realizado"
       app_role: "admin" | "rh" | "financeiro"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
@@ -459,6 +587,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alocacao_tipo: ["planejado", "realizado"],
       app_role: ["admin", "rh", "financeiro"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
