@@ -39,7 +39,10 @@ import {
   Wand2,
   Loader2,
   Search,
+  LayoutGrid,
+  GanttChart as GanttIcon,
 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
 import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { getGanttPeriod, PeriodType } from '@/lib/gantt-utils';
@@ -49,7 +52,8 @@ interface Block {
   colaborador_id: string;
   projeto_id: string;
   projeto_nome: string;
-  projeto_codigo: string;
+  projeto_os: string;
+  empresa_nome: string;
   data_inicio: string;
   data_fim: string;
   tipo: 'planejado' | 'realizado';
@@ -76,6 +80,8 @@ export default function Planejamento() {
     dataInicio?: string;
     dataFim?: string;
   }>({});
+
+  const [viewMode, setViewMode] = useState<'gantt' | 'grid'>('gantt');
 
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
 
@@ -111,7 +117,8 @@ export default function Planejamento() {
           observacao,
           projetos (
             nome,
-            empresas (codigo)
+            os,
+            empresas (empresa)
           )
         `)
         .eq('tipo', tipo)
@@ -129,7 +136,8 @@ export default function Planejamento() {
         tipo: b.tipo,
         observacao: b.observacao,
         projeto_nome: b.projetos?.nome || '',
-        projeto_codigo: b.projetos?.empresas?.codigo || '',
+        projeto_os: b.projetos?.os || '',
+        empresa_nome: b.projetos?.empresas?.empresa || '',
       })) as Block[];
     },
   });
@@ -254,14 +262,52 @@ export default function Planejamento() {
   };
 
   // Handle create block
-  const handleCreateBlock = (colaboradorId: string, date: Date) => {
+  const handleCreateBlock = (colaboradorId: string, startDate: Date, endDate: Date) => {
     setEditingBlock(null);
     setDefaultFormData({
       colaboradorId,
-      dataInicio: format(date, 'yyyy-MM-dd'),
-      dataFim: format(date, 'yyyy-MM-dd'),
+      dataInicio: format(startDate, 'yyyy-MM-dd'),
+      dataFim: format(endDate, 'yyyy-MM-dd'),
     });
     setIsFormOpen(true);
+  };
+
+  // Handle move block
+  const handleMoveBlock = async (blockId: string, newStartDate: Date, newEndDate: Date) => {
+    try {
+      const { error } = await supabase
+        .from('alocacoes_blocos')
+        .update({
+          data_inicio: format(newStartDate, 'yyyy-MM-dd'),
+          data_fim: format(newEndDate, 'yyyy-MM-dd'),
+        })
+        .eq('id', blockId);
+      
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+      toast.success('Alocação movida com sucesso');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao mover alocação');
+    }
+  };
+
+  // Handle resize block
+  const handleResizeBlock = async (blockId: string, newStartDate: Date, newEndDate: Date) => {
+    try {
+      const { error } = await supabase
+        .from('alocacoes_blocos')
+        .update({
+          data_inicio: format(newStartDate, 'yyyy-MM-dd'),
+          data_fim: format(newEndDate, 'yyyy-MM-dd'),
+        })
+        .eq('id', blockId);
+      
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+      toast.success('Alocação redimensionada com sucesso');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao redimensionar alocação');
+    }
   };
 
   // Handle edit block
@@ -521,6 +567,21 @@ export default function Planejamento() {
               />
             </div>
           </div>
+
+          {/* View Mode Toggle */}
+          <div className="space-y-1">
+            <Label className="text-xs">Visualização</Label>
+            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'gantt' | 'grid')}>
+              <ToggleGroupItem value="gantt" aria-label="Gantt" className="gap-1">
+                <GanttIcon className="h-4 w-4" />
+                Gantt
+              </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grade" className="gap-1">
+                <LayoutGrid className="h-4 w-4" />
+                Grade
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </div>
 
         {/* Gantt Chart */}
@@ -536,6 +597,9 @@ export default function Planejamento() {
             onEditBlock={handleEditBlock}
             onDeleteBlock={(id) => setDeleteBlockId(id)}
             onCreateBlock={handleCreateBlock}
+            onMoveBlock={handleMoveBlock}
+            onResizeBlock={handleResizeBlock}
+            viewMode={viewMode}
           />
         )}
 

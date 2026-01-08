@@ -147,6 +147,7 @@ export default function Projetos() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-20">OS</TableHead>
                 <TableHead>Nome do Projeto</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Descrição</TableHead>
@@ -157,19 +158,24 @@ export default function Projetos() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filteredProjetos?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Nenhum projeto encontrado
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredProjetos?.map((projeto) => (
+                filteredProjetos?.map((projeto: any) => (
                   <TableRow key={projeto.id}>
+                    <TableCell>
+                      <code className="bg-primary/10 text-primary px-2 py-1 rounded text-sm font-bold">
+                        {projeto.os}
+                      </code>
+                    </TableCell>
                     <TableCell className="font-medium">{projeto.nome}</TableCell>
                     <TableCell>
                       {projeto.empresas ? (

@@ -353,6 +353,7 @@ export type Database = {
           empresa_id: string
           id: string
           nome: string
+          os: string
           status: string
           updated_at: string
           updated_by: string | null
@@ -364,6 +365,7 @@ export type Database = {
           empresa_id: string
           id?: string
           nome: string
+          os: string
           status?: string
           updated_at?: string
           updated_by?: string | null
@@ -375,6 +377,7 @@ export type Database = {
           empresa_id?: string
           id?: string
           nome?: string
+          os?: string
           status?: string
           updated_at?: string
           updated_by?: string | null
@@ -415,6 +418,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_next_os: { Args: never; Returns: string }
       get_alocacao_por_data: {
         Args: {
           p_colaborador_id: string

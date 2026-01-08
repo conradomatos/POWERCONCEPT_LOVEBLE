@@ -101,25 +101,33 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
 
     setLoading(true);
     try {
-      const dataToSave: ProjetoInsert = {
-        nome: formData.nome.trim(),
-        descricao: formData.descricao.trim() || null,
-        empresa_id: formData.empresa_id,
-        status: formData.status,
-      };
-
       if (projeto) {
+        // Update - don't change OS
         const { error } = await supabase
           .from('projetos')
-          .update(dataToSave)
+          .update({
+            nome: formData.nome.trim(),
+            descricao: formData.descricao.trim() || null,
+            empresa_id: formData.empresa_id,
+            status: formData.status,
+          })
           .eq('id', projeto.id);
 
         if (error) throw error;
         toast.success('Projeto atualizado com sucesso!');
       } else {
+        // Create - generate new OS
+        const { data: nextOs } = await supabase.rpc('generate_next_os');
+        
         const { error } = await supabase
           .from('projetos')
-          .insert(dataToSave);
+          .insert({
+            nome: formData.nome.trim(),
+            descricao: formData.descricao.trim() || null,
+            empresa_id: formData.empresa_id,
+            status: formData.status,
+            os: nextOs || '0001',
+          });
 
         if (error) throw error;
         toast.success('Projeto criado com sucesso!');

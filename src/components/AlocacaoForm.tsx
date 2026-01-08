@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Select,
   SelectContent,
@@ -25,13 +25,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Tables } from '@/integrations/supabase/types';
 
 type Collaborator = Tables<'collaborators'>;
-type Projeto = Tables<'projetos'>;
 
 interface AlocacaoFormProps {
   colaboradorId?: string;
@@ -63,12 +64,18 @@ export default function AlocacaoForm({
   const [colaboradorId, setColaboradorId] = useState(initialColaboradorId || '');
   const [projetoId, setProjetoId] = useState(initialProjetoId || '');
   const [tipo, setTipo] = useState<'planejado' | 'realizado'>(initialTipo);
-  const [dataInicio, setDataInicio] = useState(initialDataInicio || defaultDataInicio || '');
-  const [dataFim, setDataFim] = useState(initialDataFim || defaultDataFim || '');
+  const [dataInicio, setDataInicio] = useState<Date | undefined>(
+    initialDataInicio ? parseISO(initialDataInicio) : defaultDataInicio ? parseISO(defaultDataInicio) : undefined
+  );
+  const [dataFim, setDataFim] = useState<Date | undefined>(
+    initialDataFim ? parseISO(initialDataFim) : defaultDataFim ? parseISO(defaultDataFim) : undefined
+  );
   const [observacao, setObservacao] = useState(initialObservacao);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [colaboradorOpen, setColaboradorOpen] = useState(false);
   const [projetoOpen, setProjetoOpen] = useState(false);
+  const [dataInicioOpen, setDataInicioOpen] = useState(false);
+  const [dataFimOpen, setDataFimOpen] = useState(false);
 
   const { data: colaboradores = [] } = useQuery({
     queryKey: ['collaborators-for-gantt'],
@@ -84,16 +91,18 @@ export default function AlocacaoForm({
   });
 
   const { data: projetos = [] } = useQuery({
-    queryKey: ['projetos-for-gantt'],
+    queryKey: ['projetos-for-gantt-with-os'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projetos')
         .select(`
-          *,
+          id,
+          nome,
+          os,
           empresas (codigo, empresa)
         `)
         .eq('status', 'ativo')
-        .order('nome');
+        .order('os');
       if (error) throw error;
       return data;
     },
@@ -101,6 +110,12 @@ export default function AlocacaoForm({
 
   const selectedColaborador = colaboradores.find((c) => c.id === colaboradorId);
   const selectedProjeto = projetos.find((p) => p.id === projetoId);
+
+  // Get min/max dates based on collaborator
+  const minDate = selectedColaborador ? parseISO(selectedColaborador.hire_date) : undefined;
+  const maxDate = selectedColaborador?.termination_date 
+    ? parseISO(selectedColaborador.termination_date) 
+    : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +125,25 @@ export default function AlocacaoForm({
       return;
     }
 
-    if (new Date(dataFim) < new Date(dataInicio)) {
+    if (dataFim < dataInicio) {
       toast.error('Data fim deve ser maior ou igual à data início');
       return;
+    }
+
+    // Validate against collaborator dates
+    if (selectedColaborador) {
+      const hireDate = parseISO(selectedColaborador.hire_date);
+      if (dataInicio < hireDate) {
+        toast.error(`Data de início não pode ser anterior à admissão (${format(hireDate, 'dd/MM/yyyy')})`);
+        return;
+      }
+      if (selectedColaborador.termination_date) {
+        const termDate = parseISO(selectedColaborador.termination_date);
+        if (dataInicio > termDate) {
+          toast.error(`Data de início não pode ser posterior ao desligamento (${format(termDate, 'dd/MM/yyyy')})`);
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
@@ -122,8 +153,8 @@ export default function AlocacaoForm({
         colaborador_id: colaboradorId,
         projeto_id: projetoId,
         tipo,
-        data_inicio: dataInicio,
-        data_fim: dataFim,
+        data_inicio: format(dataInicio, 'yyyy-MM-dd'),
+        data_fim: format(dataFim, 'yyyy-MM-dd'),
         observacao: observacao || null,
       };
 
@@ -145,10 +176,19 @@ export default function AlocacaoForm({
       onSuccess();
     } catch (error: any) {
       console.error('Error saving allocation:', error);
-      toast.error(error.message || 'Erro ao salvar alocação');
+      // Parse error message for conflicts
+      if (error.message?.includes('sobreposta')) {
+        toast.error('Conflito: ' + error.message);
+      } else {
+        toast.error(error.message || 'Erro ao salvar alocação');
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const formatProjetoDisplay = (proj: any) => {
+    return `${proj.os} - ${proj.nome} - ${proj.empresas?.empresa || ''}`;
   };
 
   return (
@@ -169,7 +209,7 @@ export default function AlocacaoForm({
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
+          <PopoverContent className="w-full p-0 z-50" align="start">
             <Command>
               <CommandInput placeholder="Buscar colaborador..." />
               <CommandList>
@@ -200,7 +240,7 @@ export default function AlocacaoForm({
         </Popover>
       </div>
 
-      {/* Projeto */}
+      {/* Projeto with OS highlight */}
       <div className="space-y-2">
         <Label>Projeto *</Label>
         <Popover open={projetoOpen} onOpenChange={setProjetoOpen}>
@@ -209,24 +249,26 @@ export default function AlocacaoForm({
               variant="outline"
               role="combobox"
               aria-expanded={projetoOpen}
-              className="w-full justify-between"
+              className="w-full justify-between text-left"
             >
-              {selectedProjeto
-                ? `${(selectedProjeto as any).empresas?.codigo} - ${selectedProjeto.nome}`
-                : 'Selecione um projeto...'}
+              <span className="truncate">
+                {selectedProjeto
+                  ? formatProjetoDisplay(selectedProjeto)
+                  : 'Selecione um projeto...'}
+              </span>
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
+          <PopoverContent className="w-[400px] p-0 z-50" align="start">
             <Command>
-              <CommandInput placeholder="Buscar projeto..." />
+              <CommandInput placeholder="Buscar por OS, nome ou empresa..." />
               <CommandList>
                 <CommandEmpty>Nenhum projeto encontrado.</CommandEmpty>
                 <CommandGroup>
                   {projetos.map((proj: any) => (
                     <CommandItem
                       key={proj.id}
-                      value={`${proj.empresas?.codigo} ${proj.nome}`}
+                      value={`${proj.os} ${proj.nome} ${proj.empresas?.empresa || ''}`}
                       onSelect={() => {
                         setProjetoId(proj.id);
                         setProjetoOpen(false);
@@ -234,11 +276,19 @@ export default function AlocacaoForm({
                     >
                       <Check
                         className={cn(
-                          'mr-2 h-4 w-4',
+                          'mr-2 h-4 w-4 flex-shrink-0',
                           projetoId === proj.id ? 'opacity-100' : 'opacity-0'
                         )}
                       />
-                      {proj.empresas?.codigo} - {proj.nome}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <code className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0">
+                          {proj.os}
+                        </code>
+                        <span className="truncate">{proj.nome}</span>
+                        <span className="text-muted-foreground text-xs truncate">
+                          - {proj.empresas?.empresa}
+                        </span>
+                      </div>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -246,6 +296,16 @@ export default function AlocacaoForm({
             </Command>
           </PopoverContent>
         </Popover>
+        
+        {/* OS highlight when selected */}
+        {selectedProjeto && (
+          <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+            <span className="text-sm text-muted-foreground">OS:</span>
+            <code className="bg-primary text-primary-foreground px-2 py-1 rounded text-sm font-bold">
+              {selectedProjeto.os}
+            </code>
+          </div>
+        )}
       </div>
 
       {/* Tipo */}
@@ -262,25 +322,78 @@ export default function AlocacaoForm({
         </Select>
       </div>
 
-      {/* Datas */}
+      {/* Datas with Calendar */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Data Início *</Label>
-          <Input
-            type="date"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            required
-          />
+          <Popover open={dataInicioOpen} onOpenChange={setDataInicioOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'w-full justify-start text-left font-normal',
+                  !dataInicio && 'text-muted-foreground'
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dataInicio ? format(dataInicio, 'dd/MM/yyyy') : 'Selecione...'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-50" align="start">
+              <Calendar
+                mode="single"
+                selected={dataInicio}
+                onSelect={(date) => {
+                  setDataInicio(date);
+                  setDataInicioOpen(false);
+                }}
+                disabled={(date) => {
+                  if (minDate && date < minDate) return true;
+                  if (maxDate && date > maxDate) return true;
+                  return false;
+                }}
+                locale={ptBR}
+                initialFocus
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="space-y-2">
           <Label>Data Fim *</Label>
-          <Input
-            type="date"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            required
-          />
+          <Popover open={dataFimOpen} onOpenChange={setDataFimOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'w-full justify-start text-left font-normal',
+                  !dataFim && 'text-muted-foreground'
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dataFim ? format(dataFim, 'dd/MM/yyyy') : 'Selecione...'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-50" align="start">
+              <Calendar
+                mode="single"
+                selected={dataFim}
+                onSelect={(date) => {
+                  setDataFim(date);
+                  setDataFimOpen(false);
+                }}
+                disabled={(date) => {
+                  if (dataInicio && date < dataInicio) return true;
+                  if (minDate && date < minDate) return true;
+                  if (maxDate && date > maxDate) return true;
+                  return false;
+                }}
+                locale={ptBR}
+                initialFocus
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
