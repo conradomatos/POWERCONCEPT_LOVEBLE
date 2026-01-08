@@ -430,157 +430,158 @@ export default function Planejamento() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Planejamento Gantt</h1>
-            <p className="text-muted-foreground">
-              Gerencie as alocações de colaboradores por projeto
+            <p className="text-sm text-muted-foreground">
+              Gerencie alocações de colaboradores por projeto
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={viewMode} 
+              onValueChange={(v) => v && setViewMode(v as 'gantt' | 'grid')}
+              className="bg-muted p-0.5 rounded-lg"
+            >
+              <ToggleGroupItem 
+                value="gantt" 
+                aria-label="Gantt" 
+                className="gap-1.5 px-3 py-1.5 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md text-xs"
+              >
+                <GanttIcon className="h-3.5 w-3.5" />
+                Gantt
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="grid" 
+                aria-label="Grade" 
+                className="gap-1.5 px-3 py-1.5 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md text-xs"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Grade
+              </ToggleGroupItem>
+            </ToggleGroup>
+
             <Button
               variant="outline"
+              size="sm"
               onClick={handleApplyDefaults}
               disabled={isApplyingDefaults || tipo !== 'planejado'}
             >
               {isApplyingDefaults ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Wand2 className="mr-2 h-4 w-4" />
+                <Wand2 className="mr-1.5 h-3.5 w-3.5" />
               )}
-              Aplicar Padrões
+              Padrões
             </Button>
             <Button
+              size="sm"
               onClick={() => {
                 setEditingBlock(null);
                 setDefaultFormData({});
                 setIsFormOpen(true);
               }}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
               Alocar
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-4 items-end">
+        {/* Filters - single row */}
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border">
           {/* Period navigation */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => navigatePeriod('prev')}>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigatePeriod('prev')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="min-w-[180px] text-center font-medium capitalize">
+            <div className="min-w-[140px] text-center text-sm font-medium capitalize">
               {period.label}
             </div>
-            <Button variant="outline" size="icon" onClick={() => navigatePeriod('next')}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigatePeriod('next')}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
+          <div className="w-px h-6 bg-border" />
+
           {/* Period type */}
-          <div className="space-y-1">
-            <Label className="text-xs">Período</Label>
-            <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="week">Semana</SelectItem>
-                <SelectItem value="fortnight">Quinzena</SelectItem>
-                <SelectItem value="month">Mês</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+            <SelectTrigger className="w-28 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">Semana</SelectItem>
+              <SelectItem value="fortnight">Quinzena</SelectItem>
+              <SelectItem value="month">Mês</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Tipo */}
-          <div className="space-y-1">
-            <Label className="text-xs">Tipo</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as 'planejado' | 'realizado')}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="planejado">Planejado</SelectItem>
-                <SelectItem value="realizado">Realizado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={tipo} onValueChange={(v) => setTipo(v as 'planejado' | 'realizado')}>
+            <SelectTrigger className="w-28 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="planejado">Planejado</SelectItem>
+              <SelectItem value="realizado">Realizado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="w-px h-6 bg-border" />
 
           {/* Empresa filter */}
-          <div className="space-y-1">
-            <Label className="text-xs">Empresa</Label>
-            <Select
-              value={empresaFilter}
-              onValueChange={(v) => {
-                setEmpresaFilter(v === 'all' ? '' : v);
-                setProjetoFilter('');
-              }}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {empresas.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.codigo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={empresaFilter}
+            onValueChange={(v) => {
+              setEmpresaFilter(v === 'all' ? '' : v);
+              setProjetoFilter('');
+            }}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectValue placeholder="Empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {empresas.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.codigo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Projeto filter */}
-          <div className="space-y-1">
-            <Label className="text-xs">Projeto</Label>
-            <Select
-              value={projetoFilter}
-              onValueChange={(v) => setProjetoFilter(v === 'all' ? '' : v)}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {projetos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={projetoFilter}
+            onValueChange={(v) => setProjetoFilter(v === 'all' ? '' : v)}
+          >
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="Projeto" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {projetos.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Search */}
-          <div className="space-y-1 flex-1 min-w-[200px]">
-            <Label className="text-xs">Buscar Colaborador</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Nome do colaborador..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* View Mode Toggle */}
-          <div className="space-y-1">
-            <Label className="text-xs">Visualização</Label>
-            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'gantt' | 'grid')}>
-              <ToggleGroupItem value="gantt" aria-label="Gantt" className="gap-1">
-                <GanttIcon className="h-4 w-4" />
-                Gantt
-              </ToggleGroupItem>
-              <ToggleGroupItem value="grid" aria-label="Grade" className="gap-1">
-                <LayoutGrid className="h-4 w-4" />
-                Grade
-              </ToggleGroupItem>
-            </ToggleGroup>
+          <div className="relative flex-1 min-w-[160px] max-w-[240px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar colaborador..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-xs"
+            />
           </div>
         </div>
 

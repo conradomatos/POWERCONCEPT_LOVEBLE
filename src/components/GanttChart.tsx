@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useCallback } from 'react';
-import { format, isWeekend, isToday, parseISO, addDays, differenceInDays } from 'date-fns';
+import { format, isWeekend, isToday, parseISO, addDays, differenceInDays, isMonday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import {
@@ -73,13 +73,11 @@ export default function GanttChart({
     originalEnd?: Date;
   } | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   const allProjectIds = useMemo(() => {
     return [...new Set(blocks.map((b) => b.projeto_id))];
   }, [blocks]);
-
-  const cellWidth = 100 / period.days.length;
 
   const getDayIndexFromEvent = useCallback((e: React.MouseEvent, rowElement: HTMLElement): number => {
     const rect = rowElement.getBoundingClientRect();
@@ -181,7 +179,6 @@ export default function GanttChart({
     }
   }, [dragState]);
 
-  // Get preview bar position for drag create
   const getPreviewPosition = useCallback(() => {
     if (!dragState || dragState.type !== 'create') return null;
     const minIndex = Math.min(dragState.startDayIndex, dragState.currentDayIndex);
@@ -191,7 +188,6 @@ export default function GanttChart({
     return { left, width };
   }, [dragState, period.days.length]);
 
-  // Get modified block position during drag
   const getModifiedBlockPosition = useCallback((block: Block) => {
     if (!dragState || dragState.blockId !== block.id) return null;
     
@@ -217,11 +213,9 @@ export default function GanttChart({
     return getBlockPosition(newStart, newEnd, period.start, period.end, period.days.length);
   }, [dragState, period.start, period.end, period.days.length]);
 
-  // Find today line position
   const todayIndex = useMemo(() => {
     return period.days.findIndex(day => isToday(day));
   }, [period.days]);
-  const todayPosition = todayIndex >= 0 ? ((todayIndex + 0.5) / period.days.length) * 100 : null;
 
   if (viewMode === 'grid') {
     return (
@@ -238,124 +232,138 @@ export default function GanttChart({
 
   return (
     <div 
-      ref={containerRef}
       className="border border-border rounded-lg overflow-hidden bg-card select-none"
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Header - Month/Year */}
-      <div className="flex border-b border-border bg-muted/50">
-        <div className="w-52 flex-shrink-0 px-3 py-1 text-xs font-medium border-r border-border text-center">
-          {format(period.start, "MMMM 'de' yyyy", { locale: ptBR })}
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-card border-b border-border">
+        {/* Month/Year row */}
+        <div className="flex border-b border-border/50">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border" />
+          <div className="flex-1 py-2 text-center text-sm font-semibold text-foreground capitalize">
+            {format(period.start, "MMMM 'de' yyyy", { locale: ptBR })}
+          </div>
         </div>
-        <div className="flex-1 flex items-center justify-center py-1 text-xs font-medium">
-          {format(period.start, "MMMM 'de' yyyy", { locale: ptBR })}
+
+        {/* Day numbers row */}
+        <div className="flex border-b border-border/50">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Colaborador
+          </div>
+          <div className="flex-1 flex relative">
+            {period.days.map((day, index) => (
+              <div
+                key={index}
+                className={cn(
+                  'flex-1 text-center py-1 text-sm font-semibold transition-colors',
+                  isWeekend(day) && 'bg-muted/40 text-muted-foreground',
+                  isToday(day) && 'bg-primary/15 text-primary',
+                  isMonday(day) && index > 0 && 'border-l-2 border-border'
+                )}
+              >
+                {format(day, 'd')}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Weekday names row */}
+        <div className="flex">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border" />
+          <div className="flex-1 flex relative">
+            {period.days.map((day, index) => (
+              <div
+                key={index}
+                className={cn(
+                  'flex-1 text-center py-1 text-[10px] font-medium uppercase tracking-wider',
+                  isWeekend(day) ? 'bg-muted/40 text-muted-foreground/70' : 'text-muted-foreground',
+                  isToday(day) && 'bg-primary/15 text-primary font-bold',
+                  isMonday(day) && index > 0 && 'border-l-2 border-border'
+                )}
+              >
+                {format(day, 'EEE', { locale: ptBR }).replace('.', '').toUpperCase()}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Header - Day numbers */}
-      <div className="flex border-b border-border bg-muted/30">
-        <div className="w-52 flex-shrink-0 px-3 py-1 font-medium text-sm border-r border-border flex items-center">
-          Colaborador
-        </div>
-        <div className="flex-1 flex relative">
-          {period.days.map((day, index) => (
-            <div
-              key={index}
-              className={cn(
-                'flex-1 text-center py-0.5 text-xs border-r border-border last:border-r-0 font-medium',
-                isWeekend(day) && 'bg-muted/50',
-                isToday(day) && 'bg-primary/20'
-              )}
-              style={{ width: `${cellWidth}%` }}
-            >
-              {format(day, 'd')}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Header - Day names */}
-      <div className="flex border-b border-border bg-muted/20">
-        <div className="w-52 flex-shrink-0 border-r border-border" />
-        <div className="flex-1 flex relative">
-          {period.days.map((day, index) => (
-            <div
-              key={index}
-              className={cn(
-                'flex-1 text-center py-0.5 text-[10px] border-r border-border last:border-r-0 text-muted-foreground uppercase',
-                isWeekend(day) && 'bg-muted/50 text-muted-foreground/70',
-                isToday(day) && 'bg-primary/20 font-semibold'
-              )}
-              style={{ width: `${cellWidth}%` }}
-            >
-              {format(day, 'EEE', { locale: ptBR }).replace('.', '')}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Rows - Collaborators */}
-      <div className="divide-y divide-border">
+      {/* Rows */}
+      <div className="divide-y divide-border/30">
         {collaborators.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground">
+          <div className="px-4 py-12 text-center text-muted-foreground">
             Nenhum colaborador encontrado
           </div>
         ) : (
           collaborators.map((col) => {
             const colBlocks = blocks.filter((b) => b.colaborador_id === col.id);
             const previewPosition = dragState?.colaboradorId === col.id ? getPreviewPosition() : null;
+            const isHovered = hoveredRow === col.id;
 
             return (
-              <div key={col.id} className="flex min-h-[44px]">
-                <div className="w-52 flex-shrink-0 px-3 py-2 text-sm border-r border-border flex items-center bg-background/50">
-                  <span className="truncate font-medium" title={col.full_name}>
+              <div 
+                key={col.id} 
+                className={cn(
+                  'flex h-14 transition-colors',
+                  isHovered && 'bg-accent/20'
+                )}
+                onMouseEnter={() => setHoveredRow(col.id)}
+                onMouseLeave={() => setHoveredRow(null)}
+              >
+                {/* Sticky collaborator name */}
+                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center">
+                  <span 
+                    className="text-sm font-medium text-foreground truncate" 
+                    title={col.full_name}
+                  >
                     {col.full_name}
                   </span>
                 </div>
+
+                {/* Timeline area */}
                 <div 
                   className="flex-1 relative"
                   onMouseDown={(e) => handleMouseDown(e, col.id, e.currentTarget)}
                   onMouseMove={(e) => handleMouseMove(e, e.currentTarget)}
                 >
-                  {/* Day cells background */}
+                  {/* Day columns (subtle grid) */}
                   <div className="absolute inset-0 flex pointer-events-none">
                     {period.days.map((day, index) => {
                       const hireDate = parseISO(col.hire_date);
-                      const termDate = col.termination_date
-                        ? parseISO(col.termination_date)
-                        : null;
+                      const termDate = col.termination_date ? parseISO(col.termination_date) : null;
                       const isDisabled = day < hireDate || (termDate && day > termDate);
 
                       return (
                         <div
                           key={index}
                           className={cn(
-                            'flex-1 border-r border-border/50 last:border-r-0',
+                            'flex-1',
                             isWeekend(day) && 'bg-muted/20',
-                            isDisabled && 'bg-muted/40',
-                            isToday(day) && 'bg-primary/5'
+                            isDisabled && 'bg-muted/30',
+                            isMonday(day) && index > 0 && 'border-l border-border/50'
                           )}
-                          style={{ width: `${cellWidth}%` }}
                         />
                       );
                     })}
                   </div>
 
                   {/* Today line */}
-                  {todayPosition !== null && (
+                  {todayIndex >= 0 && (
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-destructive/70 z-20 pointer-events-none"
-                      style={{ left: `${todayPosition}%` }}
+                      className="absolute top-0 bottom-0 w-0.5 bg-destructive z-30 pointer-events-none"
+                      style={{ left: `${((todayIndex + 0.5) / period.days.length) * 100}%` }}
                     >
-                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-destructive" />
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-destructive bg-card px-1 rounded whitespace-nowrap">
+                        HOJE
+                      </div>
                     </div>
                   )}
 
                   {/* Preview bar when creating */}
                   {previewPosition && dragState?.type === 'create' && (
                     <div
-                      className="absolute top-1.5 bottom-1.5 rounded-md bg-primary/40 border-2 border-primary border-dashed z-10 pointer-events-none"
+                      className="absolute top-2 bottom-2 rounded-lg bg-primary/30 border-2 border-primary border-dashed z-20 pointer-events-none"
                       style={{
                         left: `${previewPosition.left}%`,
                         width: `${previewPosition.width}%`,
@@ -363,12 +371,11 @@ export default function GanttChart({
                     />
                   )}
 
-                  {/* Blocks */}
+                  {/* Allocation blocks */}
                   {colBlocks.map((block) => {
                     const blockStart = parseISO(block.data_inicio);
                     const blockEnd = parseISO(block.data_fim);
                     
-                    // Use modified position if dragging this block
                     const modifiedPosition = getModifiedBlockPosition(block);
                     const position = modifiedPosition || getBlockPosition(
                       blockStart,
@@ -383,7 +390,8 @@ export default function GanttChart({
                     const color = getProjectColor(block.projeto_id, allProjectIds);
                     const isDragging = dragState?.blockId === block.id;
                     const duration = differenceInDays(blockEnd, blockStart) + 1;
-                    const showTitle = duration > 2;
+                    const isLarge = duration > 3;
+                    const isMedium = duration > 1;
 
                     return (
                       <ContextMenu key={block.id}>
@@ -392,14 +400,15 @@ export default function GanttChart({
                             <TooltipTrigger asChild>
                               <div
                                 className={cn(
-                                  'absolute top-1.5 bottom-1.5 rounded-md cursor-grab shadow-sm hover:shadow-lg transition-all z-10 flex items-center overflow-hidden group',
-                                  isDragging && 'opacity-70 cursor-grabbing shadow-lg'
+                                  'absolute top-2 bottom-2 rounded-lg cursor-grab transition-all z-10 flex flex-col justify-center overflow-hidden group',
+                                  'shadow-md hover:shadow-xl hover:scale-[1.02]',
+                                  isDragging && 'opacity-80 cursor-grabbing shadow-xl scale-[1.02]'
                                 )}
                                 style={{
                                   left: `${position.left}%`,
                                   width: `${position.width}%`,
                                   backgroundColor: color,
-                                  minWidth: '24px',
+                                  minWidth: '28px',
                                 }}
                                 onMouseDown={(e) => {
                                   const target = e.target as HTMLElement;
@@ -417,7 +426,7 @@ export default function GanttChart({
                                 {/* Left resize handle */}
                                 <div
                                   data-resize="left"
-                                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 transition-colors"
+                                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 transition-colors rounded-l-lg"
                                   onMouseDown={(e) => {
                                     const row = e.currentTarget.parentElement?.parentElement as HTMLElement;
                                     handleBlockMouseDown(e, block, 'resize-left', row);
@@ -425,17 +434,21 @@ export default function GanttChart({
                                 />
                                 
                                 {/* Content */}
-                                <div className="flex-1 px-2 flex items-center min-w-0">
-                                  <span className="text-xs font-bold text-white drop-shadow-sm truncate">
+                                <div className="px-2 min-w-0">
+                                  <div className="text-white font-bold text-xs drop-shadow-sm truncate leading-tight">
                                     {block.projeto_os}
-                                    {showTitle && ` - ${block.projeto_nome}`}
-                                  </span>
+                                  </div>
+                                  {isLarge && (
+                                    <div className="text-white/80 text-[10px] truncate leading-tight">
+                                      {block.projeto_nome}
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Right resize handle */}
                                 <div
                                   data-resize="right"
-                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 transition-colors"
+                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 transition-colors rounded-r-lg"
                                   onMouseDown={(e) => {
                                     const row = e.currentTarget.parentElement?.parentElement as HTMLElement;
                                     handleBlockMouseDown(e, block, 'resize-right', row);
@@ -443,25 +456,30 @@ export default function GanttChart({
                                 />
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <div className="text-sm space-y-1">
-                                <div className="font-bold text-primary">
-                                  OS {block.projeto_os}
+                            <TooltipContent side="top" className="max-w-xs z-50">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span 
+                                    className="inline-block w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: color }} 
+                                  />
+                                  <span className="font-bold text-primary">OS {block.projeto_os}</span>
                                 </div>
-                                <div className="font-medium">
-                                  {block.projeto_nome}
-                                </div>
-                                <div className="text-muted-foreground">
-                                  {block.empresa_nome}
-                                </div>
-                                <div className="text-xs text-muted-foreground pt-1 border-t">
-                                  {format(blockStart, 'dd/MM/yyyy')} a {format(blockEnd, 'dd/MM/yyyy')}
+                                <div className="font-medium">{block.projeto_nome}</div>
+                                <div className="text-muted-foreground text-xs">{block.empresa_nome}</div>
+                                <div className="border-t pt-1.5 mt-1.5 text-xs text-muted-foreground">
+                                  {format(blockStart, 'dd/MM/yyyy')} → {format(blockEnd, 'dd/MM/yyyy')}
                                 </div>
                                 <div className="text-xs">
-                                  Tipo: <span className="capitalize">{block.tipo}</span>
+                                  <span className={cn(
+                                    'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase',
+                                    block.tipo === 'planejado' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                  )}>
+                                    {block.tipo}
+                                  </span>
                                 </div>
                                 {block.observacao && (
-                                  <div className="text-xs italic pt-1 border-t">
+                                  <div className="text-xs italic text-muted-foreground border-t pt-1.5">
                                     {block.observacao}
                                   </div>
                                 )}
@@ -469,14 +487,14 @@ export default function GanttChart({
                             </TooltipContent>
                           </Tooltip>
                         </ContextMenuTrigger>
-                        <ContextMenuContent>
+                        <ContextMenuContent className="z-50">
                           <ContextMenuItem onClick={() => onEditBlock(block)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </ContextMenuItem>
                           <ContextMenuItem
                             onClick={() => onDeleteBlock(block.id)}
-                            className="text-destructive"
+                            className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Excluir
@@ -511,57 +529,67 @@ function GridView({
   onEditBlock: (block: Block) => void;
   onCreateBlock: (colaboradorId: string, startDate: Date, endDate: Date) => void;
 }) {
-  const cellWidth = 100 / period.days.length;
   const todayIndex = period.days.findIndex(day => isToday(day));
 
   return (
     <div className="border border-border rounded-lg overflow-hidden bg-card">
-      {/* Header - Day numbers */}
-      <div className="flex border-b border-border bg-muted/30">
-        <div className="w-52 flex-shrink-0 px-3 py-1 font-medium text-sm border-r border-border flex items-center">
-          Colaborador
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-card border-b border-border">
+        {/* Month/Year row */}
+        <div className="flex border-b border-border/50">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border" />
+          <div className="flex-1 py-2 text-center text-sm font-semibold text-foreground capitalize">
+            {format(period.start, "MMMM 'de' yyyy", { locale: ptBR })}
+          </div>
         </div>
-        <div className="flex-1 flex">
-          {period.days.map((day, index) => (
-            <div
-              key={index}
-              className={cn(
-                'flex-1 text-center py-0.5 text-xs border-r border-border last:border-r-0 font-medium',
-                isWeekend(day) && 'bg-muted/50',
-                isToday(day) && 'bg-primary/20'
-              )}
-              style={{ width: `${cellWidth}%` }}
-            >
-              {format(day, 'd')}
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Header - Day names */}
-      <div className="flex border-b border-border bg-muted/20">
-        <div className="w-52 flex-shrink-0 border-r border-border" />
-        <div className="flex-1 flex">
-          {period.days.map((day, index) => (
-            <div
-              key={index}
-              className={cn(
-                'flex-1 text-center py-0.5 text-[10px] border-r border-border last:border-r-0 text-muted-foreground uppercase',
-                isWeekend(day) && 'bg-muted/50',
-                isToday(day) && 'bg-primary/20'
-              )}
-              style={{ width: `${cellWidth}%` }}
-            >
-              {format(day, 'EEE', { locale: ptBR }).replace('.', '')}
-            </div>
-          ))}
+        {/* Day numbers */}
+        <div className="flex border-b border-border/50">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Colaborador
+          </div>
+          <div className="flex-1 flex">
+            {period.days.map((day, index) => (
+              <div
+                key={index}
+                className={cn(
+                  'flex-1 text-center py-1 text-sm font-semibold border-r border-border/30 last:border-r-0',
+                  isWeekend(day) && 'bg-muted/40 text-muted-foreground',
+                  isToday(day) && 'bg-primary/15 text-primary',
+                  isMonday(day) && index > 0 && 'border-l-2 border-border'
+                )}
+              >
+                {format(day, 'd')}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Weekday names */}
+        <div className="flex">
+          <div className="w-56 flex-shrink-0 bg-muted/30 border-r border-border" />
+          <div className="flex-1 flex">
+            {period.days.map((day, index) => (
+              <div
+                key={index}
+                className={cn(
+                  'flex-1 text-center py-1 text-[10px] font-medium uppercase tracking-wider border-r border-border/30 last:border-r-0',
+                  isWeekend(day) ? 'bg-muted/40 text-muted-foreground/70' : 'text-muted-foreground',
+                  isToday(day) && 'bg-primary/15 text-primary font-bold',
+                  isMonday(day) && index > 0 && 'border-l-2 border-border'
+                )}
+              >
+                {format(day, 'EEE', { locale: ptBR }).replace('.', '').toUpperCase()}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border/30">
         {collaborators.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground">
+          <div className="px-4 py-12 text-center text-muted-foreground">
             Nenhum colaborador encontrado
           </div>
         ) : (
@@ -569,19 +597,29 @@ function GridView({
             const colBlocks = blocks.filter((b) => b.colaborador_id === col.id);
 
             return (
-              <div key={col.id} className="flex min-h-[40px]">
-                <div className="w-52 flex-shrink-0 px-3 py-2 text-sm border-r border-border flex items-center bg-background/50">
-                  <span className="truncate font-medium" title={col.full_name}>
+              <div key={col.id} className="flex h-12 hover:bg-accent/10 transition-colors">
+                {/* Sticky name */}
+                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center">
+                  <span className="text-sm font-medium truncate" title={col.full_name}>
                     {col.full_name}
                   </span>
                 </div>
-                <div className="flex-1 flex">
+
+                {/* Cells */}
+                <div className="flex-1 flex relative">
+                  {/* Today line */}
+                  {todayIndex >= 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-destructive z-20 pointer-events-none"
+                      style={{ left: `${((todayIndex + 0.5) / period.days.length) * 100}%` }}
+                    />
+                  )}
+
                   {period.days.map((day, index) => {
                     const hireDate = parseISO(col.hire_date);
                     const termDate = col.termination_date ? parseISO(col.termination_date) : null;
                     const isDisabled = day < hireDate || (termDate && day > termDate);
                     
-                    // Find block for this day
                     const blockForDay = colBlocks.find(b => {
                       const start = parseISO(b.data_inicio);
                       const end = parseISO(b.data_fim);
@@ -595,16 +633,15 @@ function GridView({
                         <TooltipTrigger asChild>
                           <div
                             className={cn(
-                              'flex-1 border-r border-border last:border-r-0 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors',
-                              isWeekend(day) && !blockForDay && 'bg-muted/20',
-                              isToday(day) && !blockForDay && 'bg-primary/10',
-                              isDisabled && 'bg-muted/40 cursor-not-allowed',
-                              !blockForDay && !isDisabled && 'hover:bg-accent/30'
+                              'flex-1 flex items-center justify-center text-xs font-bold cursor-pointer transition-all border-r border-border/20 last:border-r-0',
+                              isWeekend(day) && !blockForDay && 'bg-muted/15',
+                              isToday(day) && !blockForDay && 'bg-primary/5',
+                              isDisabled && 'bg-muted/25 cursor-not-allowed',
+                              isMonday(day) && index > 0 && 'border-l border-border/50',
+                              !blockForDay && !isDisabled && 'hover:bg-accent/20'
                             )}
                             style={{ 
-                              width: `${cellWidth}%`,
                               backgroundColor: blockForDay ? color : undefined,
-                              color: blockForDay ? 'white' : undefined,
                             }}
                             onClick={() => {
                               if (blockForDay) {
@@ -614,15 +651,19 @@ function GridView({
                               }
                             }}
                           >
-                            {blockForDay?.projeto_os}
+                            {blockForDay && (
+                              <span className="text-white font-bold text-[11px] drop-shadow-sm">
+                                {blockForDay.projeto_os}
+                              </span>
+                            )}
                           </div>
                         </TooltipTrigger>
                         {blockForDay && (
-                          <TooltipContent>
-                            <div className="text-sm">
-                              <div className="font-bold">OS {blockForDay.projeto_os}</div>
-                              <div>{blockForDay.projeto_nome}</div>
-                              <div className="text-muted-foreground">{blockForDay.empresa_nome}</div>
+                          <TooltipContent className="z-50">
+                            <div className="space-y-1">
+                              <div className="font-bold text-primary">OS {blockForDay.projeto_os}</div>
+                              <div className="font-medium">{blockForDay.projeto_nome}</div>
+                              <div className="text-muted-foreground text-xs">{blockForDay.empresa_nome}</div>
                             </div>
                           </TooltipContent>
                         )}
