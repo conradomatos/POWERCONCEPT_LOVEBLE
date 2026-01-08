@@ -351,13 +351,9 @@ export default function GanttChart({
                   {/* Today line */}
                   {todayIndex >= 0 && (
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-destructive z-30 pointer-events-none"
+                      className="absolute top-0 bottom-0 w-px border-l-2 border-dashed border-destructive z-30 pointer-events-none"
                       style={{ left: `${((todayIndex + 0.5) / period.days.length) * 100}%` }}
-                    >
-                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-destructive bg-card px-1 rounded whitespace-nowrap">
-                        HOJE
-                      </div>
-                    </div>
+                    />
                   )}
 
                   {/* Preview bar when creating */}
