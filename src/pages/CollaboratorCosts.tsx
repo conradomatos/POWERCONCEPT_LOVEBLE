@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { CustoForm } from '@/components/CustoForm';
-import { CustoColaborador, calcularCustos, formatCurrency, formatDate } from '@/lib/custos';
+import { CustoColaborador, calcularCustos, formatCurrency, formatDate, isVigente, isEncerrado } from '@/lib/custos';
 import { toast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react';
 import { formatCPF } from '@/lib/cpf';
@@ -128,11 +128,24 @@ export default function CollaboratorCosts() {
     }
   };
 
-  const getStatus = (custo: CustoColaborador): 'vigente' | 'encerrado' => {
+  const getStatus = (custo: CustoColaborador): 'vigente' | 'encerrado' | 'futuro' => {
     const today = new Date().toISOString().split('T')[0];
-    if (custo.inicio_vigencia <= today && custo.fim_vigencia >= today) {
+    
+    // Future: inicio_vigencia is in the future
+    if (custo.inicio_vigencia > today) {
+      return 'futuro';
+    }
+    
+    // Vigente: fim_vigencia is null (open) OR today is between inicio and fim
+    if (isVigente(custo)) {
       return 'vigente';
     }
+    
+    // Encerrado: fim_vigencia is in the past
+    if (isEncerrado(custo)) {
+      return 'encerrado';
+    }
+    
     return 'encerrado';
   };
 
@@ -223,10 +236,12 @@ export default function CollaboratorCosts() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(custo.salario_base)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(calc.beneficios)}</TableCell>
+                      <TableCell className="text-right">
+                        {custo.classificacao === 'PJ' ? '-' : formatCurrency(calc.beneficios)}
+                      </TableCell>
                       <TableCell className="text-center">
                         {custo.classificacao === 'PJ' ? (
-                          <Badge variant="outline">N/A</Badge>
+                          '-'
                         ) : custo.periculosidade ? (
                           <Badge variant="destructive">Sim</Badge>
                         ) : (
@@ -238,6 +253,8 @@ export default function CollaboratorCosts() {
                       <TableCell className="text-center">
                         {status === 'vigente' ? (
                           <Badge className="bg-green-600 hover:bg-green-700 text-white">Vigente</Badge>
+                        ) : status === 'futuro' ? (
+                          <Badge variant="outline" className="border-blue-500 text-blue-600">Futuro</Badge>
                         ) : (
                           <Badge variant="outline">Encerrado</Badge>
                         )}

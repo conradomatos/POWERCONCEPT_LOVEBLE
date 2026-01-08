@@ -107,7 +107,7 @@ export type Database = {
           colaborador_id: string
           created_at: string
           created_by: string | null
-          fim_vigencia: string
+          fim_vigencia: string | null
           id: string
           inicio_vigencia: string
           motivo_alteracao: string
@@ -123,7 +123,7 @@ export type Database = {
           colaborador_id: string
           created_at?: string
           created_by?: string | null
-          fim_vigencia: string
+          fim_vigencia?: string | null
           id?: string
           inicio_vigencia: string
           motivo_alteracao?: string
@@ -139,7 +139,7 @@ export type Database = {
           colaborador_id?: string
           created_at?: string
           created_by?: string | null
-          fim_vigencia?: string
+          fim_vigencia?: string | null
           id?: string
           inicio_vigencia?: string
           motivo_alteracao?: string
