@@ -81,18 +81,18 @@ export function getDayNumber(date: Date): string {
   return format(date, 'd');
 }
 
-// Generate distinct colors for projects
+// Generate high-contrast, vibrant colors for projects
 const PROJECT_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(210, 70%, 50%)',
-  'hsl(170, 60%, 45%)',
-  'hsl(280, 60%, 55%)',
-  'hsl(30, 80%, 50%)',
-  'hsl(340, 70%, 50%)',
+  '#2563EB', // Blue 600
+  '#059669', // Emerald 600
+  '#7C3AED', // Violet 600
+  '#DC2626', // Red 600
+  '#D97706', // Amber 600
+  '#0891B2', // Cyan 600
+  '#4F46E5', // Indigo 600
+  '#DB2777', // Pink 600
+  '#65A30D', // Lime 600
+  '#EA580C', // Orange 600
 ];
 
 export function getProjectColor(projectId: string, allProjectIds: string[]): string {

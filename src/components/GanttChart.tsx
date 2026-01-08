@@ -29,7 +29,6 @@ interface Block {
   empresa_nome: string;
   data_inicio: string;
   data_fim: string;
-  tipo: 'planejado' | 'realizado';
   observacao?: string | null;
 }
 
@@ -465,14 +464,6 @@ export default function GanttChart({
                                 <div className="text-muted-foreground text-xs">{block.empresa_nome}</div>
                                 <div className="border-t pt-1.5 mt-1.5 text-xs text-muted-foreground">
                                   {format(blockStart, 'dd/MM/yyyy')} → {format(blockEnd, 'dd/MM/yyyy')}
-                                </div>
-                                <div className="text-xs">
-                                  <span className={cn(
-                                    'px-1.5 py-0.5 rounded text-[10px] font-medium uppercase',
-                                    block.tipo === 'planejado' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                                  )}>
-                                    {block.tipo}
-                                  </span>
                                 </div>
                                 {block.observacao && (
                                   <div className="text-xs italic text-muted-foreground border-t pt-1.5">
