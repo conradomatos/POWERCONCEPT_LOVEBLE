@@ -9,7 +9,8 @@ import {
   Upload,
   Shield,
   Building2,
-  FolderKanban
+  FolderKanban,
+  CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/collaborators', label: 'Colaboradores', icon: Users },
     { path: '/empresas', label: 'Empresas', icon: Building2 },
     { path: '/projetos', label: 'Projetos', icon: FolderKanban },
+    { path: '/planejamento', label: 'Planejamento', icon: CalendarDays },
     { path: '/import', label: 'Importar CSV', icon: Upload, roles: ['admin', 'rh'] as const },
   ];
 
