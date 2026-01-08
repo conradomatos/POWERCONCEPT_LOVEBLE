@@ -8,10 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Check, ChevronsUpDown, Plus, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import EmpresaForm from './EmpresaForm';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -32,6 +34,7 @@ interface ProjetoFormProps {
 
 export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: ProjetoFormProps) {
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [empresaComboOpen, setEmpresaComboOpen] = useState(false);
   const [empresaFormOpen, setEmpresaFormOpen] = useState(false);
@@ -40,6 +43,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     descricao: '',
     empresa_id: '',
     status: 'ativo',
+    os: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -68,6 +72,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         descricao: projeto.descricao || '',
         empresa_id: projeto.empresa_id,
         status: projeto.status,
+        os: projeto.os,
       });
     } else {
       setFormData({
@@ -75,6 +80,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         descricao: '',
         empresa_id: '',
         status: 'ativo',
+        os: '',
       });
     }
     setErrors({});
@@ -102,15 +108,22 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     setLoading(true);
     try {
       if (projeto) {
-        // Update - don't change OS
+        // Update - include OS only if super_admin changed it
+        const updateData: any = {
+          nome: formData.nome.trim(),
+          descricao: formData.descricao.trim() || null,
+          empresa_id: formData.empresa_id,
+          status: formData.status,
+        };
+        
+        // Only include OS in update if user is super_admin and it was changed
+        if (isSuperAdmin() && formData.os !== projeto.os) {
+          updateData.os = formData.os.trim();
+        }
+
         const { error } = await supabase
           .from('projetos')
-          .update({
-            nome: formData.nome.trim(),
-            descricao: formData.descricao.trim() || null,
-            empresa_id: formData.empresa_id,
-            status: formData.status,
-          })
+          .update(updateData)
           .eq('id', projeto.id);
 
         if (error) throw error;
@@ -157,6 +170,39 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* OS Field - only shown when editing */}
+            {projeto && (
+              <div className="space-y-2">
+                <Label htmlFor="os" className="flex items-center gap-2">
+                  OS (Ordem de Serviço)
+                  {!isSuperAdmin() && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Lock className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Somente Admin Master pode alterar a OS</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </Label>
+                <Input
+                  id="os"
+                  value={formData.os}
+                  onChange={(e) => setFormData({ ...formData, os: e.target.value })}
+                  disabled={!isSuperAdmin()}
+                  className={cn(!isSuperAdmin() && "bg-muted cursor-not-allowed")}
+                />
+                {!isSuperAdmin() && (
+                  <p className="text-xs text-muted-foreground">
+                    Somente Admin Master pode alterar a OS
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="nome">Nome do Projeto *</Label>
               <Input
