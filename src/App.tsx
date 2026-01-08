@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Collaborators from "./pages/Collaborators";
 import ImportCSV from "./pages/ImportCSV";
 import Admin from "./pages/Admin";
+import CollaboratorCosts from "./pages/CollaboratorCosts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/collaborators" element={<Collaborators />} />
             <Route path="/import" element={<ImportCSV />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/collaborators/:id/costs" element={<CollaboratorCosts />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
