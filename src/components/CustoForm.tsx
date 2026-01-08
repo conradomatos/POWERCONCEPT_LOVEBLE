@@ -5,9 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { CustoColaborador, calcularCustos, formatCurrency } from '@/lib/custos';
+import { 
+  CustoColaborador, 
+  Classificacao,
+  calcularCustos, 
+  formatCurrency,
+  formatCurrencyInput,
+  parseCurrencyToNumber 
+} from '@/lib/custos';
 import { useAuth } from '@/hooks/useAuth';
 
 interface CustoFormProps {
@@ -16,77 +24,92 @@ interface CustoFormProps {
   colaboradorId: string;
   custo?: CustoColaborador | null;
   onSuccess: () => void;
+  existingCustos?: CustoColaborador[];
 }
 
-export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess }: CustoFormProps) {
+export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess, existingCustos = [] }: CustoFormProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     salario_base: '',
     periculosidade: false,
-    vale_refeicao: '',
-    vale_alimentacao: '',
-    vale_transporte: '',
-    ajuda_custo: '',
-    plano_saude: '',
+    beneficios: '',
+    classificacao: '' as Classificacao | '',
     inicio_vigencia: '',
     fim_vigencia: '',
     motivo_alteracao: '',
-    classificacao: '',
     observacao: '',
   });
+
+  const isPJ = formData.classificacao === 'PJ';
+
+  // Find current active cost (fim_vigencia in future or very far date)
+  const custoVigente = useMemo(() => {
+    if (custo) return null; // Editing existing, don't need to close another
+    const today = new Date().toISOString().split('T')[0];
+    return existingCustos.find(c => 
+      c.inicio_vigencia <= today && c.fim_vigencia >= today
+    ) || null;
+  }, [existingCustos, custo]);
 
   useEffect(() => {
     if (custo) {
       setFormData({
-        salario_base: custo.salario_base?.toString() || '',
+        salario_base: formatCurrencyInput((custo.salario_base * 100).toString()),
         periculosidade: custo.periculosidade || false,
-        vale_refeicao: custo.vale_refeicao?.toString() || '',
-        vale_alimentacao: custo.vale_alimentacao?.toString() || '',
-        vale_transporte: custo.vale_transporte?.toString() || '',
-        ajuda_custo: custo.ajuda_custo?.toString() || '',
-        plano_saude: custo.plano_saude?.toString() || '',
+        beneficios: formatCurrencyInput((custo.beneficios * 100).toString()),
+        classificacao: custo.classificacao as Classificacao || 'CLT',
         inicio_vigencia: custo.inicio_vigencia || '',
         fim_vigencia: custo.fim_vigencia || '',
         motivo_alteracao: custo.motivo_alteracao || '',
-        classificacao: custo.classificacao || '',
         observacao: custo.observacao || '',
       });
     } else {
       setFormData({
         salario_base: '',
         periculosidade: false,
-        vale_refeicao: '',
-        vale_alimentacao: '',
-        vale_transporte: '',
-        ajuda_custo: '',
-        plano_saude: '',
+        beneficios: '',
+        classificacao: '',
         inicio_vigencia: '',
         fim_vigencia: '',
         motivo_alteracao: '',
-        classificacao: '',
         observacao: '',
       });
     }
   }, [custo, open]);
 
+  // When classification changes to PJ, reset periculosidade and beneficios
+  useEffect(() => {
+    if (formData.classificacao === 'PJ') {
+      setFormData(prev => ({
+        ...prev,
+        periculosidade: false,
+        beneficios: '0,00'
+      }));
+    }
+  }, [formData.classificacao]);
+
   const custosCalculados = useMemo(() => {
     return calcularCustos({
-      salario_base: parseFloat(formData.salario_base) || 0,
+      salario_base: parseCurrencyToNumber(formData.salario_base),
       periculosidade: formData.periculosidade,
-      vale_refeicao: parseFloat(formData.vale_refeicao) || 0,
-      vale_alimentacao: parseFloat(formData.vale_alimentacao) || 0,
-      vale_transporte: parseFloat(formData.vale_transporte) || 0,
-      ajuda_custo: parseFloat(formData.ajuda_custo) || 0,
-      plano_saude: parseFloat(formData.plano_saude) || 0,
+      beneficios: parseCurrencyToNumber(formData.beneficios),
+      classificacao: formData.classificacao as Classificacao || 'CLT',
     });
   }, [formData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.salario_base || parseFloat(formData.salario_base) < 0) {
+    // Validações
+    const salarioBase = parseCurrencyToNumber(formData.salario_base);
+    if (!salarioBase || salarioBase < 0) {
       toast({ title: 'Erro', description: 'Salário base é obrigatório e deve ser positivo', variant: 'destructive' });
+      return;
+    }
+    
+    if (!formData.classificacao) {
+      toast({ title: 'Erro', description: 'Classificação é obrigatória (CLT ou PJ)', variant: 'destructive' });
       return;
     }
     
@@ -95,31 +118,73 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess 
       return;
     }
 
-    if (formData.fim_vigencia && formData.fim_vigencia < formData.inicio_vigencia) {
+    if (!formData.fim_vigencia) {
+      toast({ title: 'Erro', description: 'Data de fim da vigência é obrigatória', variant: 'destructive' });
+      return;
+    }
+
+    if (formData.fim_vigencia < formData.inicio_vigencia) {
       toast({ title: 'Erro', description: 'Data de fim deve ser maior ou igual à data de início', variant: 'destructive' });
       return;
     }
 
+    if (!formData.motivo_alteracao.trim()) {
+      toast({ title: 'Erro', description: 'Motivo da alteração é obrigatório', variant: 'destructive' });
+      return;
+    }
+
+    if (!formData.observacao.trim()) {
+      toast({ title: 'Erro', description: 'Observação é obrigatória', variant: 'destructive' });
+      return;
+    }
+
+    // Validate against existing vigente when creating new
+    if (!custo && custoVigente) {
+      if (formData.inicio_vigencia <= custoVigente.inicio_vigencia) {
+        toast({ 
+          title: 'Erro', 
+          description: `Data de início deve ser posterior a ${new Date(custoVigente.inicio_vigencia + 'T00:00:00').toLocaleDateString('pt-BR')} (início do custo vigente)`, 
+          variant: 'destructive' 
+        });
+        return;
+      }
+    }
+
     setLoading(true);
+
+    const beneficiosValue = isPJ ? 0 : parseCurrencyToNumber(formData.beneficios);
 
     const payload = {
       colaborador_id: colaboradorId,
-      salario_base: parseFloat(formData.salario_base),
-      periculosidade: formData.periculosidade,
-      vale_refeicao: parseFloat(formData.vale_refeicao) || 0,
-      vale_alimentacao: parseFloat(formData.vale_alimentacao) || 0,
-      vale_transporte: parseFloat(formData.vale_transporte) || 0,
-      ajuda_custo: parseFloat(formData.ajuda_custo) || 0,
-      plano_saude: parseFloat(formData.plano_saude) || 0,
+      salario_base: salarioBase,
+      periculosidade: isPJ ? false : formData.periculosidade,
+      beneficios: beneficiosValue,
+      classificacao: formData.classificacao,
       inicio_vigencia: formData.inicio_vigencia,
-      fim_vigencia: formData.fim_vigencia || null,
-      motivo_alteracao: formData.motivo_alteracao || null,
-      classificacao: formData.classificacao || null,
-      observacao: formData.observacao || null,
+      fim_vigencia: formData.fim_vigencia,
+      motivo_alteracao: formData.motivo_alteracao,
+      observacao: formData.observacao,
       updated_by: user?.id,
     };
 
     try {
+      // If creating new and there's a vigente, close it first
+      if (!custo && custoVigente) {
+        const newEndDate = new Date(formData.inicio_vigencia);
+        newEndDate.setDate(newEndDate.getDate() - 1);
+        const fimVigenciaAtual = newEndDate.toISOString().split('T')[0];
+
+        const { error: updateError } = await supabase
+          .from('custos_colaborador')
+          .update({ 
+            fim_vigencia: fimVigenciaAtual,
+            updated_by: user?.id 
+          })
+          .eq('id', custoVigente.id);
+
+        if (updateError) throw updateError;
+      }
+
       if (custo) {
         const { error } = await supabase
           .from('custos_colaborador')
@@ -149,10 +214,9 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess 
     }
   };
 
-  const handleNumberChange = (field: string, value: string) => {
-    // Allow only numbers and decimal point
-    const cleanValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
-    setFormData(prev => ({ ...prev, [field]: cleanValue }));
+  const handleCurrencyChange = (field: string, value: string) => {
+    const formatted = formatCurrencyInput(value);
+    setFormData(prev => ({ ...prev, [field]: formatted }));
   };
 
   return (
@@ -162,17 +226,41 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess 
           <DialogTitle>{custo ? 'Editar Custo' : 'Novo Custo (Nova Vigência)'}</DialogTitle>
         </DialogHeader>
 
+        {!custo && custoVigente && (
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-3 rounded-lg text-sm">
+            <strong>Atenção:</strong> Existe um custo vigente. Ao salvar, o custo atual será encerrado 
+            automaticamente no dia anterior ao início desta nova vigência.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Classificação - First and required */}
+          <div>
+            <Label htmlFor="classificacao">Classificação *</Label>
+            <Select
+              value={formData.classificacao}
+              onValueChange={(value: Classificacao) => setFormData(prev => ({ ...prev, classificacao: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione CLT ou PJ" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CLT">CLT</SelectItem>
+                <SelectItem value="PJ">PJ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="salario_base">Salário Base *</Label>
               <Input
                 id="salario_base"
                 type="text"
-                inputMode="decimal"
-                placeholder="0.00"
+                inputMode="numeric"
+                placeholder="0,00"
                 value={formData.salario_base}
-                onChange={(e) => handleNumberChange('salario_base', e.target.value)}
+                onChange={(e) => handleCurrencyChange('salario_base', e.target.value)}
                 required
               />
             </div>
@@ -182,70 +270,29 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess 
                 id="periculosidade"
                 checked={formData.periculosidade}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, periculosidade: checked }))}
+                disabled={isPJ}
               />
-              <Label htmlFor="periculosidade">Periculosidade (30%)</Label>
+              <Label htmlFor="periculosidade" className={isPJ ? 'text-muted-foreground' : ''}>
+                Periculosidade (30%) {isPJ && '(N/A para PJ)'}
+              </Label>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="vale_refeicao">Vale Refeição</Label>
-              <Input
-                id="vale_refeicao"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={formData.vale_refeicao}
-                onChange={(e) => handleNumberChange('vale_refeicao', e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="vale_alimentacao">Vale Alimentação</Label>
-              <Input
-                id="vale_alimentacao"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={formData.vale_alimentacao}
-                onChange={(e) => handleNumberChange('vale_alimentacao', e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="vale_transporte">Vale Transporte</Label>
-              <Input
-                id="vale_transporte"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={formData.vale_transporte}
-                onChange={(e) => handleNumberChange('vale_transporte', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="ajuda_custo">Ajuda de Custo</Label>
-              <Input
-                id="ajuda_custo"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={formData.ajuda_custo}
-                onChange={(e) => handleNumberChange('ajuda_custo', e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="plano_saude">Plano de Saúde</Label>
-              <Input
-                id="plano_saude"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={formData.plano_saude}
-                onChange={(e) => handleNumberChange('plano_saude', e.target.value)}
-              />
-            </div>
+          <div>
+            <Label htmlFor="beneficios">Benefícios *</Label>
+            <Input
+              id="beneficios"
+              type="text"
+              inputMode="numeric"
+              placeholder="0,00"
+              value={formData.beneficios}
+              onChange={(e) => handleCurrencyChange('beneficios', e.target.value)}
+              disabled={isPJ}
+              required
+            />
+            {isPJ && (
+              <p className="text-xs text-muted-foreground mt-1">Não se aplica para PJ</p>
+            )}
           </div>
 
           {/* Calculated Fields */}
@@ -283,45 +330,37 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess 
               />
             </div>
             <div>
-              <Label htmlFor="fim_vigencia">Fim Vigência (vazio = vigente)</Label>
+              <Label htmlFor="fim_vigencia">Fim Vigência *</Label>
               <Input
                 id="fim_vigencia"
                 type="date"
                 value={formData.fim_vigencia}
                 onChange={(e) => setFormData(prev => ({ ...prev, fim_vigencia: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="motivo_alteracao">Motivo da Alteração</Label>
-              <Input
-                id="motivo_alteracao"
-                value={formData.motivo_alteracao}
-                onChange={(e) => setFormData(prev => ({ ...prev, motivo_alteracao: e.target.value }))}
-                placeholder="Ex: Reajuste anual"
-              />
-            </div>
-            <div>
-              <Label htmlFor="classificacao">Classificação</Label>
-              <Input
-                id="classificacao"
-                value={formData.classificacao}
-                onChange={(e) => setFormData(prev => ({ ...prev, classificacao: e.target.value }))}
-                placeholder="Ex: CLT, PJ"
+                required
               />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="observacao">Observação</Label>
+            <Label htmlFor="motivo_alteracao">Motivo da Alteração *</Label>
+            <Input
+              id="motivo_alteracao"
+              value={formData.motivo_alteracao}
+              onChange={(e) => setFormData(prev => ({ ...prev, motivo_alteracao: e.target.value }))}
+              placeholder="Ex: Reajuste anual, Promoção, Novo contrato"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="observacao">Observação *</Label>
             <Textarea
               id="observacao"
               value={formData.observacao}
               onChange={(e) => setFormData(prev => ({ ...prev, observacao: e.target.value }))}
-              placeholder="Observações adicionais..."
+              placeholder="Observações adicionais sobre este registro de custo..."
               rows={2}
+              required
             />
           </div>
 
