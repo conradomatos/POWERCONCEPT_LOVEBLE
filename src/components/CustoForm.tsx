@@ -6,6 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from 'lucide-react';
+import { format, parse, isValid } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
@@ -35,21 +41,27 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
     periculosidade: false,
     beneficios: '',
     classificacao: '' as Classificacao | '',
-    inicio_vigencia: '',
-    fim_vigencia: '',
+    inicio_vigencia: null as Date | null,
+    fim_vigencia: null as Date | null,
     motivo_alteracao: '',
     observacao: '',
   });
+  const [inicioPopoverOpen, setInicioPopoverOpen] = useState(false);
+  const [fimPopoverOpen, setFimPopoverOpen] = useState(false);
 
   const isPJ = formData.classificacao === 'PJ';
 
-  // Find current active cost (fim_vigencia in future or very far date)
+  // Find current active cost (fim_vigencia is null OR in future)
   const custoVigente = useMemo(() => {
     if (custo) return null; // Editing existing, don't need to close another
     const today = new Date().toISOString().split('T')[0];
-    return existingCustos.find(c => 
-      c.inicio_vigencia <= today && c.fim_vigencia >= today
-    ) || null;
+    return existingCustos.find(c => {
+      // Vigente if fim_vigencia is null (open) OR today is between inicio and fim
+      if (!c.fim_vigencia) {
+        return c.inicio_vigencia <= today;
+      }
+      return c.inicio_vigencia <= today && c.fim_vigencia >= today;
+    }) || null;
   }, [existingCustos, custo]);
 
   useEffect(() => {
@@ -59,8 +71,8 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
         periculosidade: custo.periculosidade || false,
         beneficios: formatCurrencyInput((custo.beneficios * 100).toString()),
         classificacao: custo.classificacao as Classificacao || 'CLT',
-        inicio_vigencia: custo.inicio_vigencia || '',
-        fim_vigencia: custo.fim_vigencia || '',
+        inicio_vigencia: custo.inicio_vigencia ? parse(custo.inicio_vigencia, 'yyyy-MM-dd', new Date()) : null,
+        fim_vigencia: custo.fim_vigencia ? parse(custo.fim_vigencia, 'yyyy-MM-dd', new Date()) : null,
         motivo_alteracao: custo.motivo_alteracao || '',
         observacao: custo.observacao || '',
       });
@@ -70,8 +82,8 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
         periculosidade: false,
         beneficios: '',
         classificacao: '',
-        inicio_vigencia: '',
-        fim_vigencia: '',
+        inicio_vigencia: null,
+        fim_vigencia: null,
         motivo_alteracao: '',
         observacao: '',
       });
@@ -113,19 +125,21 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
       return;
     }
     
-    if (!formData.inicio_vigencia) {
-      toast({ title: 'Erro', description: 'Data de início da vigência é obrigatória', variant: 'destructive' });
+    if (!formData.inicio_vigencia || !isValid(formData.inicio_vigencia)) {
+      toast({ title: 'Erro', description: 'Data de início da vigência é obrigatória e deve ser válida', variant: 'destructive' });
       return;
     }
 
-    if (!formData.fim_vigencia) {
-      toast({ title: 'Erro', description: 'Data de fim da vigência é obrigatória', variant: 'destructive' });
-      return;
-    }
-
-    if (formData.fim_vigencia < formData.inicio_vigencia) {
-      toast({ title: 'Erro', description: 'Data de fim deve ser maior ou igual à data de início', variant: 'destructive' });
-      return;
+    // Validate fim_vigencia if provided
+    if (formData.fim_vigencia) {
+      if (!isValid(formData.fim_vigencia)) {
+        toast({ title: 'Erro', description: 'Data de fim da vigência inválida', variant: 'destructive' });
+        return;
+      }
+      if (formData.fim_vigencia < formData.inicio_vigencia) {
+        toast({ title: 'Erro', description: 'Data de fim deve ser maior ou igual à data de início', variant: 'destructive' });
+        return;
+      }
     }
 
     if (!formData.motivo_alteracao.trim()) {
@@ -138,12 +152,24 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
       return;
     }
 
+    // CLT requires beneficios
+    if (!isPJ) {
+      const beneficiosValue = parseCurrencyToNumber(formData.beneficios);
+      if (beneficiosValue < 0) {
+        toast({ title: 'Erro', description: 'Benefícios deve ser um valor válido', variant: 'destructive' });
+        return;
+      }
+    }
+
+    const inicioVigenciaStr = format(formData.inicio_vigencia, 'yyyy-MM-dd');
+    const fimVigenciaStr = formData.fim_vigencia ? format(formData.fim_vigencia, 'yyyy-MM-dd') : null;
+
     // Validate against existing vigente when creating new
     if (!custo && custoVigente) {
-      if (formData.inicio_vigencia <= custoVigente.inicio_vigencia) {
+      if (inicioVigenciaStr <= custoVigente.inicio_vigencia) {
         toast({ 
           title: 'Erro', 
-          description: `Data de início deve ser posterior a ${new Date(custoVigente.inicio_vigencia + 'T00:00:00').toLocaleDateString('pt-BR')} (início do custo vigente)`, 
+          description: `Data de início deve ser posterior a ${format(parse(custoVigente.inicio_vigencia, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')} (início do custo vigente)`, 
           variant: 'destructive' 
         });
         return;
@@ -160,19 +186,19 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
       periculosidade: isPJ ? false : formData.periculosidade,
       beneficios: beneficiosValue,
       classificacao: formData.classificacao,
-      inicio_vigencia: formData.inicio_vigencia,
-      fim_vigencia: formData.fim_vigencia,
+      inicio_vigencia: inicioVigenciaStr,
+      fim_vigencia: fimVigenciaStr,
       motivo_alteracao: formData.motivo_alteracao,
       observacao: formData.observacao,
       updated_by: user?.id,
     };
 
     try {
-      // If creating new and there's a vigente, close it first
+      // If creating new and there's a vigente (with open fim_vigencia), close it first
       if (!custo && custoVigente) {
         const newEndDate = new Date(formData.inicio_vigencia);
         newEndDate.setDate(newEndDate.getDate() - 1);
-        const fimVigenciaAtual = newEndDate.toISOString().split('T')[0];
+        const fimVigenciaAtual = format(newEndDate, 'yyyy-MM-dd');
 
         const { error: updateError } = await supabase
           .from('custos_colaborador')
@@ -251,49 +277,47 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="salario_base">Salário Base *</Label>
-              <Input
-                id="salario_base"
-                type="text"
-                inputMode="numeric"
-                placeholder="0,00"
-                value={formData.salario_base}
-                onChange={(e) => handleCurrencyChange('salario_base', e.target.value)}
-                required
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2 pt-6">
-              <Switch
-                id="periculosidade"
-                checked={formData.periculosidade}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, periculosidade: checked }))}
-                disabled={isPJ}
-              />
-              <Label htmlFor="periculosidade" className={isPJ ? 'text-muted-foreground' : ''}>
-                Periculosidade (30%) {isPJ && '(N/A para PJ)'}
-              </Label>
-            </div>
-          </div>
-
           <div>
-            <Label htmlFor="beneficios">Benefícios *</Label>
+            <Label htmlFor="salario_base">Salário Base *</Label>
             <Input
-              id="beneficios"
+              id="salario_base"
               type="text"
               inputMode="numeric"
               placeholder="0,00"
-              value={formData.beneficios}
-              onChange={(e) => handleCurrencyChange('beneficios', e.target.value)}
-              disabled={isPJ}
+              value={formData.salario_base}
+              onChange={(e) => handleCurrencyChange('salario_base', e.target.value)}
               required
             />
-            {isPJ && (
-              <p className="text-xs text-muted-foreground mt-1">Não se aplica para PJ</p>
-            )}
           </div>
+
+          {/* Only show for CLT */}
+          {!isPJ && (
+            <>
+              <div>
+                <Label htmlFor="beneficios">Benefícios *</Label>
+                <Input
+                  id="beneficios"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  value={formData.beneficios}
+                  onChange={(e) => handleCurrencyChange('beneficios', e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="periculosidade"
+                  checked={formData.periculosidade}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, periculosidade: checked }))}
+                />
+                <Label htmlFor="periculosidade">
+                  Periculosidade (30%)
+                </Label>
+              </div>
+            </>
+          )}
 
           {/* Calculated Fields */}
           <div className="bg-muted/50 p-4 rounded-lg space-y-2">
@@ -319,25 +343,83 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="inicio_vigencia">Início Vigência *</Label>
-              <Input
-                id="inicio_vigencia"
-                type="date"
-                value={formData.inicio_vigencia}
-                onChange={(e) => setFormData(prev => ({ ...prev, inicio_vigencia: e.target.value }))}
-                required
-              />
+            <div className="flex flex-col gap-2">
+              <Label>Início Vigência *</Label>
+              <Popover open={inicioPopoverOpen} onOpenChange={setInicioPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !formData.inicio_vigencia && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.inicio_vigencia && isValid(formData.inicio_vigencia) 
+                      ? format(formData.inicio_vigencia, "dd/MM/yyyy") 
+                      : <span>Selecione uma data</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.inicio_vigencia || undefined}
+                    onSelect={(date) => {
+                      setFormData(prev => ({ ...prev, inicio_vigencia: date || null }));
+                      setInicioPopoverOpen(false);
+                    }}
+                    initialFocus
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            <div>
-              <Label htmlFor="fim_vigencia">Fim Vigência *</Label>
-              <Input
-                id="fim_vigencia"
-                type="date"
-                value={formData.fim_vigencia}
-                onChange={(e) => setFormData(prev => ({ ...prev, fim_vigencia: e.target.value }))}
-                required
-              />
+            <div className="flex flex-col gap-2">
+              <Label>Fim Vigência (opcional)</Label>
+              <Popover open={fimPopoverOpen} onOpenChange={setFimPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal",
+                      !formData.fim_vigencia && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.fim_vigencia && isValid(formData.fim_vigencia) 
+                      ? format(formData.fim_vigencia, "dd/MM/yyyy") 
+                      : <span>Em aberto</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-2 border-b">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, fim_vigencia: null }));
+                        setFimPopoverOpen(false);
+                      }}
+                    >
+                      Deixar em aberto
+                    </Button>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={formData.fim_vigencia || undefined}
+                    onSelect={(date) => {
+                      setFormData(prev => ({ ...prev, fim_vigencia: date || null }));
+                      setFimPopoverOpen(false);
+                    }}
+                    disabled={(date) => formData.inicio_vigencia ? date < formData.inicio_vigencia : false}
+                    initialFocus
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

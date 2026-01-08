@@ -12,7 +12,7 @@ export interface CustoColaborador {
   beneficios: number;
   classificacao: Classificacao;
   inicio_vigencia: string;
-  fim_vigencia: string;
+  fim_vigencia: string | null;
   motivo_alteracao: string;
   observacao: string;
   created_at: string;
@@ -63,7 +63,7 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(dateString: string | null): string {
-  if (!dateString) return '-';
+  if (!dateString) return 'Em aberto';
   return new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR');
 }
 
@@ -94,4 +94,21 @@ export function formatCurrencyInput(value: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(num);
+}
+
+// Check if a custo is currently vigente
+export function isVigente(custo: CustoColaborador): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  // Vigente if: fim_vigencia is null (open) OR today is between inicio and fim
+  if (!custo.fim_vigencia) {
+    return custo.inicio_vigencia <= today;
+  }
+  return custo.inicio_vigencia <= today && custo.fim_vigencia >= today;
+}
+
+// Check if a custo is encerrado
+export function isEncerrado(custo: CustoColaborador): boolean {
+  if (!custo.fim_vigencia) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return custo.fim_vigencia < today;
 }
