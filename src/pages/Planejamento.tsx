@@ -56,7 +56,6 @@ interface Block {
   empresa_nome: string;
   data_inicio: string;
   data_fim: string;
-  tipo: 'planejado' | 'realizado';
   observacao?: string | null;
 }
 
@@ -67,7 +66,6 @@ export default function Planejamento() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [periodType, setPeriodType] = useState<PeriodType>('month');
-  const [tipo, setTipo] = useState<'planejado' | 'realizado'>('planejado');
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>('');
   const [projetoFilter, setProjetoFilter] = useState<string>('');
@@ -103,7 +101,7 @@ export default function Planejamento() {
 
   // Fetch blocks for the period
   const { data: blocks = [], isLoading: loadingBlocks } = useQuery({
-    queryKey: ['alocacoes-blocos', period.start.toISOString(), period.end.toISOString(), tipo],
+    queryKey: ['alocacoes-blocos', period.start.toISOString(), period.end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alocacoes_blocos')
@@ -113,7 +111,6 @@ export default function Planejamento() {
           projeto_id,
           data_inicio,
           data_fim,
-          tipo,
           observacao,
           projetos (
             nome,
@@ -121,7 +118,6 @@ export default function Planejamento() {
             empresas (empresa)
           )
         `)
-        .eq('tipo', tipo)
         .lte('data_inicio', format(period.end, 'yyyy-MM-dd'))
         .gte('data_fim', format(period.start, 'yyyy-MM-dd'));
 
@@ -133,7 +129,6 @@ export default function Planejamento() {
         projeto_id: b.projeto_id,
         data_inicio: b.data_inicio,
         data_fim: b.data_fim,
-        tipo: b.tipo,
         observacao: b.observacao,
         projeto_nome: b.projetos?.nome || '',
         projeto_os: b.projetos?.os || '',
@@ -319,11 +314,6 @@ export default function Planejamento() {
 
   // Apply default allocations
   const handleApplyDefaults = async () => {
-    if (tipo !== 'planejado') {
-      toast.error('Aplicar padrões só funciona para alocações planejadas');
-      return;
-    }
-
     setIsApplyingDefaults(true);
     const conflicts: string[] = [];
     let created = 0;
@@ -379,7 +369,6 @@ export default function Planejamento() {
         const { error } = await supabase.from('alocacoes_blocos').insert({
           colaborador_id: col.id,
           projeto_id: def.projeto_id,
-          tipo: 'planejado',
           data_inicio: format(blockStart, 'yyyy-MM-dd'),
           data_fim: format(blockEnd, 'yyyy-MM-dd'),
           observacao: 'Criado automaticamente via padrões',
@@ -469,7 +458,7 @@ export default function Planejamento() {
               variant="outline"
               size="sm"
               onClick={handleApplyDefaults}
-              disabled={isApplyingDefaults || tipo !== 'planejado'}
+              disabled={isApplyingDefaults}
             >
               {isApplyingDefaults ? (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -521,18 +510,6 @@ export default function Planejamento() {
             </SelectContent>
           </Select>
 
-          {/* Tipo */}
-          <Select value={tipo} onValueChange={(v) => setTipo(v as 'planejado' | 'realizado')}>
-            <SelectTrigger className="w-28 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="planejado">Planejado</SelectItem>
-              <SelectItem value="realizado">Realizado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="w-px h-6 bg-border" />
 
           {/* Empresa filter */}
           <Select
@@ -616,7 +593,6 @@ export default function Planejamento() {
               alocacaoId={editingBlock?.id}
               colaboradorId={editingBlock?.colaborador_id || defaultFormData.colaboradorId}
               projetoId={editingBlock?.projeto_id}
-              tipo={editingBlock?.tipo || tipo}
               dataInicio={editingBlock?.data_inicio || defaultFormData.dataInicio}
               dataFim={editingBlock?.data_fim || defaultFormData.dataFim}
               observacao={editingBlock?.observacao || ''}

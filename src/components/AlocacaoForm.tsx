@@ -37,7 +37,6 @@ type Collaborator = Tables<'collaborators'>;
 interface AlocacaoFormProps {
   colaboradorId?: string;
   projetoId?: string;
-  tipo?: 'planejado' | 'realizado';
   dataInicio?: string;
   dataFim?: string;
   observacao?: string;
@@ -51,7 +50,6 @@ interface AlocacaoFormProps {
 export default function AlocacaoForm({
   colaboradorId: initialColaboradorId,
   projetoId: initialProjetoId,
-  tipo: initialTipo = 'planejado',
   dataInicio: initialDataInicio,
   dataFim: initialDataFim,
   observacao: initialObservacao = '',
@@ -63,7 +61,6 @@ export default function AlocacaoForm({
 }: AlocacaoFormProps) {
   const [colaboradorId, setColaboradorId] = useState(initialColaboradorId || '');
   const [projetoId, setProjetoId] = useState(initialProjetoId || '');
-  const [tipo, setTipo] = useState<'planejado' | 'realizado'>(initialTipo);
   const [dataInicio, setDataInicio] = useState<Date | undefined>(
     initialDataInicio ? parseISO(initialDataInicio) : defaultDataInicio ? parseISO(defaultDataInicio) : undefined
   );
@@ -152,7 +149,6 @@ export default function AlocacaoForm({
       const payload = {
         colaborador_id: colaboradorId,
         projeto_id: projetoId,
-        tipo,
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
         observacao: observacao || null,
@@ -306,20 +302,6 @@ export default function AlocacaoForm({
             </code>
           </div>
         )}
-      </div>
-
-      {/* Tipo */}
-      <div className="space-y-2">
-        <Label>Tipo *</Label>
-        <Select value={tipo} onValueChange={(v) => setTipo(v as 'planejado' | 'realizado')}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="planejado">Planejado</SelectItem>
-            <SelectItem value="realizado">Realizado</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Datas with Calendar */}
