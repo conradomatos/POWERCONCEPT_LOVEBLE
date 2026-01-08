@@ -85,7 +85,7 @@ export default function CollaboratorCosts() {
         .order('inicio_vigencia', { ascending: false });
 
       if (custosError) throw custosError;
-      setCustos(custosData || []);
+      setCustos((custosData || []) as CustoColaborador[]);
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
@@ -128,9 +128,12 @@ export default function CollaboratorCosts() {
     }
   };
 
-  const isVigente = (custo: CustoColaborador) => {
+  const getStatus = (custo: CustoColaborador): 'vigente' | 'encerrado' => {
     const today = new Date().toISOString().split('T')[0];
-    return custo.inicio_vigencia <= today && (!custo.fim_vigencia || custo.fim_vigencia >= today);
+    if (custo.inicio_vigencia <= today && custo.fim_vigencia >= today) {
+      return 'vigente';
+    }
+    return 'encerrado';
   };
 
   if (authLoading || loading) {
@@ -183,12 +186,13 @@ export default function CollaboratorCosts() {
         )}
 
         {/* Table */}
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Início</TableHead>
                 <TableHead>Fim</TableHead>
+                <TableHead>Classif.</TableHead>
                 <TableHead className="text-right">Salário Base</TableHead>
                 <TableHead className="text-right">Benefícios</TableHead>
                 <TableHead className="text-center">Peric.</TableHead>
@@ -201,22 +205,29 @@ export default function CollaboratorCosts() {
             <TableBody>
               {custos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Nenhum custo cadastrado para este colaborador
                   </TableCell>
                 </TableRow>
               ) : (
                 custos.map((custo) => {
                   const calc = calcularCustos(custo);
-                  const vigente = isVigente(custo);
+                  const status = getStatus(custo);
                   return (
                     <TableRow key={custo.id}>
                       <TableCell>{formatDate(custo.inicio_vigencia)}</TableCell>
                       <TableCell>{formatDate(custo.fim_vigencia)}</TableCell>
+                      <TableCell>
+                        <Badge variant={custo.classificacao === 'CLT' ? 'default' : 'secondary'}>
+                          {custo.classificacao}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">{formatCurrency(custo.salario_base)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(calc.beneficios)}</TableCell>
                       <TableCell className="text-center">
-                        {custo.periculosidade ? (
+                        {custo.classificacao === 'PJ' ? (
+                          <Badge variant="outline">N/A</Badge>
+                        ) : custo.periculosidade ? (
                           <Badge variant="destructive">Sim</Badge>
                         ) : (
                           <Badge variant="secondary">Não</Badge>
@@ -225,8 +236,8 @@ export default function CollaboratorCosts() {
                       <TableCell className="text-right font-medium">{formatCurrency(calc.custo_mensal_total)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(calc.custo_hora)}</TableCell>
                       <TableCell className="text-center">
-                        {vigente ? (
-                          <Badge className="bg-success text-success-foreground">Vigente</Badge>
+                        {status === 'vigente' ? (
+                          <Badge className="bg-green-600 hover:bg-green-700 text-white">Vigente</Badge>
                         ) : (
                           <Badge variant="outline">Encerrado</Badge>
                         )}
@@ -262,6 +273,7 @@ export default function CollaboratorCosts() {
           colaboradorId={id}
           custo={selectedCusto}
           onSuccess={fetchData}
+          existingCustos={custos}
         />
       )}
 

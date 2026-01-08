@@ -102,64 +102,52 @@ export type Database = {
       }
       custos_colaborador: {
         Row: {
-          ajuda_custo: number
-          classificacao: string | null
+          beneficios: number
+          classificacao: string
           colaborador_id: string
           created_at: string
           created_by: string | null
-          fim_vigencia: string | null
+          fim_vigencia: string
           id: string
           inicio_vigencia: string
-          motivo_alteracao: string | null
-          observacao: string | null
+          motivo_alteracao: string
+          observacao: string
           periculosidade: boolean
-          plano_saude: number
           salario_base: number
           updated_at: string
           updated_by: string | null
-          vale_alimentacao: number
-          vale_refeicao: number
-          vale_transporte: number
         }
         Insert: {
-          ajuda_custo?: number
-          classificacao?: string | null
+          beneficios?: number
+          classificacao?: string
           colaborador_id: string
           created_at?: string
           created_by?: string | null
-          fim_vigencia?: string | null
+          fim_vigencia: string
           id?: string
           inicio_vigencia: string
-          motivo_alteracao?: string | null
-          observacao?: string | null
+          motivo_alteracao?: string
+          observacao?: string
           periculosidade?: boolean
-          plano_saude?: number
           salario_base: number
           updated_at?: string
           updated_by?: string | null
-          vale_alimentacao?: number
-          vale_refeicao?: number
-          vale_transporte?: number
         }
         Update: {
-          ajuda_custo?: number
-          classificacao?: string | null
+          beneficios?: number
+          classificacao?: string
           colaborador_id?: string
           created_at?: string
           created_by?: string | null
-          fim_vigencia?: string | null
+          fim_vigencia?: string
           id?: string
           inicio_vigencia?: string
-          motivo_alteracao?: string | null
-          observacao?: string | null
+          motivo_alteracao?: string
+          observacao?: string
           periculosidade?: boolean
-          plano_saude?: number
           salario_base?: number
           updated_at?: string
           updated_by?: string | null
-          vale_alimentacao?: number
-          vale_refeicao?: number
-          vale_transporte?: number
         }
         Relationships: [
           {
@@ -228,7 +216,6 @@ export type Database = {
         Args: { p_colaborador_id: string; p_data_referencia?: string }
         Returns: {
           adicional_periculosidade: number
-          ajuda_custo: number
           beneficios: number
           classificacao: string
           colaborador_id: string
@@ -240,11 +227,7 @@ export type Database = {
           motivo_alteracao: string
           observacao: string
           periculosidade: boolean
-          plano_saude: number
           salario_base: number
-          vale_alimentacao: number
-          vale_refeicao: number
-          vale_transporte: number
         }[]
       }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }

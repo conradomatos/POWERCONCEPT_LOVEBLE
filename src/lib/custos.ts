@@ -2,21 +2,19 @@
 export const HORAS_MENSAIS_PADRAO = 220;
 export const PERC_PERICULOSIDADE = 0.30;
 
+export type Classificacao = 'CLT' | 'PJ';
+
 export interface CustoColaborador {
   id: string;
   colaborador_id: string;
   salario_base: number;
   periculosidade: boolean;
-  vale_refeicao: number;
-  vale_alimentacao: number;
-  vale_transporte: number;
-  ajuda_custo: number;
-  plano_saude: number;
+  beneficios: number;
+  classificacao: Classificacao;
   inicio_vigencia: string;
-  fim_vigencia: string | null;
-  motivo_alteracao: string | null;
-  classificacao: string | null;
-  observacao: string | null;
+  fim_vigencia: string;
+  motivo_alteracao: string;
+  observacao: string;
   created_at: string;
   updated_at: string;
 }
@@ -30,14 +28,21 @@ export interface CustoCalculado {
 
 export function calcularCustos(custo: Partial<CustoColaborador>): CustoCalculado {
   const salarioBase = Number(custo.salario_base) || 0;
-  const valeRefeicao = Number(custo.vale_refeicao) || 0;
-  const valeAlimentacao = Number(custo.vale_alimentacao) || 0;
-  const valeTransporte = Number(custo.vale_transporte) || 0;
-  const ajudaCusto = Number(custo.ajuda_custo) || 0;
-  const planoSaude = Number(custo.plano_saude) || 0;
+  const beneficios = Number(custo.beneficios) || 0;
   const periculosidade = custo.periculosidade || false;
+  const classificacao = custo.classificacao || 'CLT';
 
-  const beneficios = valeRefeicao + valeAlimentacao + valeTransporte + ajudaCusto + planoSaude;
+  // PJ: apenas salário base, sem periculosidade ou benefícios
+  if (classificacao === 'PJ') {
+    return {
+      beneficios: 0,
+      adicional_periculosidade: 0,
+      custo_mensal_total: Math.round(salarioBase * 100) / 100,
+      custo_hora: Math.round((salarioBase / HORAS_MENSAIS_PADRAO) * 100) / 100,
+    };
+  }
+
+  // CLT: cálculo completo
   const adicional_periculosidade = periculosidade ? salarioBase * PERC_PERICULOSIDADE : 0;
   const custo_mensal_total = salarioBase + adicional_periculosidade + beneficios;
   const custo_hora = custo_mensal_total / HORAS_MENSAIS_PADRAO;
@@ -60,4 +65,33 @@ export function formatCurrency(value: number): string {
 export function formatDate(dateString: string | null): string {
   if (!dateString) return '-';
   return new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR');
+}
+
+// Parse BRL formatted string to number
+export function parseCurrencyToNumber(value: string): number {
+  if (!value) return 0;
+  // Remove currency symbol, dots (thousands) and replace comma with dot
+  const cleaned = value
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+// Format number to BRL display (20.000,00)
+export function formatCurrencyInput(value: string): string {
+  // Remove non-numeric chars except comma and dot
+  let cleaned = value.replace(/[^\d]/g, '');
+  
+  if (!cleaned) return '';
+  
+  // Convert to number with 2 decimal places
+  const num = parseInt(cleaned, 10) / 100;
+  
+  // Format as BRL without symbol
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
 }
