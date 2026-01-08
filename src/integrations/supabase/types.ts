@@ -159,6 +159,51 @@ export type Database = {
           },
         ]
       }
+      empresas: {
+        Row: {
+          cnpj: string | null
+          codigo: string
+          created_at: string
+          created_by: string | null
+          empresa: string
+          id: string
+          razao_social: string
+          segmento: string
+          status: Database["public"]["Enums"]["empresa_status"]
+          unidade: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cnpj?: string | null
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          empresa: string
+          id?: string
+          razao_social: string
+          segmento: string
+          status?: Database["public"]["Enums"]["empresa_status"]
+          unidade: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cnpj?: string | null
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          empresa?: string
+          id?: string
+          razao_social?: string
+          segmento?: string
+          status?: Database["public"]["Enums"]["empresa_status"]
+          unidade?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -185,6 +230,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      projetos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          empresa_id: string
+          id: string
+          nome: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          empresa_id: string
+          id?: string
+          nome: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          empresa_id?: string
+          id?: string
+          nome?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projetos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -242,6 +331,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "rh" | "financeiro"
       employee_status: "ativo" | "afastado" | "desligado"
+      empresa_status: "ativo" | "inativo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -371,6 +461,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "rh", "financeiro"],
       employee_status: ["ativo", "afastado", "desligado"],
+      empresa_status: ["ativo", "inativo"],
     },
   },
 } as const
