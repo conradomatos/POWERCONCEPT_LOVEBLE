@@ -186,13 +186,44 @@ export default function ImportApontamentos() {
     return null;
   };
 
-  // Parse hours (accept comma or dot)
+  // Parse hours (accept comma, dot, or HH:MM format)
   const parseHours = (value: string): number | null => {
     if (!value || value.trim() === '') return 0;
-    const normalized = value.replace(',', '.').trim();
+    const trimmed = value.trim();
+    
+    // Check for HH:MM format
+    const hhmmMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmmMatch) {
+      const hours = parseInt(hhmmMatch[1], 10);
+      const minutes = parseInt(hhmmMatch[2], 10);
+      if (minutes >= 60) return null;
+      const decimal = hours + minutes / 60;
+      return Math.round(decimal * 100) / 100;
+    }
+    
+    // Try decimal format (comma or dot)
+    const normalized = trimmed.replace(',', '.');
     const num = parseFloat(normalized);
     if (isNaN(num) || num < 0) return null;
     return num;
+  };
+
+  // Download CSV template
+  const downloadTemplate = () => {
+    const headers = 'cpf,data,os,horas_normais,horas_50,horas_100,horas_noturnas,falta_horas';
+    const row1 = '123.456.789-09,2026-01-02,250001,08:00,00:00,00:00,00:00,00:00';
+    const row2 = '123.456.789-09,2026-01-03,250001,07:30,00:30,00:00,00:00,00:00';
+    const content = `${headers}\n${row1}\n${row2}`;
+    
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modelo_apontamentos.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Format date for display
@@ -635,9 +666,15 @@ export default function ImportApontamentos() {
               <ul className="list-disc list-inside ml-4">
                 <li>CPF: com ou sem máscara (123.456.789-00 ou 12345678900)</li>
                 <li>Data: DD/MM/AAAA ou YYYY-MM-DD</li>
-                <li>Horas: aceita vírgula ou ponto como decimal</li>
+                <li>Horas: formato HH:MM (08:30) ou decimal (8.5)</li>
                 <li>OS: número único do projeto</li>
               </ul>
+            </div>
+            <div className="mt-4">
+              <Button variant="outline" onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar modelo CSV
+              </Button>
             </div>
           </CardContent>
         </Card>
