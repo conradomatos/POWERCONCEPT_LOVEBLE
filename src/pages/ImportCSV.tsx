@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, cleanCPF } from '@/lib/cpf';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
 import { useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 interface PreviewRow {
   row: number;
@@ -70,20 +71,59 @@ export default function ImportCSV() {
     });
   };
 
-  const validateRow = (row: Record<string, string>, rowNum: number): PreviewRow => {
+  const parseDate = (value: unknown): string => {
+    if (!value) return '';
+    
+    // Excel date (number)
+    if (typeof value === 'number') {
+      const date = XLSX.SSF.parse_date_code(value);
+      if (date) {
+        return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+      }
+    }
+    
+    // Date object
+    if (value instanceof Date) {
+      return value.toISOString().split('T')[0];
+    }
+    
+    // String formats
+    const str = String(value).trim();
+    
+    // DD/MM/YYYY
+    const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    }
+    
+    // YYYY-MM-DD
+    const ymdMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymdMatch) {
+      return str;
+    }
+    
+    return str;
+  };
+
+  const validateRow = (row: Record<string, unknown>, rowNum: number): PreviewRow => {
     const errors: string[] = [];
 
+    const getString = (val: unknown): string => {
+      if (val === null || val === undefined) return '';
+      return String(val).trim();
+    };
+
     const data = {
-      full_name: row['nome'] || row['nome_completo'] || row['full_name'] || '',
-      cpf: row['cpf'] || '',
-      birth_date: row['nascimento'] || row['data_nascimento'] || row['birth_date'] || '',
-      hire_date: row['admissao'] || row['data_admissao'] || row['hire_date'] || '',
-      termination_date: row['desligamento'] || row['data_desligamento'] || row['termination_date'] || '',
-      position: row['cargo'] || row['position'] || '',
-      department: row['departamento'] || row['department'] || '',
-      status: row['status'] || 'ativo',
-      email: row['email'] || '',
-      phone: row['telefone'] || row['phone'] || '',
+      full_name: getString(row['nome']) || getString(row['nome_completo']) || getString(row['full_name']) || '',
+      cpf: getString(row['cpf']) || '',
+      birth_date: parseDate(row['nascimento'] || row['data_nascimento'] || row['birth_date']),
+      hire_date: parseDate(row['admissao'] || row['data_admissao'] || row['hire_date']),
+      termination_date: parseDate(row['desligamento'] || row['data_desligamento'] || row['termination_date']),
+      position: getString(row['cargo']) || getString(row['position']) || '',
+      department: getString(row['departamento']) || getString(row['department']) || '',
+      status: getString(row['status']) || 'ativo',
+      email: getString(row['email']) || '',
+      phone: getString(row['telefone']) || getString(row['phone']) || '',
     };
 
     if (!data.full_name) {
@@ -117,36 +157,129 @@ export default function ImportCSV() {
     };
   };
 
+  const processXLSX = (data: ArrayBuffer) => {
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    
+    // Check for 'colaboradores' sheet first, then use first sheet
+    let sheetName = 'colaboradores';
+    if (!workbook.SheetNames.includes(sheetName)) {
+      sheetName = workbook.SheetNames[0];
+    }
+    
+    const worksheet = workbook.Sheets[sheetName];
+    const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: true });
+    
+    if (rawData.length === 0) {
+      toast.error('A planilha está vazia ou sem dados');
+      return;
+    }
+    
+    // Normalize keys to lowercase
+    const previewData = rawData.map((row, index) => {
+      const normalizedRow: Record<string, unknown> = {};
+      Object.keys(row).forEach((key) => {
+        normalizedRow[key.toLowerCase().replace(/\s+/g, '_')] = row[key];
+      });
+      return validateRow(normalizedRow, index + 2);
+    });
+    
+    setPreview(previewData);
+    setImported(false);
+  };
+
+  const processCSV = (text: string) => {
+    const rows = parseCSV(text);
+
+    if (rows.length < 2) {
+      toast.error('Arquivo deve conter cabeçalho e pelo menos uma linha de dados');
+      return;
+    }
+
+    const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+    const dataRows = rows.slice(1);
+
+    const previewData = dataRows.map((row, index) => {
+      const rowObj: Record<string, unknown> = {};
+      headers.forEach((header, i) => {
+        rowObj[header] = row[i] || '';
+      });
+      return validateRow(rowObj, index + 2);
+    });
+
+    setPreview(previewData);
+    setImported(false);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const rows = parseCSV(text);
+    const isXLSX = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
 
-      if (rows.length < 2) {
-        toast.error('Arquivo deve conter cabeçalho e pelo menos uma linha de dados');
-        return;
-      }
+    if (isXLSX) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = event.target?.result as ArrayBuffer;
+        processXLSX(data);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        processCSV(text);
+      };
+      reader.readAsText(file);
+    }
+  };
 
-      const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-      const dataRows = rows.slice(1);
+  const downloadXLSXTemplate = () => {
+    const templateData = [
+      {
+        nome: 'João da Silva',
+        cpf: '123.456.789-09',
+        nascimento: '1990-01-15',
+        admissao: '2024-01-01',
+        desligamento: '',
+        cargo: 'Analista',
+        departamento: 'TI',
+        status: 'ativo',
+        email: 'joao@email.com',
+        telefone: '11999999999',
+      },
+      {
+        nome: 'Maria Souza',
+        cpf: '987.654.321-00',
+        nascimento: '1985-06-20',
+        admissao: '2023-06-01',
+        desligamento: '',
+        cargo: 'Gerente',
+        departamento: 'RH',
+        status: 'ativo',
+        email: 'maria@email.com',
+        telefone: '11888888888',
+      },
+    ];
 
-      const previewData = dataRows.map((row, index) => {
-        const rowObj: Record<string, string> = {};
-        headers.forEach((header, i) => {
-          rowObj[header] = row[i] || '';
-        });
-        return validateRow(rowObj, index + 2);
-      });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    
+    ws['!cols'] = [
+      { wch: 25 }, // nome
+      { wch: 16 }, // cpf
+      { wch: 12 }, // nascimento
+      { wch: 12 }, // admissao
+      { wch: 12 }, // desligamento
+      { wch: 15 }, // cargo
+      { wch: 15 }, // departamento
+      { wch: 10 }, // status
+      { wch: 25 }, // email
+      { wch: 15 }, // telefone
+    ];
 
-      setPreview(previewData);
-      setImported(false);
-    };
-
-    reader.readAsText(file);
+    XLSX.utils.book_append_sheet(wb, ws, 'colaboradores');
+    XLSX.writeFile(wb, 'modelo_colaboradores.xlsx');
+    toast.success('Modelo XLSX baixado!');
   };
 
   const handleImport = async () => {
@@ -256,22 +389,28 @@ export default function ImportCSV() {
             <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8">
               <Upload className="h-10 w-10 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground mb-4">
-                Selecione um arquivo CSV ou Excel
+                Selecione um arquivo CSV ou Excel (.xlsx)
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.txt"
+                accept=".csv,.txt,.xlsx,.xls"
                 onChange={handleFileChange}
                 className="hidden"
                 id="csv-upload"
               />
-              <Button asChild variant="outline">
-                <label htmlFor="csv-upload" className="cursor-pointer">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Selecionar Arquivo
-                </label>
-              </Button>
+              <div className="flex gap-2">
+                <Button asChild variant="outline">
+                  <label htmlFor="csv-upload" className="cursor-pointer">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Selecionar Arquivo
+                  </label>
+                </Button>
+                <Button variant="outline" onClick={downloadXLSXTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar modelo XLSX
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
