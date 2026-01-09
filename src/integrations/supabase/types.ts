@@ -128,6 +128,111 @@ export type Database = {
           },
         ]
       }
+      apontamentos_consolidado: {
+        Row: {
+          arquivo_importacao_id: string | null
+          centro_custo: string | null
+          cpf: string
+          created_at: string
+          data_apontamento: string
+          data_atualizacao_gantt: string | null
+          data_importacao: string | null
+          descricao: string | null
+          funcionario_id: string | null
+          gantt_atualizado: boolean
+          horas: number
+          id: string
+          linha_arquivo: number | null
+          motivo_erro: string | null
+          nome_funcionario: string | null
+          observacao: string | null
+          origem: Database["public"]["Enums"]["apontamento_origem"]
+          os_numero: string | null
+          projeto_id: string | null
+          projeto_nome: string | null
+          status_apontamento: Database["public"]["Enums"]["apontamento_status"]
+          status_integracao: Database["public"]["Enums"]["integracao_status"]
+          tarefa_id: string | null
+          tarefa_nome: string | null
+          tipo_hora: Database["public"]["Enums"]["tipo_hora"]
+          updated_at: string
+          usuario_lancamento: string | null
+        }
+        Insert: {
+          arquivo_importacao_id?: string | null
+          centro_custo?: string | null
+          cpf: string
+          created_at?: string
+          data_apontamento: string
+          data_atualizacao_gantt?: string | null
+          data_importacao?: string | null
+          descricao?: string | null
+          funcionario_id?: string | null
+          gantt_atualizado?: boolean
+          horas?: number
+          id?: string
+          linha_arquivo?: number | null
+          motivo_erro?: string | null
+          nome_funcionario?: string | null
+          observacao?: string | null
+          origem: Database["public"]["Enums"]["apontamento_origem"]
+          os_numero?: string | null
+          projeto_id?: string | null
+          projeto_nome?: string | null
+          status_apontamento?: Database["public"]["Enums"]["apontamento_status"]
+          status_integracao?: Database["public"]["Enums"]["integracao_status"]
+          tarefa_id?: string | null
+          tarefa_nome?: string | null
+          tipo_hora?: Database["public"]["Enums"]["tipo_hora"]
+          updated_at?: string
+          usuario_lancamento?: string | null
+        }
+        Update: {
+          arquivo_importacao_id?: string | null
+          centro_custo?: string | null
+          cpf?: string
+          created_at?: string
+          data_apontamento?: string
+          data_atualizacao_gantt?: string | null
+          data_importacao?: string | null
+          descricao?: string | null
+          funcionario_id?: string | null
+          gantt_atualizado?: boolean
+          horas?: number
+          id?: string
+          linha_arquivo?: number | null
+          motivo_erro?: string | null
+          nome_funcionario?: string | null
+          observacao?: string | null
+          origem?: Database["public"]["Enums"]["apontamento_origem"]
+          os_numero?: string | null
+          projeto_id?: string | null
+          projeto_nome?: string | null
+          status_apontamento?: Database["public"]["Enums"]["apontamento_status"]
+          status_integracao?: Database["public"]["Enums"]["integracao_status"]
+          tarefa_id?: string | null
+          tarefa_nome?: string | null
+          tipo_hora?: Database["public"]["Enums"]["tipo_hora"]
+          updated_at?: string
+          usuario_lancamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apontamentos_consolidado_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamentos_consolidado_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       apontamentos_horas_dia: {
         Row: {
           colaborador_id: string
@@ -196,6 +301,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      arquivos_importacao: {
+        Row: {
+          created_at: string
+          id: string
+          linhas_erro: number
+          linhas_sucesso: number
+          nome_arquivo: string
+          tipo_arquivo: string
+          total_linhas: number
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          linhas_erro?: number
+          linhas_sucesso?: number
+          nome_arquivo: string
+          tipo_arquivo: string
+          total_linhas?: number
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          linhas_erro?: number
+          linhas_sucesso?: number
+          nome_arquivo?: string
+          tipo_arquivo?: string
+          total_linhas?: number
+          usuario_id?: string | null
+        }
+        Relationships: []
       }
       collaborator_history: {
         Row: {
@@ -615,10 +753,14 @@ export type Database = {
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
+      apontamento_origem: "IMPORTACAO" | "MANUAL"
+      apontamento_status: "PENDENTE" | "LANCADO" | "APROVADO" | "REPROVADO"
       app_role: "admin" | "rh" | "financeiro" | "super_admin"
       custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
+      integracao_status: "OK" | "ERRO"
+      tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -747,10 +889,14 @@ export const Constants = {
   public: {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
+      apontamento_origem: ["IMPORTACAO", "MANUAL"],
+      apontamento_status: ["PENDENTE", "LANCADO", "APROVADO", "REPROVADO"],
       app_role: ["admin", "rh", "financeiro", "super_admin"],
       custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
+      integracao_status: ["OK", "ERRO"],
+      tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
     },
   },
 } as const

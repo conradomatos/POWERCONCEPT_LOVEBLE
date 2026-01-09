@@ -11,7 +11,8 @@ import {
   Building2,
   FolderKanban,
   CalendarDays,
-  Clock
+  Clock,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/empresas', label: 'Empresas', icon: Building2 },
     { path: '/projetos', label: 'Projetos', icon: FolderKanban },
     { path: '/planejamento', label: 'Planejamento', icon: CalendarDays },
+    { path: '/apontamentos', label: 'Apontamentos', icon: ClipboardList, roles: ['admin', 'rh'] as const },
     { path: '/import', label: 'Importar Colaboradores', icon: Upload, roles: ['admin', 'rh'] as const },
     { path: '/import-apontamentos', label: 'Importar Apontamentos', icon: Clock, roles: ['admin', 'rh'] as const },
   ];
