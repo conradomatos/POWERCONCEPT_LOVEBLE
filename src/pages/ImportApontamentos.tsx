@@ -10,9 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, cleanCPF } from '@/lib/cpf';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import * as XLSX from 'xlsx';
 
 // Constants
 const HORAS_MENSAIS_PADRAO = 220;
@@ -54,12 +55,12 @@ interface PreviewRow {
 }
 
 interface ReportRow {
-  linha_csv: number;
+  linha: number;
   cpf: string;
   data: string;
   os: string;
-  status_linha: RowStatus;
-  codigo_erro_ou_aviso: string;
+  status: RowStatus;
+  codigo: string;
   mensagem: string;
 }
 
@@ -132,7 +133,7 @@ export default function ImportApontamentos() {
   const osToProject = useMemo(() => {
     const map = new Map<string, { id: string; nome: string }>();
     projetos?.forEach((p) => {
-      map.set(p.os.trim(), { id: p.id, nome: p.nome });
+      map.set(String(p.os).trim(), { id: p.id, nome: p.nome });
     });
     return map;
   }, [projetos]);
@@ -161,8 +162,26 @@ export default function ImportApontamentos() {
     });
   };
 
-  // Parse date (DD/MM/YYYY or YYYY-MM-DD)
-  const parseDate = (dateStr: string): Date | null => {
+  // Parse date (DD/MM/YYYY, YYYY-MM-DD, or Excel serial date)
+  const parseDate = (value: unknown): Date | null => {
+    if (!value) return null;
+    
+    // If it's already a Date object (from Excel)
+    if (value instanceof Date) {
+      if (!isNaN(value.getTime())) return value;
+      return null;
+    }
+    
+    // If it's a number (Excel serial date)
+    if (typeof value === 'number') {
+      // Excel dates: days since 1900-01-01 (with leap year bug)
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+      if (!isNaN(date.getTime())) return date;
+      return null;
+    }
+    
+    const dateStr = String(value).trim();
     if (!dateStr) return null;
     
     // Try DD/MM/YYYY
@@ -186,13 +205,28 @@ export default function ImportApontamentos() {
     return null;
   };
 
-  // Parse hours (accept comma, dot, or HH:MM format)
-  const parseHours = (value: string): number | null => {
-    if (!value || value.trim() === '') return 0;
-    const trimmed = value.trim();
+  // Parse hours (accept Excel time, HH:MM, decimal)
+  const parseHours = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return 0;
+    
+    // If it's a number (Excel time as fraction of day, or decimal hours)
+    if (typeof value === 'number') {
+      if (value < 0) return null;
+      // Excel stores time as fraction of day (e.g., 0.5 = 12 hours)
+      // If value is < 1, assume it's Excel time format
+      if (value < 1) {
+        const hours = value * 24;
+        return Math.round(hours * 100) / 100;
+      }
+      // Otherwise it's already decimal hours
+      return Math.round(value * 100) / 100;
+    }
+    
+    const strValue = String(value).trim();
+    if (!strValue) return 0;
     
     // Check for HH:MM format
-    const hhmmMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    const hhmmMatch = strValue.match(/^(\d{1,2}):(\d{2})$/);
     if (hhmmMatch) {
       const hours = parseInt(hhmmMatch[1], 10);
       const minutes = parseInt(hhmmMatch[2], 10);
@@ -202,14 +236,40 @@ export default function ImportApontamentos() {
     }
     
     // Try decimal format (comma or dot)
-    const normalized = trimmed.replace(',', '.');
+    const normalized = strValue.replace(',', '.');
     const num = parseFloat(normalized);
     if (isNaN(num) || num < 0) return null;
-    return num;
+    return Math.round(num * 100) / 100;
   };
 
-  // Download CSV template
-  const downloadTemplate = () => {
+  // Download XLSX template
+  const downloadXLSXTemplate = () => {
+    const wb = XLSX.utils.book_new();
+    const data = [
+      ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'],
+      ['123.456.789-09', '2026-01-02', '250001', '08:00', '00:00', '00:00', '00:00', '00:00'],
+      ['123.456.789-09', '2026-01-03', '250001', '07:30', '00:30', '00:00', '00:00', '00:00'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 16 }, // cpf
+      { wch: 12 }, // data
+      { wch: 10 }, // os
+      { wch: 14 }, // horas_normais
+      { wch: 10 }, // horas_50
+      { wch: 10 }, // horas_100
+      { wch: 14 }, // horas_noturnas
+      { wch: 12 }, // falta_horas
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'apontamentos');
+    XLSX.writeFile(wb, 'modelo_apontamentos.xlsx');
+  };
+
+  // Download CSV template (keep for backward compatibility)
+  const downloadCSVTemplate = () => {
     const headers = 'cpf,data,os,horas_normais,horas_50,horas_100,horas_noturnas,falta_horas';
     const row1 = '123.456.789-09,2026-01-02,250001,08:00,00:00,00:00,00:00,00:00';
     const row2 = '123.456.789-09,2026-01-03,250001,07:30,00:30,00:00,00:00,00:00';
@@ -271,11 +331,11 @@ export default function ImportApontamentos() {
   };
 
   // Validate a single row
-  const validateRow = (row: Record<string, string>, rowNum: number): PreviewRow => {
-    const cpfRaw = row['cpf'] || '';
+  const validateRow = (row: Record<string, unknown>, rowNum: number): PreviewRow => {
+    const cpfRaw = String(row['cpf'] || '');
     const cpfLimpo = cleanCPF(cpfRaw);
-    const dataRaw = row['data'] || '';
-    const osRaw = (row['os'] || '').trim();
+    const dataRaw = row['data'];
+    const osRaw = String(row['os'] || '').trim();
     
     // Parse hours
     const horasNormais = parseHours(row['horas_normais']);
@@ -290,7 +350,7 @@ export default function ImportApontamentos() {
       linha_csv: rowNum,
       cpf: cpfRaw,
       cpf_limpo: cpfLimpo,
-      data: dataRaw,
+      data: dataParsed ? formatDateStr(dataParsed) : String(dataRaw || ''),
       data_parsed: dataParsed,
       os: osRaw,
       horas_normais: horasNormais ?? 0,
@@ -373,6 +433,89 @@ export default function ImportApontamentos() {
     return result;
   };
 
+  // Process XLSX file
+  const processXLSX = (data: ArrayBuffer) => {
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    
+    // Check for 'apontamentos' sheet
+    const sheetName = 'apontamentos';
+    if (!workbook.SheetNames.includes(sheetName)) {
+      toast.error("Aba 'apontamentos' não encontrada. O arquivo XLSX deve conter uma aba chamada 'apontamentos'.");
+      return;
+    }
+    
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: false, dateNF: 'yyyy-mm-dd' });
+    
+    if (jsonData.length === 0) {
+      toast.error('A aba apontamentos está vazia ou sem dados');
+      return;
+    }
+    
+    // Get raw data with original types for hours parsing
+    const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: true });
+    
+    // Validate required columns
+    const firstRow = jsonData[0];
+    const headers = Object.keys(firstRow).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'];
+    const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
+    
+    if (missingColumns.length > 0) {
+      toast.error(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
+      return;
+    }
+    
+    // Process rows using raw data for proper type handling
+    const previewData = rawData.map((row, index) => {
+      // Normalize keys to lowercase
+      const normalizedRow: Record<string, unknown> = {};
+      Object.keys(row).forEach((key) => {
+        normalizedRow[key.toLowerCase().replace(/\s+/g, '_')] = row[key];
+      });
+      return validateRow(normalizedRow, index + 2);
+    });
+    
+    setPreview(previewData);
+    setImported(false);
+    setActiveTab('todos');
+  };
+
+  // Process CSV file
+  const processCSV = (text: string) => {
+    const rows = parseCSV(text);
+
+    if (rows.length < 2) {
+      toast.error('Arquivo deve conter cabeçalho e pelo menos uma linha de dados');
+      return;
+    }
+
+    const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+    
+    // Validate required columns
+    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'];
+    const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
+    
+    if (missingColumns.length > 0) {
+      toast.error(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
+      return;
+    }
+
+    const dataRows = rows.slice(1);
+
+    const previewData = dataRows.map((row, index) => {
+      const rowObj: Record<string, unknown> = {};
+      headers.forEach((header, i) => {
+        rowObj[header] = row[i] || '';
+      });
+      return validateRow(rowObj, index + 2);
+    });
+
+    setPreview(previewData);
+    setImported(false);
+    setActiveTab('todos');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -382,43 +525,23 @@ export default function ImportApontamentos() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const rows = parseCSV(text);
+    const isXLSX = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
 
-      if (rows.length < 2) {
-        toast.error('Arquivo deve conter cabeçalho e pelo menos uma linha de dados');
-        return;
-      }
-
-      const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-      
-      // Validate required columns
-      const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'];
-      const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
-      
-      if (missingColumns.length > 0) {
-        toast.error(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
-        return;
-      }
-
-      const dataRows = rows.slice(1);
-
-      const previewData = dataRows.map((row, index) => {
-        const rowObj: Record<string, string> = {};
-        headers.forEach((header, i) => {
-          rowObj[header] = row[i] || '';
-        });
-        return validateRow(rowObj, index + 2);
-      });
-
-      setPreview(previewData);
-      setImported(false);
-      setActiveTab('todos');
-    };
-
-    reader.readAsText(file);
+    if (isXLSX) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = event.target?.result as ArrayBuffer;
+        processXLSX(data);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        processCSV(text);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleImport = async () => {
@@ -452,7 +575,7 @@ export default function ImportApontamentos() {
           horas_noturnas: row.horas_noturnas,
           falta_horas: row.falta_horas,
           warning_sem_custo: hasWarningSemCusto,
-          fonte: 'CSV',
+          fonte: 'XLSX',
         }, {
           onConflict: 'cpf,data,projeto_id',
         });
@@ -569,35 +692,34 @@ export default function ImportApontamentos() {
 
   const generateReport = (): ReportRow[] => {
     return preview.map((row) => ({
-      linha_csv: row.linha_csv,
+      linha: row.linha_csv,
       cpf: row.cpf,
       data: row.data,
       os: row.os,
-      status_linha: row.status_linha,
-      codigo_erro_ou_aviso: row.codigo_erro_ou_aviso || '',
+      status: row.status_linha,
+      codigo: row.codigo_erro_ou_aviso || '',
       mensagem: row.mensagem,
     }));
   };
 
-  const downloadCSV = () => {
+  const downloadReportXLSX = () => {
     const report = generateReport();
-    const headers = ['linha_csv', 'cpf', 'data', 'os', 'status_linha', 'codigo_erro_ou_aviso', 'mensagem'];
-    const csvContent = [
-      headers.join(';'),
-      ...report.map((row) => 
-        headers.map((h) => `"${String(row[h as keyof ReportRow]).replace(/"/g, '""')}"`).join(';')
-      ),
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `relatorio_importacao_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(report);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 8 },  // linha
+      { wch: 16 }, // cpf
+      { wch: 12 }, // data
+      { wch: 10 }, // os
+      { wch: 8 },  // status
+      { wch: 20 }, // codigo
+      { wch: 50 }, // mensagem
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'relatorio');
+    XLSX.writeFile(wb, `relatorio_importacao_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Filter preview based on active tab
@@ -647,8 +769,8 @@ export default function ImportApontamentos() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Importar Apontamentos (CSV)</h2>
-          <p className="text-muted-foreground">Importe apontamentos de horas a partir de um arquivo CSV</p>
+          <h2 className="text-2xl font-semibold tracking-tight">Importar Apontamentos</h2>
+          <p className="text-muted-foreground">Importe apontamentos de horas a partir de um arquivo Excel (.xlsx) ou CSV</p>
         </div>
 
         {/* Instructions */}
@@ -656,7 +778,7 @@ export default function ImportApontamentos() {
           <CardHeader>
             <CardTitle className="text-lg">Formato do Arquivo</CardTitle>
             <CardDescription>
-              O arquivo CSV deve conter exatamente estas colunas (primeira linha = cabeçalho):
+              O arquivo deve conter exatamente estas colunas. Para XLSX, use a aba <strong>"apontamentos"</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -665,13 +787,17 @@ export default function ImportApontamentos() {
               <p><strong>Formatos aceitos:</strong></p>
               <ul className="list-disc list-inside ml-4">
                 <li>CPF: com ou sem máscara (123.456.789-00 ou 12345678900)</li>
-                <li>Data: DD/MM/AAAA ou YYYY-MM-DD</li>
-                <li>Horas: formato HH:MM (08:30) ou decimal (8.5)</li>
-                <li>OS: número único do projeto</li>
+                <li>Data: data do Excel, DD/MM/AAAA ou YYYY-MM-DD</li>
+                <li>Horas: hora Excel (08:00), HH:MM, ou decimal (8.5)</li>
+                <li>OS: número único do projeto (texto ou número)</li>
               </ul>
             </div>
-            <div className="mt-4">
-              <Button variant="outline" onClick={downloadTemplate}>
+            <div className="mt-4 flex gap-2 flex-wrap">
+              <Button variant="default" onClick={downloadXLSXTemplate}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Baixar modelo XLSX
+              </Button>
+              <Button variant="outline" onClick={downloadCSVTemplate}>
                 <Download className="h-4 w-4 mr-2" />
                 Baixar modelo CSV
               </Button>
@@ -685,19 +811,19 @@ export default function ImportApontamentos() {
             <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8">
               <Upload className="h-10 w-10 text-muted-foreground mb-4" />
               <p className="text-sm text-muted-foreground mb-4">
-                Selecione um arquivo CSV
+                Selecione um arquivo Excel (.xlsx) ou CSV
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.txt"
+                accept=".xlsx,.xls,.csv,.txt"
                 onChange={handleFileChange}
                 className="hidden"
-                id="csv-apontamentos-upload"
+                id="file-apontamentos-upload"
               />
               <Button asChild variant="outline">
-                <label htmlFor="csv-apontamentos-upload" className="cursor-pointer">
-                  <FileText className="h-4 w-4 mr-2" />
+                <label htmlFor="file-apontamentos-upload" className="cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
                   Selecionar Arquivo
                 </label>
               </Button>
@@ -715,8 +841,8 @@ export default function ImportApontamentos() {
                   Total: {counts.total} | OK: {counts.ok} | Avisos: {counts.avisos} | Erros: {counts.erros}
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={downloadCSV}>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" onClick={downloadReportXLSX}>
                   <Download className="h-4 w-4 mr-2" />
                   Baixar Relatório
                 </Button>
@@ -808,7 +934,7 @@ export default function ImportApontamentos() {
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{row.cpf}</TableCell>
-                        <TableCell>{row.data_parsed ? formatDateStr(row.data_parsed) : row.data}</TableCell>
+                        <TableCell>{row.data}</TableCell>
                         <TableCell>{row.os}</TableCell>
                         <TableCell className="text-right">{row.horas_normais.toFixed(2)}</TableCell>
                         <TableCell className="text-right">{row.horas_50.toFixed(2)}</TableCell>
