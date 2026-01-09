@@ -4,14 +4,12 @@ import {
   ClipboardList,
   Upload,
   FileSpreadsheet,
-  CalendarDays,
-  LayoutGrid,
   Users,
   Building2,
   FolderKanban,
   Settings,
-  UserCog,
   GanttChart,
+  DollarSign,
 } from 'lucide-react';
 
 import {
@@ -51,6 +49,12 @@ const navGroups: NavGroup[] = [
     label: 'Planejamento',
     items: [
       { title: 'Planejamento', url: '/planejamento', icon: GanttChart },
+    ],
+  },
+  {
+    label: 'Financeiro',
+    items: [
+      { title: 'Custos de Projetos', url: '/custos-projeto', icon: DollarSign },
     ],
   },
   {
