@@ -753,13 +753,18 @@ export type Database = {
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
-      apontamento_origem: "IMPORTACAO" | "MANUAL"
-      apontamento_status: "PENDENTE" | "LANCADO" | "APROVADO" | "REPROVADO"
+      apontamento_origem: "IMPORTACAO" | "MANUAL" | "SISTEMA"
+      apontamento_status:
+        | "PENDENTE"
+        | "LANCADO"
+        | "APROVADO"
+        | "REPROVADO"
+        | "NAO_LANCADO"
       app_role: "admin" | "rh" | "financeiro" | "super_admin"
       custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
-      integracao_status: "OK" | "ERRO"
+      integracao_status: "OK" | "ERRO" | "PENDENTE"
       tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
     }
     CompositeTypes: {
@@ -889,13 +894,19 @@ export const Constants = {
   public: {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
-      apontamento_origem: ["IMPORTACAO", "MANUAL"],
-      apontamento_status: ["PENDENTE", "LANCADO", "APROVADO", "REPROVADO"],
+      apontamento_origem: ["IMPORTACAO", "MANUAL", "SISTEMA"],
+      apontamento_status: [
+        "PENDENTE",
+        "LANCADO",
+        "APROVADO",
+        "REPROVADO",
+        "NAO_LANCADO",
+      ],
       app_role: ["admin", "rh", "financeiro", "super_admin"],
       custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
-      integracao_status: ["OK", "ERRO"],
+      integracao_status: ["OK", "ERRO", "PENDENTE"],
       tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
     },
   },
