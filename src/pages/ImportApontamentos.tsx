@@ -545,141 +545,219 @@ export default function ImportApontamentos() {
   };
 
   const handleImport = async () => {
-    const validRows = preview.filter((r) => r.status_linha !== 'ERRO');
-    if (validRows.length === 0) {
-      toast.error('Nenhum registro válido para importar');
+    // Get file name for archive tracking
+    const fileName = fileInputRef.current?.files?.[0]?.name || 'import';
+    
+    // Create arquivo_importacao record
+    const { data: arquivoData, error: arquivoError } = await supabase
+      .from('arquivos_importacao')
+      .insert({
+        nome_arquivo: fileName,
+        tipo_arquivo: fileName.endsWith('.xlsx') ? 'XLSX' : 'CSV',
+        total_linhas: preview.length,
+        linhas_sucesso: 0,
+        linhas_erro: 0,
+        usuario_id: user?.id,
+      })
+      .select('id')
+      .single();
+    
+    if (arquivoError) {
+      console.error('Erro ao criar registro de arquivo:', arquivoError);
+      toast.error('Erro ao registrar arquivo de importação');
       return;
     }
+    
+    const arquivoId = arquivoData.id;
 
     setImporting(true);
     let okCount = 0;
     let avisoCount = 0;
-    let erroCount = preview.filter((r) => r.status_linha === 'ERRO').length;
+    let erroCount = 0;
 
     // Group rows by collaborator and project to create/update allocation blocks
     const blocksMap = new Map<string, { colaborador_id: string; projeto_id: string; dates: string[] }>();
 
-    for (const row of validRows) {
-      const dateStr = formatDateDB(row.data_parsed!);
-      const hasWarningSemCusto = row.status_linha === 'AVISO';
-      
-      // Track dates for block creation
-      const blockKey = `${row.colaborador_id}_${row.projeto_id}`;
-      if (!blocksMap.has(blockKey)) {
-        blocksMap.set(blockKey, {
-          colaborador_id: row.colaborador_id!,
-          projeto_id: row.projeto_id!,
-          dates: [],
-        });
-      }
-      blocksMap.get(blockKey)!.dates.push(dateStr);
-      
-      // Upsert apontamentos_horas_dia
-      const { error: apontamentoError } = await supabase
-        .from('apontamentos_horas_dia')
-        .upsert({
-          cpf: row.cpf_limpo,
-          colaborador_id: row.colaborador_id!,
-          data: dateStr,
-          os: row.os,
-          projeto_id: row.projeto_id!,
-          horas_normais: row.horas_normais,
-          horas_50: row.horas_50,
-          horas_100: row.horas_100,
-          horas_noturnas: row.horas_noturnas,
-          falta_horas: row.falta_horas,
-          warning_sem_custo: hasWarningSemCusto,
-          fonte: 'XLSX',
-        }, {
-          onConflict: 'cpf,data,projeto_id',
-        });
+    // Get project and collaborator info for consolidated table
+    const projectMap = new Map<string, { nome: string; os: string }>();
+    projetos?.forEach((p) => {
+      projectMap.set(p.id, { nome: p.nome, os: p.os });
+    });
+    const collabMap = new Map<string, string>();
+    collaborators?.forEach((c) => {
+      collabMap.set(c.id, c.full_name);
+    });
 
-      if (apontamentoError) {
-        console.error('Erro ao inserir apontamento:', apontamentoError);
-        erroCount++;
-        continue;
+    // Process ALL rows (including errors) for consolidated table
+    for (const row of preview) {
+      const dateStr = row.data_parsed ? formatDateDB(row.data_parsed) : '';
+      const hasError = row.status_linha === 'ERRO';
+      const hasWarning = row.status_linha === 'AVISO';
+      
+      // Get project info
+      const projectInfo = row.projeto_id ? projectMap.get(row.projeto_id) : null;
+      const collabName = row.colaborador_id ? collabMap.get(row.colaborador_id) : null;
+      
+      // Calculate total hours for consolidated record
+      const totalHoras = row.horas_normais + row.horas_50 + row.horas_100 + row.horas_noturnas;
+      
+      // Determine tipo_hora based on which has the most hours
+      let tipoHora: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA' = 'NORMAL';
+      if (row.horas_50 > row.horas_normais && row.horas_50 > row.horas_100 && row.horas_50 > row.horas_noturnas) {
+        tipoHora = 'H50';
+      } else if (row.horas_100 > row.horas_normais && row.horas_100 > row.horas_noturnas) {
+        tipoHora = 'H100';
+      } else if (row.horas_noturnas > row.horas_normais) {
+        tipoHora = 'NOTURNA';
       }
 
-      // Calculate and upsert custo_projeto_dia
-      let custoData: {
-        cpf: string;
-        colaborador_id: string;
-        data: string;
-        projeto_id: string;
-        custo_hora: number | null;
-        horas_normais: number;
-        horas_50: number;
-        horas_100: number;
-        horas_noturnas: number;
-        falta_horas: number;
-        custo_normal: number | null;
-        custo_50: number | null;
-        custo_100: number | null;
-        custo_noturno: number | null;
-        custo_total: number | null;
-        status: 'OK' | 'SEM_CUSTO';
-        observacao: string | null;
-      };
+      // Insert individual records for each hour type into consolidated table
+      const allHourTypes: { tipo: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA'; horas: number }[] = [
+        { tipo: 'NORMAL' as const, horas: row.horas_normais },
+        { tipo: 'H50' as const, horas: row.horas_50 },
+        { tipo: 'H100' as const, horas: row.horas_100 },
+        { tipo: 'NOTURNA' as const, horas: row.horas_noturnas },
+      ];
+      const hourTypes = allHourTypes.filter(h => h.horas > 0);
 
-      if (row.custo_vigente) {
-        const custoHora = row.custo_vigente.custo_hora;
-        const custoNormal = row.horas_normais * custoHora;
-        const custo50 = row.horas_50 * custoHora * MULT_50;
-        const custo100 = row.horas_100 * custoHora * MULT_100;
-        const custoNoturno = row.horas_noturnas * custoHora * MULT_NOTURNO;
-        const custoTotal = custoNormal + custo50 + custo100 + custoNoturno;
+      // If no hours, still create one record to track the error/warning
+      if (hourTypes.length === 0) {
+        hourTypes.push({ tipo: 'NORMAL', horas: 0 });
+      }
 
-        custoData = {
-          cpf: row.cpf_limpo,
-          colaborador_id: row.colaborador_id!,
-          data: dateStr,
-          projeto_id: row.projeto_id!,
-          custo_hora: custoHora,
-          horas_normais: row.horas_normais,
-          horas_50: row.horas_50,
-          horas_100: row.horas_100,
-          horas_noturnas: row.horas_noturnas,
-          falta_horas: row.falta_horas,
-          custo_normal: Math.round(custoNormal * 100) / 100,
-          custo_50: Math.round(custo50 * 100) / 100,
-          custo_100: Math.round(custo100 * 100) / 100,
-          custo_noturno: Math.round(custoNoturno * 100) / 100,
-          custo_total: Math.round(custoTotal * 100) / 100,
-          status: 'OK',
-          observacao: null,
-        };
-        okCount++;
+      let ganttAtualizado = false;
+
+      if (!hasError && row.data_parsed && row.colaborador_id && row.projeto_id) {
+        // Track dates for block creation
+        const blockKey = `${row.colaborador_id}_${row.projeto_id}`;
+        if (!blocksMap.has(blockKey)) {
+          blocksMap.set(blockKey, {
+            colaborador_id: row.colaborador_id!,
+            projeto_id: row.projeto_id!,
+            dates: [],
+          });
+        }
+        blocksMap.get(blockKey)!.dates.push(dateStr);
+        
+        // Upsert apontamentos_horas_dia
+        const { error: apontamentoError } = await supabase
+          .from('apontamentos_horas_dia')
+          .upsert({
+            cpf: row.cpf_limpo,
+            colaborador_id: row.colaborador_id!,
+            data: dateStr,
+            os: row.os,
+            projeto_id: row.projeto_id!,
+            horas_normais: row.horas_normais,
+            horas_50: row.horas_50,
+            horas_100: row.horas_100,
+            horas_noturnas: row.horas_noturnas,
+            falta_horas: row.falta_horas,
+            warning_sem_custo: hasWarning,
+            fonte: 'XLSX',
+          }, {
+            onConflict: 'cpf,data,projeto_id',
+          });
+
+        if (apontamentoError) {
+          console.error('Erro ao inserir apontamento:', apontamentoError);
+        }
+
+        // Calculate and upsert custo_projeto_dia
+        if (row.custo_vigente) {
+          const custoHora = row.custo_vigente.custo_hora;
+          const custoNormal = row.horas_normais * custoHora;
+          const custo50 = row.horas_50 * custoHora * MULT_50;
+          const custo100 = row.horas_100 * custoHora * MULT_100;
+          const custoNoturno = row.horas_noturnas * custoHora * MULT_NOTURNO;
+          const custoTotal = custoNormal + custo50 + custo100 + custoNoturno;
+
+          await supabase
+            .from('custo_projeto_dia')
+            .upsert({
+              cpf: row.cpf_limpo,
+              colaborador_id: row.colaborador_id!,
+              data: dateStr,
+              projeto_id: row.projeto_id!,
+              custo_hora: custoHora,
+              horas_normais: row.horas_normais,
+              horas_50: row.horas_50,
+              horas_100: row.horas_100,
+              horas_noturnas: row.horas_noturnas,
+              falta_horas: row.falta_horas,
+              custo_normal: Math.round(custoNormal * 100) / 100,
+              custo_50: Math.round(custo50 * 100) / 100,
+              custo_100: Math.round(custo100 * 100) / 100,
+              custo_noturno: Math.round(custoNoturno * 100) / 100,
+              custo_total: Math.round(custoTotal * 100) / 100,
+              status: 'OK',
+              observacao: null,
+            }, {
+              onConflict: 'cpf,data,projeto_id',
+            });
+          okCount++;
+        } else {
+          await supabase
+            .from('custo_projeto_dia')
+            .upsert({
+              cpf: row.cpf_limpo,
+              colaborador_id: row.colaborador_id!,
+              data: dateStr,
+              projeto_id: row.projeto_id!,
+              custo_hora: null,
+              horas_normais: row.horas_normais,
+              horas_50: row.horas_50,
+              horas_100: row.horas_100,
+              horas_noturnas: row.horas_noturnas,
+              falta_horas: row.falta_horas,
+              custo_normal: null,
+              custo_50: null,
+              custo_100: null,
+              custo_noturno: null,
+              custo_total: null,
+              status: 'SEM_CUSTO',
+              observacao: 'Sem custo vigente na data',
+            }, {
+              onConflict: 'cpf,data,projeto_id',
+            });
+          avisoCount++;
+        }
+
+        ganttAtualizado = true;
       } else {
-        custoData = {
-          cpf: row.cpf_limpo,
-          colaborador_id: row.colaborador_id!,
-          data: dateStr,
-          projeto_id: row.projeto_id!,
-          custo_hora: null,
-          horas_normais: row.horas_normais,
-          horas_50: row.horas_50,
-          horas_100: row.horas_100,
-          horas_noturnas: row.horas_noturnas,
-          falta_horas: row.falta_horas,
-          custo_normal: null,
-          custo_50: null,
-          custo_100: null,
-          custo_noturno: null,
-          custo_total: null,
-          status: 'SEM_CUSTO',
-          observacao: 'Sem custo vigente na data',
-        };
-        avisoCount++;
+        erroCount++;
       }
 
-      const { error: custoError } = await supabase
-        .from('custo_projeto_dia')
-        .upsert(custoData, {
-          onConflict: 'cpf,data,projeto_id',
-        });
-
-      if (custoError) {
-        console.error('Erro ao inserir custo:', custoError);
+      // Insert into apontamentos_consolidado
+      for (const hourType of hourTypes) {
+        await supabase
+          .from('apontamentos_consolidado')
+          .insert({
+            origem: 'IMPORTACAO',
+            arquivo_importacao_id: arquivoId,
+            linha_arquivo: row.linha_csv,
+            data_importacao: new Date().toISOString(),
+            usuario_lancamento: user?.id,
+            projeto_id: row.projeto_id || null,
+            projeto_nome: projectInfo?.nome || null,
+            os_numero: row.os || null,
+            tarefa_id: null,
+            tarefa_nome: null,
+            centro_custo: null,
+            funcionario_id: row.colaborador_id || null,
+            cpf: row.cpf_limpo || row.cpf,
+            nome_funcionario: collabName || null,
+            data_apontamento: dateStr || row.data || '1900-01-01',
+            horas: hourType.horas,
+            tipo_hora: hourType.tipo,
+            descricao: null,
+            observacao: row.mensagem || null,
+            status_apontamento: hasError ? 'PENDENTE' : 'LANCADO',
+            status_integracao: hasError ? 'ERRO' : 'OK',
+            motivo_erro: hasError ? row.mensagem : null,
+            gantt_atualizado: ganttAtualizado,
+            data_atualizacao_gantt: ganttAtualizado ? new Date().toISOString() : null,
+          });
       }
     }
 
@@ -709,7 +787,7 @@ export default function ImportApontamentos() {
         const newMaxDate = allDates[allDates.length - 1];
 
         // Update the first block and delete others if there are multiple
-        const { error: updateError } = await supabase
+        await supabase
           .from('alocacoes_blocos')
           .update({
             data_inicio: newMinDate,
@@ -717,10 +795,6 @@ export default function ImportApontamentos() {
             updated_at: new Date().toISOString(),
           })
           .eq('id', existingBlocks[0].id);
-
-        if (updateError) {
-          console.error('Erro ao atualizar bloco de alocação:', updateError);
-        }
 
         // Delete other overlapping blocks
         if (existingBlocks.length > 1) {
@@ -732,7 +806,7 @@ export default function ImportApontamentos() {
         }
       } else {
         // Create new 'realizado' block
-        const { error: insertError } = await supabase
+        await supabase
           .from('alocacoes_blocos')
           .insert({
             colaborador_id: blockData.colaborador_id,
@@ -742,12 +816,17 @@ export default function ImportApontamentos() {
             tipo: 'realizado',
             observacao: 'Criado via importação de apontamentos',
           });
-
-        if (insertError) {
-          console.error('Erro ao criar bloco de alocação:', insertError);
-        }
       }
     }
+
+    // Update arquivo_importacao with results
+    await supabase
+      .from('arquivos_importacao')
+      .update({
+        linhas_sucesso: okCount + avisoCount,
+        linhas_erro: erroCount,
+      })
+      .eq('id', arquivoId);
 
     setResults({ ok: okCount, avisos: avisoCount, erros: erroCount });
     setImported(true);
