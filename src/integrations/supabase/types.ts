@@ -72,6 +72,13 @@ export type Database = {
             referencedRelation: "projetos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "alocacoes_blocos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       alocacoes_padrao: {
@@ -125,6 +132,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projetos"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alocacoes_padrao_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
           },
         ]
       }
@@ -231,6 +245,13 @@ export type Database = {
             referencedRelation: "projetos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "apontamentos_consolidado_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       apontamentos_horas_dia: {
@@ -299,6 +320,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projetos"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamentos_horas_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
           },
         ]
       }
@@ -503,6 +531,13 @@ export type Database = {
             referencedRelation: "projetos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "custo_projeto_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       custos_colaborador: {
@@ -561,6 +596,69 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "collaborators"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      custos_diretos_projeto: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: string
+          descricao: string
+          documento: string | null
+          fornecedor: string | null
+          id: string
+          observacao: string | null
+          projeto_id: string
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: string
+          descricao: string
+          documento?: string | null
+          fornecedor?: string | null
+          id?: string
+          observacao?: string | null
+          projeto_id: string
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao?: string
+          documento?: string | null
+          fornecedor?: string | null
+          id?: string
+          observacao?: string | null
+          projeto_id?: string
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custos_diretos_projeto_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custos_diretos_projeto_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
           },
         ]
       }
@@ -740,6 +838,25 @@ export type Database = {
           tipo_hora: Database["public"]["Enums"]["tipo_hora"] | null
           updated_at: string | null
           usuario_lancamento: string | null
+        }
+        Relationships: []
+      }
+      vw_custo_projeto: {
+        Row: {
+          custo_mao_obra: number | null
+          custo_material: number | null
+          custo_medio_hora: number | null
+          custo_outro: number | null
+          custo_servico: number | null
+          custo_total: number | null
+          empresa_nome: string | null
+          horas_totais: number | null
+          projeto_id: string | null
+          projeto_nome: string | null
+          projeto_os: string | null
+          registros_mo_ok: number | null
+          registros_sem_custo: number | null
+          total_custos_diretos: number | null
         }
         Relationships: []
       }
