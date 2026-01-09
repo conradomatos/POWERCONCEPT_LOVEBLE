@@ -556,9 +556,23 @@ export default function ImportApontamentos() {
     let avisoCount = 0;
     let erroCount = preview.filter((r) => r.status_linha === 'ERRO').length;
 
+    // Group rows by collaborator and project to create/update allocation blocks
+    const blocksMap = new Map<string, { colaborador_id: string; projeto_id: string; dates: string[] }>();
+
     for (const row of validRows) {
       const dateStr = formatDateDB(row.data_parsed!);
       const hasWarningSemCusto = row.status_linha === 'AVISO';
+      
+      // Track dates for block creation
+      const blockKey = `${row.colaborador_id}_${row.projeto_id}`;
+      if (!blocksMap.has(blockKey)) {
+        blocksMap.set(blockKey, {
+          colaborador_id: row.colaborador_id!,
+          projeto_id: row.projeto_id!,
+          dates: [],
+        });
+      }
+      blocksMap.get(blockKey)!.dates.push(dateStr);
       
       // Upsert apontamentos_horas_dia
       const { error: apontamentoError } = await supabase
@@ -666,6 +680,72 @@ export default function ImportApontamentos() {
 
       if (custoError) {
         console.error('Erro ao inserir custo:', custoError);
+      }
+    }
+
+    // Create/update allocation blocks (tipo: 'realizado') for the Gantt chart
+    for (const [, blockData] of blocksMap) {
+      const sortedDates = blockData.dates.sort();
+      const minDate = sortedDates[0];
+      const maxDate = sortedDates[sortedDates.length - 1];
+
+      // Check if there's an existing 'realizado' block that overlaps
+      const { data: existingBlocks } = await supabase
+        .from('alocacoes_blocos')
+        .select('id, data_inicio, data_fim')
+        .eq('colaborador_id', blockData.colaborador_id)
+        .eq('projeto_id', blockData.projeto_id)
+        .eq('tipo', 'realizado')
+        .or(`and(data_inicio.lte.${maxDate},data_fim.gte.${minDate})`);
+
+      if (existingBlocks && existingBlocks.length > 0) {
+        // Expand existing block to cover all dates
+        const allDates = [...sortedDates];
+        existingBlocks.forEach(block => {
+          allDates.push(block.data_inicio, block.data_fim);
+        });
+        allDates.sort();
+        const newMinDate = allDates[0];
+        const newMaxDate = allDates[allDates.length - 1];
+
+        // Update the first block and delete others if there are multiple
+        const { error: updateError } = await supabase
+          .from('alocacoes_blocos')
+          .update({
+            data_inicio: newMinDate,
+            data_fim: newMaxDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingBlocks[0].id);
+
+        if (updateError) {
+          console.error('Erro ao atualizar bloco de alocação:', updateError);
+        }
+
+        // Delete other overlapping blocks
+        if (existingBlocks.length > 1) {
+          const idsToDelete = existingBlocks.slice(1).map(b => b.id);
+          await supabase
+            .from('alocacoes_blocos')
+            .delete()
+            .in('id', idsToDelete);
+        }
+      } else {
+        // Create new 'realizado' block
+        const { error: insertError } = await supabase
+          .from('alocacoes_blocos')
+          .insert({
+            colaborador_id: blockData.colaborador_id,
+            projeto_id: blockData.projeto_id,
+            data_inicio: minDate,
+            data_fim: maxDate,
+            tipo: 'realizado',
+            observacao: 'Criado via importação de apontamentos',
+          });
+
+        if (insertError) {
+          console.error('Erro ao criar bloco de alocação:', insertError);
+        }
       }
     }
 
