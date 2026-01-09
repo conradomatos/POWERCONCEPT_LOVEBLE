@@ -706,7 +706,43 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_apontamentos_consolidado: {
+        Row: {
+          arquivo_importacao_id: string | null
+          centro_custo: string | null
+          cpf: string | null
+          created_at: string | null
+          data_apontamento: string | null
+          data_atualizacao_gantt: string | null
+          data_importacao: string | null
+          descricao: string | null
+          funcionario_id: string | null
+          gantt_atualizado: boolean | null
+          horas: number | null
+          id: string | null
+          is_pending: boolean | null
+          linha_arquivo: number | null
+          motivo_erro: string | null
+          nome_funcionario: string | null
+          observacao: string | null
+          origem: Database["public"]["Enums"]["apontamento_origem"] | null
+          os_numero: string | null
+          projeto_id: string | null
+          projeto_nome: string | null
+          status_apontamento:
+            | Database["public"]["Enums"]["apontamento_status"]
+            | null
+          status_integracao:
+            | Database["public"]["Enums"]["integracao_status"]
+            | null
+          tarefa_id: string | null
+          tarefa_nome: string | null
+          tipo_hora: Database["public"]["Enums"]["tipo_hora"] | null
+          updated_at: string | null
+          usuario_lancamento: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_next_os: { Args: never; Returns: string }
