@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Trash2 } from 'lucide-react';
+import { UserPlus, Trash2, UserCheck, Clock, Users, Shield, AlertCircle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -19,14 +21,15 @@ interface UserWithRole {
   email: string;
   full_name: string | null;
   roles: AppRole[];
+  created_at: string;
 }
 
 export default function Admin() {
   const navigate = useNavigate();
-  const { user, loading, hasRole } = useAuth();
+  const { user, loading, hasRole, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [selectedRole, setSelectedRole] = useState<AppRole>('rh');
+  const [selectedRoles, setSelectedRoles] = useState<Record<string, AppRole>>({});
 
   useEffect(() => {
     if (!loading && !user) {
@@ -41,7 +44,8 @@ export default function Admin() {
     // Get all profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, full_name, email');
+      .select('user_id, full_name, email, created_at')
+      .order('created_at', { ascending: false });
 
     if (profilesError) {
       console.error('Error fetching profiles:', profilesError);
@@ -66,6 +70,7 @@ export default function Admin() {
       roles: (roles || [])
         .filter((r) => r.user_id === profile.user_id)
         .map((r) => r.role),
+      created_at: profile.created_at,
     }));
 
     setUsers(usersData);
@@ -93,7 +98,7 @@ export default function Admin() {
       return;
     }
 
-    toast.success('Papel adicionado!');
+    toast.success('Papel atribuído com sucesso!');
     fetchUsers();
   };
 
@@ -113,8 +118,15 @@ export default function Admin() {
     fetchUsers();
   };
 
-  const getRoleBadgeVariant = (role: AppRole) => {
+  const approveUser = async (userId: string) => {
+    const role = selectedRoles[userId] || 'rh';
+    await addRole(userId, role);
+  };
+
+  const getRoleBadgeVariant = (role: AppRole): "default" | "secondary" | "outline" | "destructive" => {
     switch (role) {
+      case 'super_admin':
+        return 'destructive';
       case 'admin':
         return 'default';
       case 'rh':
@@ -125,6 +137,20 @@ export default function Admin() {
         return 'outline';
     }
   };
+
+  const getRoleLabel = (role: AppRole): string => {
+    const labels: Record<AppRole, string> = {
+      'super_admin': 'SUPER ADMIN',
+      'admin': 'ADMIN',
+      'rh': 'RH',
+      'financeiro': 'FINANCEIRO',
+    };
+    return labels[role] || String(role).toUpperCase();
+  };
+
+  // Separate pending and approved users
+  const pendingUsers = users.filter(u => u.roles.length === 0);
+  const approvedUsers = users.filter(u => u.roles.length > 0);
 
   if (loading) {
     return (
@@ -142,8 +168,41 @@ export default function Admin() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Administração</h2>
-          <p className="text-muted-foreground">Gerencie usuários e permissões</p>
+          <h2 className="text-2xl font-semibold tracking-tight">Administração de Usuários</h2>
+          <p className="text-muted-foreground">Gerencie usuários e permissões do sistema</p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{users.length}</div>
+            </CardContent>
+          </Card>
+          <Card className={pendingUsers.length > 0 ? 'border-amber-500/50 bg-amber-500/5' : ''}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pendentes de Aprovação</CardTitle>
+              <Clock className={`h-4 w-4 ${pendingUsers.length > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${pendingUsers.length > 0 ? 'text-amber-500' : ''}`}>
+                {pendingUsers.length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
+              <Shield className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{approvedUsers.length}</div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Roles Legend */}
@@ -154,6 +213,10 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Badge variant="destructive">SUPER ADMIN</Badge>
+                <span>Acesso máximo: pode alterar OS de projetos e todas as configurações críticas</span>
+              </div>
               <div className="flex items-center gap-2">
                 <Badge variant="default">ADMIN</Badge>
                 <span>Acesso total: gerencia usuários, colaboradores e configurações</span>
@@ -170,19 +233,94 @@ export default function Admin() {
           </CardContent>
         </Card>
 
-        {/* Users Table */}
+        {/* Pending Users */}
+        {pendingUsers.length > 0 && (
+          <Card className="border-amber-500/50">
+            <CardHeader className="bg-amber-500/10">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+                <CardTitle className="text-lg text-amber-600 dark:text-amber-400">
+                  Usuários Pendentes de Aprovação
+                </CardTitle>
+              </div>
+              <CardDescription>
+                {pendingUsers.length} usuário{pendingUsers.length !== 1 && 's'} aguardando aprovação
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Solicitado em</TableHead>
+                      <TableHead>Atribuir Papel</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingUsers.map((u) => (
+                      <TableRow key={u.id} className="bg-amber-500/5">
+                        <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell>{u.full_name || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(u.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={selectedRoles[u.id] || 'rh'}
+                            onValueChange={(v: AppRole) => 
+                              setSelectedRoles(prev => ({ ...prev, [u.id]: v }))
+                            }
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {isSuperAdmin() && (
+                                <SelectItem value="super_admin">Super Admin</SelectItem>
+                              )}
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="rh">RH</SelectItem>
+                              <SelectItem value="financeiro">Financeiro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => approveUser(u.id)}
+                            className="gap-2"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                            Aprovar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Approved Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Usuários Cadastrados</CardTitle>
+            <CardTitle className="text-lg">Usuários Ativos</CardTitle>
             <CardDescription>
-              {users.length} usuário{users.length !== 1 && 's'}
+              {approvedUsers.length} usuário{approvedUsers.length !== 1 && 's'} com acesso ao sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loadingUsers ? (
               <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-            ) : users.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">Nenhum usuário cadastrado</div>
+            ) : approvedUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum usuário ativo no sistema
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -195,44 +333,46 @@ export default function Admin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((u) => (
+                    {approvedUsers.map((u) => (
                       <TableRow key={u.id}>
-                        <TableCell>{u.email}</TableCell>
+                        <TableCell className="font-medium">{u.email}</TableCell>
                         <TableCell>{u.full_name || '-'}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {u.roles.length === 0 ? (
-                              <span className="text-muted-foreground text-sm">Sem acesso</span>
-                            ) : (
-                              u.roles.map((role) => (
-                                <Badge
-                                  key={role}
-                                  variant={getRoleBadgeVariant(role)}
-                                  className="gap-1 cursor-pointer"
-                                  onClick={() => {
-                                    if (u.id !== user?.id) {
-                                      removeRole(u.id, role);
-                                    }
-                                  }}
-                                >
-                                  {role.toUpperCase()}
-                                  {u.id !== user?.id && <Trash2 className="h-3 w-3" />}
-                                </Badge>
-                              ))
-                            )}
+                            {u.roles.map((role) => (
+                              <Badge
+                                key={role}
+                                variant={getRoleBadgeVariant(role)}
+                                className="gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => {
+                                  if (u.id !== user?.id) {
+                                    removeRole(u.id, role);
+                                  }
+                                }}
+                                title={u.id === user?.id ? 'Você não pode remover seu próprio papel' : 'Clique para remover'}
+                              >
+                                {getRoleLabel(role)}
+                                {u.id !== user?.id && <Trash2 className="h-3 w-3" />}
+                              </Badge>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
                           {u.id !== user?.id && (
                             <div className="flex items-center justify-end gap-2">
                               <Select
-                                value={selectedRole}
-                                onValueChange={(v: AppRole) => setSelectedRole(v)}
+                                value={selectedRoles[u.id] || 'rh'}
+                                onValueChange={(v: AppRole) => 
+                                  setSelectedRoles(prev => ({ ...prev, [u.id]: v }))
+                                }
                               >
-                                <SelectTrigger className="w-32">
+                                <SelectTrigger className="w-36">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  {isSuperAdmin() && (
+                                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                                  )}
                                   <SelectItem value="admin">Admin</SelectItem>
                                   <SelectItem value="rh">RH</SelectItem>
                                   <SelectItem value="financeiro">Financeiro</SelectItem>
@@ -241,7 +381,8 @@ export default function Admin() {
                               <Button
                                 size="icon"
                                 variant="outline"
-                                onClick={() => addRole(u.id, selectedRole)}
+                                onClick={() => addRole(u.id, selectedRoles[u.id] || 'rh')}
+                                title="Adicionar papel"
                               >
                                 <UserPlus className="h-4 w-4" />
                               </Button>
