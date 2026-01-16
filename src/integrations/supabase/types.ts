@@ -954,6 +954,33 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      obter_custo_vigente: {
+        Args: {
+          p_colaborador_id: string
+          p_data: string
+          p_horas_100?: number
+          p_horas_50?: number
+          p_horas_normais?: number
+        }
+        Returns: {
+          beneficios: number
+          classificacao: string
+          colaborador_id: string
+          custo_hora_homem: number
+          custo_id: string
+          custo_mensal_total: number
+          encargos: number
+          fgts_t: number
+          horas_totais: number
+          periculosidade_valor: number
+          prov_13: number
+          prov_ferias: number
+          prov_rescisao: number
+          provisoes_t: number
+          salario_base: number
+          salario_t: number
+        }[]
+      }
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
