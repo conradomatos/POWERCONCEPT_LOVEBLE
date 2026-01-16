@@ -26,6 +26,11 @@ interface PreviewRow {
     status: string;
     email: string;
     phone: string;
+    // Campos opcionais de custo
+    classificacao: string;
+    salario_base: number | null;
+    beneficios: number | null;
+    periculosidade: boolean;
   };
   errors: string[];
   valid: boolean;
@@ -105,6 +110,21 @@ export default function ImportCSV() {
     return str;
   };
 
+  const parseNumber = (val: unknown): number | null => {
+    if (val === null || val === undefined || val === '') return null;
+    if (typeof val === 'number') return val;
+    const str = String(val).replace(/[R$\s.]/g, '').replace(',', '.');
+    const num = parseFloat(str);
+    return isNaN(num) ? null : num;
+  };
+
+  const parseBoolean = (val: unknown): boolean => {
+    if (val === null || val === undefined || val === '') return false;
+    if (typeof val === 'boolean') return val;
+    const str = String(val).toLowerCase().trim();
+    return str === 'sim' || str === 's' || str === 'true' || str === '1' || str === 'x';
+  };
+
   const validateRow = (row: Record<string, unknown>, rowNum: number): PreviewRow => {
     const errors: string[] = [];
 
@@ -112,6 +132,12 @@ export default function ImportCSV() {
       if (val === null || val === undefined) return '';
       return String(val).trim();
     };
+
+    // Parse optional cost fields
+    const salarioRaw = row['salario'] || row['salario_base'] || row['salary'];
+    const beneficiosRaw = row['beneficios'] || row['benefits'];
+    const classificacaoRaw = getString(row['classificacao'] || row['tipo'] || row['classification']);
+    const periculosidadeRaw = row['periculosidade'] || row['hazard'];
 
     const data = {
       full_name: getString(row['nome']) || getString(row['nome_completo']) || getString(row['full_name']) || '',
@@ -124,6 +150,11 @@ export default function ImportCSV() {
       status: getString(row['status']) || 'ativo',
       email: getString(row['email']) || '',
       phone: getString(row['telefone']) || getString(row['phone']) || '',
+      // Cost fields (optional)
+      classificacao: classificacaoRaw.toUpperCase() === 'PJ' ? 'PJ' : (classificacaoRaw.toUpperCase() === 'CLT' ? 'CLT' : ''),
+      salario_base: parseNumber(salarioRaw),
+      beneficios: parseNumber(beneficiosRaw),
+      periculosidade: parseBoolean(periculosidadeRaw),
     };
 
     if (!data.full_name) {
@@ -147,6 +178,13 @@ export default function ImportCSV() {
       data.status = 'ativo';
     } else {
       data.status = data.status.toLowerCase();
+    }
+
+    // Validate cost fields if salary is provided
+    if (data.salario_base !== null && data.salario_base > 0) {
+      if (!data.classificacao) {
+        data.classificacao = 'CLT'; // Default to CLT if salary provided but no classification
+      }
     }
 
     return {
@@ -246,6 +284,10 @@ export default function ImportCSV() {
         status: 'ativo',
         email: 'joao@email.com',
         telefone: '11999999999',
+        classificacao: 'CLT',
+        salario: 5000,
+        beneficios: 800,
+        periculosidade: 'Não',
       },
       {
         nome: 'Maria Souza',
@@ -258,6 +300,10 @@ export default function ImportCSV() {
         status: 'ativo',
         email: 'maria@email.com',
         telefone: '11888888888',
+        classificacao: 'PJ',
+        salario: 12000,
+        beneficios: '',
+        periculosidade: '',
       },
     ];
 
@@ -275,6 +321,10 @@ export default function ImportCSV() {
       { wch: 10 }, // status
       { wch: 25 }, // email
       { wch: 15 }, // telefone
+      { wch: 12 }, // classificacao
+      { wch: 12 }, // salario
+      { wch: 12 }, // beneficios
+      { wch: 14 }, // periculosidade
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'colaboradores');
@@ -292,9 +342,11 @@ export default function ImportCSV() {
     setImporting(true);
     let success = 0;
     let errors = 0;
+    let costSuccess = 0;
 
     for (const row of validRows) {
-      const { error } = await supabase.from('collaborators').insert({
+      // Insert collaborator
+      const { data: collaborator, error } = await supabase.from('collaborators').insert({
         full_name: row.data.full_name,
         cpf: row.data.cpf,
         birth_date: row.data.birth_date || null,
@@ -307,12 +359,32 @@ export default function ImportCSV() {
         phone: row.data.phone || null,
         created_by: user?.id,
         updated_by: user?.id,
-      });
+      }).select('id').single();
 
       if (error) {
         errors++;
       } else {
         success++;
+        
+        // If salary is provided, create cost record
+        if (collaborator && row.data.salario_base !== null && row.data.salario_base > 0) {
+          const { error: costError } = await supabase.from('custos_colaborador').insert({
+            colaborador_id: collaborator.id,
+            classificacao: row.data.classificacao || 'CLT',
+            salario_base: row.data.salario_base,
+            beneficios: row.data.beneficios || 0,
+            periculosidade: row.data.periculosidade,
+            inicio_vigencia: row.data.hire_date,
+            motivo_alteracao: 'Importação inicial',
+            observacao: 'Criado via importação de planilha',
+            created_by: user?.id,
+            updated_by: user?.id,
+          });
+          
+          if (!costError) {
+            costSuccess++;
+          }
+        }
       }
     }
 
@@ -321,7 +393,11 @@ export default function ImportCSV() {
     setImporting(false);
 
     if (success > 0) {
-      toast.success(`${success} colaborador(es) importado(s) com sucesso!`);
+      let message = `${success} colaborador(es) importado(s) com sucesso!`;
+      if (costSuccess > 0) {
+        message += ` ${costSuccess} com custos.`;
+      }
+      toast.success(message);
     }
     if (errors > 0) {
       toast.error(`${errors} registro(s) com erro (CPF duplicado?)`);
@@ -378,6 +454,7 @@ export default function ImportCSV() {
             <div className="text-sm text-muted-foreground space-y-2">
               <p><strong>Obrigatórias:</strong> nome (ou nome_completo), cpf, admissao (ou data_admissao)</p>
               <p><strong>Opcionais:</strong> nascimento, desligamento, cargo, departamento, status, email, telefone</p>
+              <p><strong>Custos (opcional):</strong> classificacao (CLT/PJ), salario (ou salario_base), beneficios, periculosidade (Sim/Não)</p>
               <p><strong>Status válidos:</strong> ativo, afastado, desligado (padrão: ativo)</p>
             </div>
           </CardContent>
@@ -460,6 +537,7 @@ export default function ImportCSV() {
                       <TableHead>CPF</TableHead>
                       <TableHead>Admissão</TableHead>
                       <TableHead>Departamento</TableHead>
+                      <TableHead>Salário</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -480,6 +558,13 @@ export default function ImportCSV() {
                         <TableCell>{row.data.cpf || '-'}</TableCell>
                         <TableCell>{row.data.hire_date || '-'}</TableCell>
                         <TableCell>{row.data.department || '-'}</TableCell>
+                        <TableCell>
+                          {row.data.salario_base !== null ? (
+                            <span className="text-xs">
+                              {row.data.classificacao || 'CLT'}: R$ {row.data.salario_base.toLocaleString('pt-BR')}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
                         <TableCell>
                           {row.valid ? (
                             <Badge variant="outline">{row.data.status}</Badge>
