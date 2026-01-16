@@ -707,6 +707,57 @@ export type Database = {
         }
         Relationships: []
       }
+      encargos_modelo_clt: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fator_rescisao_fgts: number
+          fgts: number
+          fgts_a: number
+          id: string
+          inss: number
+          inss_a: number
+          provisao_13: number
+          provisao_ferias: number
+          ratsat: number
+          salario_educacao: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fator_rescisao_fgts: number
+          fgts: number
+          fgts_a: number
+          id?: string
+          inss: number
+          inss_a: number
+          provisao_13: number
+          provisao_ferias: number
+          ratsat: number
+          salario_educacao: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fator_rescisao_fgts?: number
+          fgts?: number
+          fgts_a?: number
+          id?: string
+          inss?: number
+          inss_a?: number
+          provisao_13?: number
+          provisao_ferias?: number
+          ratsat?: number
+          salario_educacao?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
