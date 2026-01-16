@@ -8,7 +8,6 @@ import GanttChart from '@/components/GanttChart';
 import AlocacaoForm from '@/components/AlocacaoForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -19,6 +18,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -41,10 +41,11 @@ import {
   Search,
   LayoutGrid,
   GanttChart as GanttIcon,
+  Download,
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
-import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO } from 'date-fns';
+import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval } from 'date-fns';
 import { getGanttPeriod, PeriodType } from '@/lib/gantt-utils';
 
 interface Block {
@@ -82,6 +83,7 @@ export default function Planejamento() {
   const [viewMode, setViewMode] = useState<'gantt' | 'grid'>('gantt');
 
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
+  const [isPullingApontamentos, setIsPullingApontamentos] = useState(false);
 
   const period = useMemo(() => getGanttPeriod(currentDate, periodType), [currentDate, periodType]);
 
@@ -256,8 +258,29 @@ export default function Planejamento() {
     }
   };
 
-  // Handle create block
-  const handleCreateBlock = (colaboradorId: string, startDate: Date, endDate: Date) => {
+  // Handle create block - save directly if project filter is set, otherwise open form
+  const handleCreateBlock = async (colaboradorId: string, startDate: Date, endDate: Date) => {
+    // If a project filter is set, create the block directly without popup
+    if (projetoFilter) {
+      try {
+        const { error } = await supabase.from('alocacoes_blocos').insert({
+          colaborador_id: colaboradorId,
+          projeto_id: projetoFilter,
+          data_inicio: format(startDate, 'yyyy-MM-dd'),
+          data_fim: format(endDate, 'yyyy-MM-dd'),
+          tipo: 'planejado',
+        });
+        
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+        toast.success('Alocação criada com sucesso');
+      } catch (error: any) {
+        toast.error(error.message || 'Erro ao criar alocação');
+      }
+      return;
+    }
+    
+    // Otherwise open form to select project
     setEditingBlock(null);
     setDefaultFormData({
       colaboradorId,
@@ -401,6 +424,114 @@ export default function Planejamento() {
     }
   };
 
+  // Pull appointments from apontamentos_horas_dia to create/update blocks
+  const handlePullApontamentos = async () => {
+    setIsPullingApontamentos(true);
+    let created = 0;
+    let updated = 0;
+
+    try {
+      // Fetch all apontamentos in the period
+      const { data: apontamentos, error: aptError } = await supabase
+        .from('apontamentos_horas_dia')
+        .select('colaborador_id, projeto_id, data')
+        .gte('data', format(period.start, 'yyyy-MM-dd'))
+        .lte('data', format(period.end, 'yyyy-MM-dd'));
+
+      if (aptError) throw aptError;
+
+      if (!apontamentos || apontamentos.length === 0) {
+        toast.info('Nenhum apontamento encontrado no período');
+        return;
+      }
+
+      // Group by collaborator + project
+      const groupedMap = new Map<string, { colaborador_id: string; projeto_id: string; dates: string[] }>();
+      
+      for (const apt of apontamentos) {
+        const key = `${apt.colaborador_id}_${apt.projeto_id}`;
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, {
+            colaborador_id: apt.colaborador_id,
+            projeto_id: apt.projeto_id,
+            dates: [],
+          });
+        }
+        groupedMap.get(key)!.dates.push(apt.data);
+      }
+
+      // For each group, create or expand realizado block
+      for (const [, group] of groupedMap) {
+        const sortedDates = group.dates.sort();
+        const minDate = sortedDates[0];
+        const maxDate = sortedDates[sortedDates.length - 1];
+
+        // Check for existing realizado block
+        const { data: existingBlocks } = await supabase
+          .from('alocacoes_blocos')
+          .select('id, data_inicio, data_fim')
+          .eq('colaborador_id', group.colaborador_id)
+          .eq('projeto_id', group.projeto_id)
+          .eq('tipo', 'realizado')
+          .lte('data_inicio', maxDate)
+          .gte('data_fim', minDate);
+
+        if (existingBlocks && existingBlocks.length > 0) {
+          // Expand to cover all dates
+          const allDates = [...sortedDates];
+          existingBlocks.forEach(block => {
+            allDates.push(block.data_inicio, block.data_fim);
+          });
+          allDates.sort();
+          const newMinDate = allDates[0];
+          const newMaxDate = allDates[allDates.length - 1];
+
+          await supabase
+            .from('alocacoes_blocos')
+            .update({
+              data_inicio: newMinDate,
+              data_fim: newMaxDate,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingBlocks[0].id);
+
+          // Delete other overlapping blocks
+          if (existingBlocks.length > 1) {
+            const idsToDelete = existingBlocks.slice(1).map(b => b.id);
+            await supabase
+              .from('alocacoes_blocos')
+              .delete()
+              .in('id', idsToDelete);
+          }
+          updated++;
+        } else {
+          // Create new realizado block
+          await supabase
+            .from('alocacoes_blocos')
+            .insert({
+              colaborador_id: group.colaborador_id,
+              projeto_id: group.projeto_id,
+              data_inicio: minDate,
+              data_fim: maxDate,
+              tipo: 'realizado',
+              observacao: 'Criado via puxar apontamentos',
+            });
+          created++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+
+      if (created > 0 || updated > 0) {
+        toast.success(`${created} bloco(s) criado(s), ${updated} atualizado(s)`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao puxar apontamentos');
+    } finally {
+      setIsPullingApontamentos(false);
+    }
+  };
+
   // Auth check
   if (authLoading) {
     return (
@@ -454,6 +585,19 @@ export default function Planejamento() {
               </ToggleGroupItem>
             </ToggleGroup>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePullApontamentos}
+              disabled={isPullingApontamentos}
+            >
+              {isPullingApontamentos ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Puxar Apontamentos
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -588,6 +732,11 @@ export default function Planejamento() {
               <DialogTitle>
                 {editingBlock ? 'Editar Alocação' : 'Nova Alocação'}
               </DialogTitle>
+              <DialogDescription>
+                {editingBlock 
+                  ? 'Edite as informações da alocação abaixo.' 
+                  : 'Preencha os campos para criar uma nova alocação.'}
+              </DialogDescription>
             </DialogHeader>
             <AlocacaoForm
               alocacaoId={editingBlock?.id}
