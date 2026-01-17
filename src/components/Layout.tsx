@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
   FolderKanban,
   BarChart3,
   PanelLeft,
+  Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 
-export type NavigationArea = 'recursos' | 'projetos' | 'relatorios';
+export type NavigationArea = 'recursos' | 'projetos' | 'relatorios' | 'home';
 
 interface LayoutProps {
   children: ReactNode;
@@ -26,6 +27,8 @@ interface LayoutProps {
 
 // Map routes to their navigation area
 const routeToArea: Record<string, NavigationArea> = {
+  // Home
+  '/': 'home',
   // Recursos
   '/collaborators': 'recursos',
   '/import': 'recursos',
@@ -36,7 +39,7 @@ const routeToArea: Record<string, NavigationArea> = {
   '/apontamentos': 'projetos',
   '/import-apontamentos': 'projetos',
   // Relatórios
-  '/': 'relatorios',
+  '/dashboard': 'relatorios',
   '/custos-projeto': 'relatorios',
 };
 
@@ -75,9 +78,10 @@ export default function Layout({ children }: LayoutProps) {
     setActiveArea(area);
     // Navigate to first route of each area
     const firstRoutes: Record<NavigationArea, string> = {
+      home: '/',
       recursos: '/collaborators',
       projetos: '/projetos',
-      relatorios: '/',
+      relatorios: '/dashboard',
     };
     navigate(firstRoutes[area]);
   };
@@ -104,7 +108,15 @@ export default function Layout({ children }: LayoutProps) {
                   <SidebarTrigger className="-ml-1">
                     <PanelLeft className="h-5 w-5" />
                   </SidebarTrigger>
-                  <h1 className="text-lg font-semibold tracking-tight hidden sm:block">PowerConcept</h1>
+                  
+                  {/* Logo - clickable to home */}
+                  <Link 
+                    to="/" 
+                    className="flex items-center gap-2 text-lg font-semibold tracking-tight hover:text-primary transition-colors"
+                  >
+                    <Home className="h-5 w-5" />
+                    <span className="hidden sm:block">PowerConcept</span>
+                  </Link>
                   
                   {/* Top Nav - 3 Areas */}
                   <nav className="hidden md:flex items-center gap-1 ml-4">

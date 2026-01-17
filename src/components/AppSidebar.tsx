@@ -41,6 +41,10 @@ type AreaConfig = {
 
 // Sidebar items organized by area
 const areaNavItems: Record<NavigationArea, AreaConfig> = {
+  home: {
+    label: 'Home',
+    items: [],
+  },
   recursos: {
     label: 'Recursos',
     items: [
@@ -61,7 +65,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
   relatorios: {
     label: 'Relatórios',
     items: [
-      { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+      { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
       { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
       { title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
     ],
