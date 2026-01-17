@@ -10,15 +10,11 @@ const OMIE_API_URL = "https://app.omie.com.br/api/v1/geral/projetos/";
 
 interface OmieRequest {
   call: string;
-  param: {
-    codInt: string;
-    nome: string;
-    inativo?: string;
-  };
-  meta: {
-    entity: string;
-    entity_id: string;
-    action: string;
+  param: Record<string, unknown>;
+  meta?: {
+    entity?: string;
+    entity_id?: string;
+    action?: string;
   };
 }
 
@@ -27,6 +23,7 @@ interface OmieResponse {
   descricao?: string;
   faultstring?: string;
   faultcode?: string;
+  [key: string]: unknown;
 }
 
 serve(async (req) => {
@@ -56,18 +53,35 @@ serve(async (req) => {
     const body: OmieRequest = await req.json();
     console.log("Received request:", JSON.stringify(body, null, 2));
 
-    // Validate required fields
-    if (!body.call || !body.param?.codInt || !body.param?.nome) {
+    // Validate required fields based on call type
+    if (!body.call) {
       return new Response(
         JSON.stringify({ 
           ok: false, 
-          error: "Campos obrigatórios ausentes: call, codInt ou nome" 
+          error: "Campo obrigatório ausente: call" 
         }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
+    }
+
+    // Validate UpsertProjeto specific fields
+    if (body.call === 'UpsertProjeto') {
+      const param = body.param as { codInt?: string; nome?: string };
+      if (!param?.codInt || !param?.nome) {
+        return new Response(
+          JSON.stringify({ 
+            ok: false, 
+            error: "Campos obrigatórios ausentes para UpsertProjeto: codInt ou nome" 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
     }
 
     // Build Omie API request
