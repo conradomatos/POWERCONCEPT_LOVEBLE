@@ -787,40 +787,115 @@ export type Database = {
       }
       projetos: {
         Row: {
+          aprovacao_status:
+            | Database["public"]["Enums"]["aprovacao_status"]
+            | null
+          aprovado_em: string | null
+          aprovado_por: string | null
           created_at: string
           created_by: string | null
+          data_fim_planejada: string | null
+          data_fim_real: string | null
+          data_inicio_planejada: string | null
+          data_inicio_real: string | null
           descricao: string | null
           empresa_id: string
           id: string
+          is_sistema: boolean | null
+          motivo_reprovacao: string | null
           nome: string
+          observacoes_aditivos: string | null
+          observacoes_riscos: string | null
           os: string
+          regua_projeto_valor: number | null
+          risco_escopo: Database["public"]["Enums"]["nivel_risco"] | null
+          risco_liberacao_cliente:
+            | Database["public"]["Enums"]["nivel_risco"]
+            | null
+          solicitado_em: string | null
+          solicitado_por: string | null
           status: string
+          status_projeto: Database["public"]["Enums"]["status_projeto"] | null
+          tem_aditivos: boolean | null
+          tipo_contrato: Database["public"]["Enums"]["tipo_contrato"] | null
           updated_at: string
           updated_by: string | null
+          valor_aditivos_previsto: number | null
+          valor_contrato: number | null
         }
         Insert: {
+          aprovacao_status?:
+            | Database["public"]["Enums"]["aprovacao_status"]
+            | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
           created_at?: string
           created_by?: string | null
+          data_fim_planejada?: string | null
+          data_fim_real?: string | null
+          data_inicio_planejada?: string | null
+          data_inicio_real?: string | null
           descricao?: string | null
           empresa_id: string
           id?: string
+          is_sistema?: boolean | null
+          motivo_reprovacao?: string | null
           nome: string
+          observacoes_aditivos?: string | null
+          observacoes_riscos?: string | null
           os: string
+          regua_projeto_valor?: number | null
+          risco_escopo?: Database["public"]["Enums"]["nivel_risco"] | null
+          risco_liberacao_cliente?:
+            | Database["public"]["Enums"]["nivel_risco"]
+            | null
+          solicitado_em?: string | null
+          solicitado_por?: string | null
           status?: string
+          status_projeto?: Database["public"]["Enums"]["status_projeto"] | null
+          tem_aditivos?: boolean | null
+          tipo_contrato?: Database["public"]["Enums"]["tipo_contrato"] | null
           updated_at?: string
           updated_by?: string | null
+          valor_aditivos_previsto?: number | null
+          valor_contrato?: number | null
         }
         Update: {
+          aprovacao_status?:
+            | Database["public"]["Enums"]["aprovacao_status"]
+            | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
           created_at?: string
           created_by?: string | null
+          data_fim_planejada?: string | null
+          data_fim_real?: string | null
+          data_inicio_planejada?: string | null
+          data_inicio_real?: string | null
           descricao?: string | null
           empresa_id?: string
           id?: string
+          is_sistema?: boolean | null
+          motivo_reprovacao?: string | null
           nome?: string
+          observacoes_aditivos?: string | null
+          observacoes_riscos?: string | null
           os?: string
+          regua_projeto_valor?: number | null
+          risco_escopo?: Database["public"]["Enums"]["nivel_risco"] | null
+          risco_liberacao_cliente?:
+            | Database["public"]["Enums"]["nivel_risco"]
+            | null
+          solicitado_em?: string | null
+          solicitado_por?: string | null
           status?: string
+          status_projeto?: Database["public"]["Enums"]["status_projeto"] | null
+          tem_aditivos?: boolean | null
+          tipo_contrato?: Database["public"]["Enums"]["tipo_contrato"] | null
           updated_at?: string
           updated_by?: string | null
+          valor_aditivos_previsto?: number | null
+          valor_contrato?: number | null
         }
         Relationships: [
           {
@@ -913,6 +988,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_approve_projects: { Args: { _user_id: string }; Returns: boolean }
       generate_next_os: { Args: never; Returns: string }
       get_alocacao_por_data: {
         Args: {
@@ -992,10 +1068,18 @@ export type Database = {
         | "REPROVADO"
         | "NAO_LANCADO"
       app_role: "admin" | "rh" | "financeiro" | "super_admin"
+      aprovacao_status:
+        | "RASCUNHO"
+        | "PENDENTE_APROVACAO"
+        | "APROVADO"
+        | "REPROVADO"
       custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
       integracao_status: "OK" | "ERRO" | "PENDENTE"
+      nivel_risco: "BAIXO" | "MEDIO" | "ALTO"
+      status_projeto: "ATIVO" | "CONCLUIDO" | "SUSPENSO" | "CANCELADO"
+      tipo_contrato: "PRECO_FECHADO" | "MAO_DE_OBRA"
       tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
     }
     CompositeTypes: {
@@ -1134,10 +1218,19 @@ export const Constants = {
         "NAO_LANCADO",
       ],
       app_role: ["admin", "rh", "financeiro", "super_admin"],
+      aprovacao_status: [
+        "RASCUNHO",
+        "PENDENTE_APROVACAO",
+        "APROVADO",
+        "REPROVADO",
+      ],
       custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
       integracao_status: ["OK", "ERRO", "PENDENTE"],
+      nivel_risco: ["BAIXO", "MEDIO", "ALTO"],
+      status_projeto: ["ATIVO", "CONCLUIDO", "SUSPENSO", "CANCELADO"],
+      tipo_contrato: ["PRECO_FECHADO", "MAO_DE_OBRA"],
       tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
     },
   },
