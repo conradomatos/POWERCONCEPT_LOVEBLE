@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import ProjetoForm from '@/components/ProjetoForm';
 import {
   FolderPlus,
   UserPlus,
@@ -24,6 +26,8 @@ import {
 
 export default function Home() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [projetoFormOpen, setProjetoFormOpen] = useState(false);
 
   // Fetch pending counts
   const { data: pendingCounts, isLoading: loadingPending } = useQuery({
@@ -79,12 +83,17 @@ export default function Home() {
     },
   });
 
+  const handleProjetoCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ['home-recent-projects'] });
+    queryClient.invalidateQueries({ queryKey: ['projetos'] });
+  };
+
   const quickActions = [
     {
       icon: FolderPlus,
       title: 'Novo Projeto',
       description: 'Criar um novo projeto',
-      onClick: () => navigate('/projetos?new=true'),
+      onClick: () => setProjetoFormOpen(true),
       variant: 'default' as const,
     },
     {
@@ -189,7 +198,7 @@ export default function Home() {
             <Upload className="h-4 w-4 mr-2" />
             Importar Apontamentos
           </Button>
-          <Button onClick={() => navigate('/projetos?new=true')}>
+          <Button onClick={() => setProjetoFormOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-2" />
             Novo Projeto
           </Button>
@@ -412,6 +421,13 @@ export default function Home() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Projeto Form Modal */}
+      <ProjetoForm
+        open={projetoFormOpen}
+        onOpenChange={setProjetoFormOpen}
+        onSuccess={handleProjetoCreated}
+      />
     </Layout>
   );
 }
