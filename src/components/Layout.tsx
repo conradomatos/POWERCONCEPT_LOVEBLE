@@ -9,8 +9,8 @@ import {
   FolderKanban,
   BarChart3,
   PanelLeft,
-  Home,
 } from 'lucide-react';
+import logoConceptImg from '@/assets/logo-concept.png';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -113,10 +113,9 @@ export default function Layout({ children }: LayoutProps) {
                   {/* Logo - clickable to home */}
                   <Link 
                     to="/" 
-                    className="flex items-center gap-2 text-lg font-semibold tracking-tight hover:text-primary transition-colors"
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                   >
-                    <Home className="h-5 w-5" />
-                    <span className="hidden sm:block">PowerConcept</span>
+                    <img src={logoConceptImg} alt="PwC" className="h-8 w-auto" />
                   </Link>
                   
                   {/* Top Nav - 3 Areas */}
