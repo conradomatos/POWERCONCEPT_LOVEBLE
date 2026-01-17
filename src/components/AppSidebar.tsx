@@ -50,6 +50,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     label: 'Recursos',
     items: [
       { title: 'Colaboradores', url: '/collaborators', icon: Users },
+      { title: 'Custos de Pessoal', url: '/recursos/custos', icon: DollarSign, roles: ['admin', 'rh', 'financeiro', 'super_admin'] },
       { title: 'Importar Colaboradores', url: '/import', icon: FileSpreadsheet, roles: ['admin', 'rh'] },
     ],
   },

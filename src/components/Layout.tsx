@@ -31,6 +31,7 @@ const routeToArea: Record<string, NavigationArea> = {
   '/': 'home',
   // Recursos
   '/collaborators': 'recursos',
+  '/recursos/custos': 'recursos',
   '/import': 'recursos',
   // Projetos
   '/empresas': 'projetos',
