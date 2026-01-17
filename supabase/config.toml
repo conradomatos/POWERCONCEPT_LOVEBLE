@@ -1,1 +1,4 @@
 project_id = "anjfgswaktmemysfmyff"
+
+[functions.omie-projetos]
+verify_jwt = false
