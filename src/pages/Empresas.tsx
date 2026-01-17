@@ -91,7 +91,7 @@ export default function Empresas() {
       if (checkError) throw checkError;
 
       if (projetos && projetos.length > 0) {
-        toast.error('Empresa possui projetos vinculados. Inative ao invés de excluir.');
+        toast.error('Cliente possui projetos vinculados. Inative ao invés de excluir.');
         setDeleteDialogOpen(false);
         setEmpresaToDelete(null);
         return;
@@ -104,11 +104,11 @@ export default function Empresas() {
 
       if (error) throw error;
 
-      toast.success('Empresa excluída com sucesso!');
+      toast.success('Cliente excluído com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['empresas'] });
     } catch (error: any) {
       console.error('Error deleting empresa:', error);
-      toast.error('Erro ao excluir empresa: ' + error.message);
+      toast.error('Erro ao excluir cliente: ' + error.message);
     } finally {
       setDeleteDialogOpen(false);
       setEmpresaToDelete(null);
@@ -127,16 +127,16 @@ export default function Empresas() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
               <Building2 className="h-6 w-6" />
-              Empresas
+              Clientes
             </h1>
             <p className="text-muted-foreground">
-              Gerenciamento de empresas do portfólio
+              Gerenciamento de clientes do portfólio
             </p>
           </div>
           {canEdit && (
             <Button onClick={handleNew} className="gap-2">
               <Plus className="h-4 w-4" />
-              Nova Empresa
+              Novo Cliente
             </Button>
           )}
         </div>
@@ -145,7 +145,7 @@ export default function Empresas() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por empresa, código, CNPJ ou unidade..."
+              placeholder="Buscar por cliente, código, CNPJ ou unidade..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10"
@@ -157,7 +157,7 @@ export default function Empresas() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Empresa</TableHead>
+                <TableHead>Cliente</TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>CNPJ</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -176,7 +176,7 @@ export default function Empresas() {
               ) : filteredEmpresas?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhuma empresa encontrada
+                    Nenhum cliente encontrado
                   </TableCell>
                 </TableRow>
               ) : (
@@ -238,9 +238,9 @@ export default function Empresas() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir empresa?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a empresa "{empresaToDelete?.empresa}"?
+              Tem certeza que deseja excluir o cliente "{empresaToDelete?.empresa}"?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>

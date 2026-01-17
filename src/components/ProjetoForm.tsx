@@ -13,7 +13,6 @@ import { Calendar } from '@/components/ui/calendar';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Check, ChevronsUpDown, Plus, Lock, CalendarIcon, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,7 +22,6 @@ import { ptBR } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 
 type Projeto = Database['public']['Tables']['projetos']['Row'];
-type ProjetoInsert = Database['public']['Tables']['projetos']['Insert'];
 type Empresa = Database['public']['Tables']['empresas']['Row'];
 
 type ProjetoWithEmpresa = Projeto & {
@@ -43,18 +41,17 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
   const queryClient = useQueryClient();
   const { isSuperAdmin, hasRole, user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [empresaComboOpen, setEmpresaComboOpen] = useState(false);
-  const [empresaFormOpen, setEmpresaFormOpen] = useState(false);
+  const [clienteComboOpen, setClienteComboOpen] = useState(false);
+  const [clienteFormOpen, setClienteFormOpen] = useState(false);
   const [dataInicioOpen, setDataInicioOpen] = useState(false);
   const [dataFimOpen, setDataFimOpen] = useState(false);
 
-  const canApprove = hasRole('admin') || isSuperAdmin();
+  const canApprove = isSuperAdmin();
 
   const [formData, setFormData] = useState({
     nome: '',
     descricao: '',
     empresa_id: '',
-    status: 'ativo',
     os: '',
     tipo_contrato: 'PRECO_FECHADO' as 'PRECO_FECHADO' | 'MAO_DE_OBRA',
     valor_contrato: 0,
@@ -66,7 +63,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: empresas } = useQuery({
+  const { data: empresas, refetch: refetchEmpresas } = useQuery({
     queryKey: ['empresas'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -90,7 +87,6 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         nome: projeto.nome,
         descricao: projeto.descricao || '',
         empresa_id: projeto.empresa_id,
-        status: projeto.status,
         os: projeto.os,
         tipo_contrato: (projeto.tipo_contrato as 'PRECO_FECHADO' | 'MAO_DE_OBRA') || 'PRECO_FECHADO',
         valor_contrato: projeto.valor_contrato || 0,
@@ -105,7 +101,6 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         nome: '',
         descricao: '',
         empresa_id: '',
-        status: 'ativo',
         os: '',
         tipo_contrato: 'PRECO_FECHADO',
         valor_contrato: 0,
@@ -134,7 +129,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     }
 
     if (!formData.empresa_id) {
-      newErrors.empresa_id = 'Empresa é obrigatória';
+      newErrors.empresa_id = 'Cliente é obrigatório';
     }
 
     if (!formData.tipo_contrato) {
@@ -168,8 +163,6 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
 
     setLoading(true);
     try {
-      const isSmallProject = formData.valor_contrato < 100000;
-      
       if (projeto) {
         // Update existing project
         const updateData: any = {
@@ -199,7 +192,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         toast.success('Projeto atualizado com sucesso!');
       } else {
         // Create new project
-        // If user can approve, create as APROVADO and generate OS
+        // If user is SUPER_ADMIN, create as APROVADO and generate OS
         // Otherwise, create as PENDENTE_APROVACAO without OS
         
         const insertData: any = {
@@ -218,14 +211,14 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         };
 
         if (canApprove) {
-          // Admin/SuperAdmin can create directly as approved
+          // SuperAdmin can create directly as approved
           const { data: nextOs } = await supabase.rpc('generate_next_os');
           insertData.os = nextOs || '26001';
           insertData.aprovacao_status = 'APROVADO';
           insertData.aprovado_por = user?.id;
           insertData.aprovado_em = new Date().toISOString();
         } else {
-          // Regular user - pending approval, temporary OS
+          // Regular user or Admin - pending approval, temporary OS
           const tempOs = `TEMP-${Date.now()}`;
           insertData.os = tempOs;
           insertData.aprovacao_status = 'PENDENTE_APROVACAO';
@@ -254,9 +247,15 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     }
   };
 
-  const handleEmpresaCreated = () => {
-    queryClient.invalidateQueries({ queryKey: ['empresas'] });
-    setEmpresaFormOpen(false);
+  const handleClienteCreated = async (createdEmpresa?: Empresa) => {
+    await refetchEmpresas();
+    setClienteFormOpen(false);
+    
+    // Auto-select the newly created client
+    if (createdEmpresa) {
+      setFormData((prev) => ({ ...prev, empresa_id: createdEmpresa.id }));
+      toast.success('Cliente criado e selecionado!');
+    }
   };
 
   const getRiskBadgeColor = (risk: string) => {
@@ -313,82 +312,81 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
               </div>
             )}
 
-            {/* Basic Info Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="nome">Nome do Projeto *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Nome do projeto"
-                  disabled={isSystemProject}
-                />
-                {errors.nome && <p className="text-sm text-destructive">{errors.nome}</p>}
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Empresa/Cliente *</Label>
-                <Popover open={empresaComboOpen} onOpenChange={setEmpresaComboOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={empresaComboOpen}
-                      className="w-full justify-between"
-                      disabled={isSystemProject}
-                    >
-                      {selectedEmpresa
-                        ? `${selectedEmpresa.codigo} - ${selectedEmpresa.empresa} - ${selectedEmpresa.unidade}`
-                        : 'Selecione uma empresa...'}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Buscar empresa..." />
-                      <CommandList>
-                        <CommandEmpty>Nenhuma empresa encontrada.</CommandEmpty>
-                        <CommandGroup>
-                          {availableEmpresas?.map((emp) => (
-                            <CommandItem
-                              key={emp.id}
-                              value={`${emp.codigo} ${emp.empresa} ${emp.unidade}`}
-                              onSelect={() => {
-                                setFormData({ ...formData, empresa_id: emp.id });
-                                setEmpresaComboOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-4 w-4',
-                                  formData.empresa_id === emp.id ? 'opacity-100' : 'opacity-0'
-                                )}
-                              />
-                              <span className="font-mono text-sm mr-2">{emp.codigo}</span>
-                              <span>{emp.empresa}</span>
-                              <span className="text-muted-foreground ml-2">- {emp.unidade}</span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                        <CommandGroup>
+            {/* Cliente Field - First */}
+            <div className="space-y-2">
+              <Label>Cliente *</Label>
+              <Popover open={clienteComboOpen} onOpenChange={setClienteComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clienteComboOpen}
+                    className="w-full justify-between"
+                    disabled={isSystemProject}
+                  >
+                    {selectedEmpresa
+                      ? `${selectedEmpresa.codigo} - ${selectedEmpresa.empresa} - ${selectedEmpresa.unidade}`
+                      : 'Selecione um cliente...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {availableEmpresas?.map((emp) => (
                           <CommandItem
+                            key={emp.id}
+                            value={`${emp.codigo} ${emp.empresa} ${emp.unidade}`}
                             onSelect={() => {
-                              setEmpresaComboOpen(false);
-                              setEmpresaFormOpen(true);
+                              setFormData({ ...formData, empresa_id: emp.id });
+                              setClienteComboOpen(false);
                             }}
-                            className="text-primary"
                           >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Nova Empresa
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                formData.empresa_id === emp.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <span className="font-mono text-sm mr-2">{emp.codigo}</span>
+                            <span>{emp.empresa}</span>
+                            <span className="text-muted-foreground ml-2">- {emp.unidade}</span>
                           </CommandItem>
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {errors.empresa_id && <p className="text-sm text-destructive">{errors.empresa_id}</p>}
-              </div>
+                        ))}
+                      </CommandGroup>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => {
+                            setClienteComboOpen(false);
+                            setClienteFormOpen(true);
+                          }}
+                          className="text-primary"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Novo Cliente
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {errors.empresa_id && <p className="text-sm text-destructive">{errors.empresa_id}</p>}
+            </div>
+
+            {/* Nome do Projeto */}
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome do Projeto *</Label>
+              <Input
+                id="nome"
+                value={formData.nome}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                placeholder="Nome do projeto"
+                disabled={isSystemProject}
+              />
+              {errors.nome && <p className="text-sm text-destructive">{errors.nome}</p>}
             </div>
 
             {/* Contract Section */}
@@ -405,7 +403,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="PRECO_FECHADO">Preço Fechado</SelectItem>
-                    <SelectItem value="MAO_DE_OBRA">Mão de Obra</SelectItem>
+                    <SelectItem value="MAO_DE_OBRA">Mão de Obra (Cliente Gerencia)</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.tipo_contrato && <p className="text-sm text-destructive">{errors.tipo_contrato}</p>}
@@ -413,7 +411,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
 
               <div className="space-y-2">
                 <Label htmlFor="valor_contrato" className="flex items-center gap-2">
-                  Valor do Contrato *
+                  Valor do Contrato (R$) *
                   {formData.valor_contrato > 0 && formData.valor_contrato < 100000 && (
                     <TooltipProvider>
                       <Tooltip>
@@ -599,26 +597,6 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
               />
             </div>
 
-            {/* Status - only show when editing */}
-            {projeto && (
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  disabled={isSystemProject}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="inativo">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {/* Actions */}
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -633,9 +611,10 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
       </Dialog>
 
       <EmpresaForm
-        open={empresaFormOpen}
-        onOpenChange={setEmpresaFormOpen}
-        onSuccess={handleEmpresaCreated}
+        open={clienteFormOpen}
+        onOpenChange={setClienteFormOpen}
+        onSuccess={handleClienteCreated}
+        isInline={true}
       />
     </>
   );

@@ -261,25 +261,26 @@ export default function Projetos() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-24">OS</TableHead>
-                <TableHead>Nome do Projeto</TableHead>
-                <TableHead>Cliente/Empresa</TableHead>
-                <TableHead>Tipo Contrato</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Aprovação</TableHead>
+                <TableHead>Projeto</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Valor (R$)</TableHead>
+                <TableHead>Início</TableHead>
+                <TableHead>Fim</TableHead>
+                <TableHead>Situação</TableHead>
                 {(canEdit || canDelete) && <TableHead className="w-24">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filteredProjetos?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Nenhum projeto encontrado
                   </TableCell>
                 </TableRow>
@@ -289,9 +290,13 @@ export default function Projetos() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {projeto.is_sistema && <Pin className="h-3 w-3 text-primary" />}
-                        <code className="bg-primary/10 text-primary px-2 py-1 rounded text-sm font-bold">
-                          {projeto.os}
-                        </code>
+                        {projeto.os?.startsWith('TEMP-') ? (
+                          <span className="text-muted-foreground text-sm italic">Pendente</span>
+                        ) : (
+                          <code className="bg-primary/10 text-primary px-2 py-1 rounded text-sm font-bold">
+                            {projeto.os}
+                          </code>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
@@ -316,7 +321,12 @@ export default function Projetos() {
                     <TableCell className="text-right font-mono">
                       {formatCurrency(projeto.valor_contrato)}
                     </TableCell>
-                    <TableCell>{getStatusBadge(projeto.status_projeto)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {projeto.data_inicio_planejada ? new Date(projeto.data_inicio_planejada).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {projeto.data_fim_planejada ? new Date(projeto.data_fim_planejada).toLocaleDateString('pt-BR') : '-'}
+                    </TableCell>
                     <TableCell>{getAprovacaoBadge(projeto.aprovacao_status)}</TableCell>
                     {(canEdit || canDelete) && (
                       <TableCell>

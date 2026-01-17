@@ -16,7 +16,8 @@ interface EmpresaFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   empresa?: Empresa | null;
-  onSuccess: () => void;
+  onSuccess: (createdEmpresa?: Empresa) => void;
+  isInline?: boolean; // When used inside project form
 }
 
 const SEGMENTOS = [
@@ -31,7 +32,7 @@ const SEGMENTOS = [
   'OUTROS',
 ];
 
-export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: EmpresaFormProps) {
+export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess, isInline = false }: EmpresaFormProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     empresa: '',
@@ -76,17 +77,27 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
     }
   };
 
+  const handleCodigoChange = (value: string) => {
+    // Allow only letters, max 3 chars, always uppercase
+    const cleaned = value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3);
+    setFormData({ ...formData, codigo: cleaned });
+  };
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.empresa.trim()) {
-      newErrors.empresa = 'Empresa é obrigatória';
+      newErrors.empresa = 'Nome do cliente é obrigatório';
     }
     if (!formData.razao_social.trim()) {
       newErrors.razao_social = 'Razão Social é obrigatória';
     }
     if (!formData.codigo.trim()) {
       newErrors.codigo = 'Código é obrigatório';
+    } else if (formData.codigo.length > 3) {
+      newErrors.codigo = 'Código deve ter no máximo 3 letras';
+    } else if (!/^[A-Z]+$/.test(formData.codigo)) {
+      newErrors.codigo = 'Código deve conter apenas letras';
     }
     if (formData.cnpj && !validateCNPJ(formData.cnpj)) {
       newErrors.cnpj = 'CNPJ inválido';
@@ -114,21 +125,28 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
         cnpj: formData.cnpj ? cleanCNPJ(formData.cnpj) : null,
         segmento: formData.segmento,
         unidade: formData.unidade.trim(),
-        status: formData.status,
+        status: 'ativo', // Always create as active
       };
 
       if (empresa) {
-        const { error } = await supabase
+        // Update existing
+        const { data, error } = await supabase
           .from('empresas')
-          .update(dataToSave)
-          .eq('id', empresa.id);
+          .update({ ...dataToSave, status: formData.status })
+          .eq('id', empresa.id)
+          .select()
+          .single();
 
         if (error) throw error;
-        toast.success('Empresa atualizada com sucesso!');
+        toast.success('Cliente atualizado com sucesso!');
+        onSuccess(data);
       } else {
-        const { error } = await supabase
+        // Create new
+        const { data, error } = await supabase
           .from('empresas')
-          .insert(dataToSave);
+          .insert(dataToSave)
+          .select()
+          .single();
 
         if (error) {
           if (error.code === '23505') {
@@ -137,14 +155,14 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
           }
           throw error;
         }
-        toast.success('Empresa criada com sucesso!');
+        toast.success('Cliente criado com sucesso!');
+        onSuccess(data);
       }
 
-      onSuccess();
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error saving empresa:', error);
-      toast.error('Erro ao salvar empresa: ' + error.message);
+      toast.error('Erro ao salvar cliente: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -154,12 +172,12 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{empresa ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
+          <DialogTitle>{empresa ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="empresa">Empresa *</Label>
+            <Label htmlFor="empresa">Nome do Cliente *</Label>
             <Input
               id="empresa"
               value={formData.empresa}
@@ -182,13 +200,14 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="codigo">Código *</Label>
+              <Label htmlFor="codigo">Código * (3 letras)</Label>
               <Input
                 id="codigo"
                 value={formData.codigo}
-                onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
+                onChange={(e) => handleCodigoChange(e.target.value)}
                 placeholder="Ex: BRP"
-                maxLength={10}
+                maxLength={3}
+                className="uppercase"
               />
               {errors.codigo && <p className="text-sm text-destructive">{errors.codigo}</p>}
             </div>
@@ -238,21 +257,24 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess }: 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="status">Status *</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value: 'ativo' | 'inativo') => setFormData({ ...formData, status: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ativo">Ativo</SelectItem>
-                <SelectItem value="inativo">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Only show status when editing an existing client (not inline/new) */}
+          {empresa && !isInline && (
+            <div className="space-y-2">
+              <Label htmlFor="status">Status *</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value: 'ativo' | 'inativo') => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
