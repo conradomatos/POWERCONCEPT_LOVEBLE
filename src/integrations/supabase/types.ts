@@ -806,6 +806,11 @@ export type Database = {
           nome: string
           observacoes_aditivos: string | null
           observacoes_riscos: string | null
+          omie_codigo: number | null
+          omie_codint: string | null
+          omie_last_error: string | null
+          omie_last_sync_at: string | null
+          omie_sync_status: string | null
           os: string
           regua_projeto_valor: number | null
           risco_escopo: Database["public"]["Enums"]["nivel_risco"] | null
@@ -843,6 +848,11 @@ export type Database = {
           nome: string
           observacoes_aditivos?: string | null
           observacoes_riscos?: string | null
+          omie_codigo?: number | null
+          omie_codint?: string | null
+          omie_last_error?: string | null
+          omie_last_sync_at?: string | null
+          omie_sync_status?: string | null
           os: string
           regua_projeto_valor?: number | null
           risco_escopo?: Database["public"]["Enums"]["nivel_risco"] | null
@@ -880,6 +890,11 @@ export type Database = {
           nome?: string
           observacoes_aditivos?: string | null
           observacoes_riscos?: string | null
+          omie_codigo?: number | null
+          omie_codint?: string | null
+          omie_last_error?: string | null
+          omie_last_sync_at?: string | null
+          omie_sync_status?: string | null
           os?: string
           regua_projeto_valor?: number | null
           risco_escopo?: Database["public"]["Enums"]["nivel_risco"] | null
