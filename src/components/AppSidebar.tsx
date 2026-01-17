@@ -1,15 +1,16 @@
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  ClipboardList,
-  Upload,
-  FileSpreadsheet,
   Users,
+  FileSpreadsheet,
   Building2,
   FolderKanban,
-  Settings,
   GanttChart,
+  ClipboardList,
+  Upload,
+  LayoutDashboard,
   DollarSign,
+  AlertTriangle,
 } from 'lucide-react';
 
 import {
@@ -24,6 +25,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { NavLink } from '@/components/NavLink';
+import type { NavigationArea } from './Layout';
 
 type NavItem = {
   title: string;
@@ -32,49 +34,45 @@ type NavItem = {
   roles?: ('admin' | 'rh' | 'financeiro' | 'super_admin')[];
 };
 
-type NavGroup = {
+type AreaConfig = {
   label: string;
   items: NavItem[];
 };
 
-const navGroups: NavGroup[] = [
-  {
-    label: 'Operação',
+// Sidebar items organized by area
+const areaNavItems: Record<NavigationArea, AreaConfig> = {
+  recursos: {
+    label: 'Recursos',
     items: [
+      { title: 'Colaboradores', url: '/collaborators', icon: Users },
+      { title: 'Importar Colaboradores', url: '/import', icon: FileSpreadsheet, roles: ['admin', 'rh'] },
+    ],
+  },
+  projetos: {
+    label: 'Projetos',
+    items: [
+      { title: 'Clientes', url: '/empresas', icon: Building2 },
+      { title: 'Projetos', url: '/projetos', icon: FolderKanban },
+      { title: 'Planejamento', url: '/planejamento', icon: GanttChart },
       { title: 'Apontamentos', url: '/apontamentos', icon: ClipboardList },
       { title: 'Importar Apontamentos', url: '/import-apontamentos', icon: Upload, roles: ['admin', 'rh'] },
     ],
   },
-  {
-    label: 'Planejamento',
+  relatorios: {
+    label: 'Relatórios',
     items: [
-      { title: 'Planejamento', url: '/planejamento', icon: GanttChart },
+      { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+      { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
+      { title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
     ],
   },
-  {
-    label: 'Financeiro',
-    items: [
-      { title: 'Custos de Projetos', url: '/custos-projeto', icon: DollarSign },
-    ],
-  },
-  {
-    label: 'Cadastros',
-    items: [
-      { title: 'Colaboradores', url: '/collaborators', icon: Users },
-      { title: 'Importar Colaboradores', url: '/import', icon: FileSpreadsheet, roles: ['admin', 'rh'] },
-      { title: 'Empresas', url: '/empresas', icon: Building2 },
-      { title: 'Projetos', url: '/projetos', icon: FolderKanban },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
-      { title: 'Configurações', url: '/admin', icon: Settings, roles: ['admin'] },
-    ],
-  },
-];
+};
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  activeArea: NavigationArea;
+}
+
+export function AppSidebar({ activeArea }: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
@@ -82,44 +80,41 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const currentAreaConfig = areaNavItems[activeArea];
+  
+  // Filter items based on user roles
+  const visibleItems = currentAreaConfig.items.filter(
+    (item) => !item.roles || item.roles.some((r) => hasRole(r))
+  );
+
   return (
     <Sidebar collapsible="icon">
       <SidebarContent className="pt-4">
-        {navGroups.map((group) => {
-          const visibleItems = group.items.filter(
-            (item) => !item.roles || item.roles.some((r) => hasRole(r))
-          );
-
-          if (visibleItems.length === 0) return null;
-
-          return (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {visibleItems.map((item) => (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive(item.url)}
-                        tooltip={item.title}
-                      >
-                        <NavLink
-                          to={item.url}
-                          className="flex items-center gap-2"
-                          activeClassName="bg-accent text-accent-foreground"
-                        >
-                          <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && <span>{item.title}</span>}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          );
-        })}
+        <SidebarGroup>
+          <SidebarGroupLabel>{currentAreaConfig.label}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleItems.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    tooltip={item.title}
+                  >
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-2"
+                      activeClassName="bg-accent text-accent-foreground"
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );

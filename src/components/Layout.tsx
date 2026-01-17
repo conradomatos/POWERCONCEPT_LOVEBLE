@@ -1,15 +1,13 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
-  LayoutDashboard,
   LogOut,
-  Shield,
-  Building2,
+  Settings,
+  Users,
   FolderKanban,
-  CalendarDays,
-  ClipboardList,
+  BarChart3,
   PanelLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,37 +18,83 @@ import {
 } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 
+export type NavigationArea = 'recursos' | 'projetos' | 'relatorios';
+
 interface LayoutProps {
   children: ReactNode;
 }
+
+// Map routes to their navigation area
+const routeToArea: Record<string, NavigationArea> = {
+  // Recursos
+  '/collaborators': 'recursos',
+  '/import': 'recursos',
+  // Projetos
+  '/empresas': 'projetos',
+  '/projetos': 'projetos',
+  '/planejamento': 'projetos',
+  '/apontamentos': 'projetos',
+  '/import-apontamentos': 'projetos',
+  // Relatórios
+  '/': 'relatorios',
+  '/custos-projeto': 'relatorios',
+};
 
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut, roles, hasRole } = useAuth();
+  
+  // Determine active area based on current route
+  const getAreaFromPath = (path: string): NavigationArea => {
+    // Check exact match first
+    if (routeToArea[path]) return routeToArea[path];
+    // Check if path starts with any known route
+    for (const [route, area] of Object.entries(routeToArea)) {
+      if (path.startsWith(route) && route !== '/') return area;
+    }
+    return 'relatorios'; // Default
+  };
+  
+  const [activeArea, setActiveArea] = useState<NavigationArea>(() => 
+    getAreaFromPath(location.pathname)
+  );
+
+  // Update active area when route changes
+  useEffect(() => {
+    const area = getAreaFromPath(location.pathname);
+    setActiveArea(area);
+  }, [location.pathname]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
 
-  // Strategic navigation items (top bar only)
-  const topNavItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/empresas', label: 'Empresas', icon: Building2 },
-    { path: '/projetos', label: 'Projetos', icon: FolderKanban },
-    { path: '/planejamento', label: 'Planejamento', icon: CalendarDays },
-    { path: '/apontamentos', label: 'Apontamentos', icon: ClipboardList },
+  const handleAreaClick = (area: NavigationArea) => {
+    setActiveArea(area);
+    // Navigate to first route of each area
+    const firstRoutes: Record<NavigationArea, string> = {
+      recursos: '/collaborators',
+      projetos: '/projetos',
+      relatorios: '/',
+    };
+    navigate(firstRoutes[area]);
+  };
+
+  // Top navigation areas
+  const topNavAreas = [
+    { id: 'recursos' as NavigationArea, label: 'Recursos', icon: Users },
+    { id: 'projetos' as NavigationArea, label: 'Projetos', icon: FolderKanban },
+    { id: 'relatorios' as NavigationArea, label: 'Relatórios', icon: BarChart3 },
   ];
 
-  if (hasRole('admin')) {
-    topNavItems.push({ path: '/admin', label: 'Administração', icon: Shield });
-  }
+  const canAccessSettings = hasRole('admin') || hasRole('super_admin');
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <AppSidebar />
+        <AppSidebar activeArea={activeArea} />
         <SidebarInset className="flex flex-col flex-1">
           {/* Header */}
           <header className="border-b border-border bg-card sticky top-0 z-10">
@@ -61,27 +105,30 @@ export default function Layout({ children }: LayoutProps) {
                     <PanelLeft className="h-5 w-5" />
                   </SidebarTrigger>
                   <h1 className="text-lg font-semibold tracking-tight hidden sm:block">PowerConcept</h1>
-                  <nav className="hidden lg:flex items-center gap-1 ml-4">
-                    {topNavItems.map((item) => {
-                      const Icon = item.icon;
+                  
+                  {/* Top Nav - 3 Areas */}
+                  <nav className="hidden md:flex items-center gap-1 ml-4">
+                    {topNavAreas.map((area) => {
+                      const Icon = area.icon;
                       return (
                         <Button
-                          key={item.path}
-                          variant="ghost"
+                          key={area.id}
+                          variant={activeArea === area.id ? 'default' : 'ghost'}
                           size="sm"
                           className={cn(
-                            'gap-2 text-sm',
-                            location.pathname === item.path && 'bg-accent text-accent-foreground'
+                            'gap-2 text-sm font-medium',
+                            activeArea === area.id && 'bg-primary text-primary-foreground'
                           )}
-                          onClick={() => navigate(item.path)}
+                          onClick={() => handleAreaClick(area.id)}
                         >
                           <Icon className="h-4 w-4" />
-                          {item.label}
+                          {area.label}
                         </Button>
                       );
                     })}
                   </nav>
                 </div>
+                
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground hidden sm:block truncate max-w-[180px]">
                     {user?.email}
@@ -91,6 +138,21 @@ export default function Layout({ children }: LayoutProps) {
                       {roles[0].toUpperCase()}
                     </span>
                   )}
+                  
+                  {/* Settings Icon */}
+                  {canAccessSettings && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => navigate('/admin')}
+                      className={cn(
+                        location.pathname === '/admin' && 'bg-accent text-accent-foreground'
+                      )}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  )}
+                  
                   <Button variant="ghost" size="icon" onClick={handleSignOut}>
                     <LogOut className="h-4 w-4" />
                   </Button>
@@ -99,23 +161,23 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </header>
 
-          {/* Mobile Nav (strategic items) */}
-          <nav className="lg:hidden border-b border-border bg-card px-4 py-2 flex gap-1 overflow-x-auto">
-            {topNavItems.map((item) => {
-              const Icon = item.icon;
+          {/* Mobile Nav - 3 Areas */}
+          <nav className="md:hidden border-b border-border bg-card px-4 py-2 flex gap-1 overflow-x-auto">
+            {topNavAreas.map((area) => {
+              const Icon = area.icon;
               return (
                 <Button
-                  key={item.path}
-                  variant="ghost"
+                  key={area.id}
+                  variant={activeArea === area.id ? 'default' : 'ghost'}
                   size="sm"
                   className={cn(
                     'gap-2 flex-shrink-0 text-xs',
-                    location.pathname === item.path && 'bg-accent'
+                    activeArea === area.id && 'bg-primary text-primary-foreground'
                   )}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => handleAreaClick(area.id)}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {area.label}
                 </Button>
               );
             })}
