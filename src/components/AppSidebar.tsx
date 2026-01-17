@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   DollarSign,
   AlertTriangle,
+  FileCheck,
 } from 'lucide-react';
 
 import {
@@ -57,6 +58,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     items: [
       { title: 'Clientes', url: '/empresas', icon: Building2 },
       { title: 'Projetos', url: '/projetos', icon: FolderKanban },
+      { title: 'Aprovações', url: '/aprovacoes-projetos', icon: FileCheck, roles: ['admin'] },
       { title: 'Planejamento', url: '/planejamento', icon: GanttChart },
       { title: 'Apontamentos', url: '/apontamentos', icon: ClipboardList },
       { title: 'Importar Apontamentos', url: '/import-apontamentos', icon: Upload, roles: ['admin', 'rh'] },
