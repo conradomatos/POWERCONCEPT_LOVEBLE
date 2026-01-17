@@ -10,8 +10,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Calendar } from '@/components/ui/calendar';
-import { Check, ChevronsUpDown, Plus, Lock, CalendarIcon, AlertTriangle } from 'lucide-react';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { Check, ChevronsUpDown, Plus, Lock, CalendarIcon, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,7 +57,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     status: 'ativo',
     os: '',
     tipo_contrato: 'PRECO_FECHADO' as 'PRECO_FECHADO' | 'MAO_DE_OBRA',
-    valor_contrato: '',
+    valor_contrato: 0,
     data_inicio_planejada: null as Date | null,
     data_fim_planejada: null as Date | null,
     risco_escopo: 'MEDIO' as 'BAIXO' | 'MEDIO' | 'ALTO',
@@ -91,7 +93,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         status: projeto.status,
         os: projeto.os,
         tipo_contrato: (projeto.tipo_contrato as 'PRECO_FECHADO' | 'MAO_DE_OBRA') || 'PRECO_FECHADO',
-        valor_contrato: projeto.valor_contrato?.toString() || '',
+        valor_contrato: projeto.valor_contrato || 0,
         data_inicio_planejada: projeto.data_inicio_planejada ? new Date(projeto.data_inicio_planejada) : null,
         data_fim_planejada: projeto.data_fim_planejada ? new Date(projeto.data_fim_planejada) : null,
         risco_escopo: (projeto.risco_escopo as 'BAIXO' | 'MEDIO' | 'ALTO') || 'MEDIO',
@@ -106,7 +108,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         status: 'ativo',
         os: '',
         tipo_contrato: 'PRECO_FECHADO',
-        valor_contrato: '',
+        valor_contrato: 0,
         data_inicio_planejada: null,
         data_fim_planejada: null,
         risco_escopo: 'MEDIO',
@@ -139,8 +141,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
       newErrors.tipo_contrato = 'Tipo de contrato é obrigatório';
     }
 
-    const valorContrato = parseFloat(formData.valor_contrato || '0');
-    if (isNaN(valorContrato) || valorContrato < 0) {
+    if (formData.valor_contrato < 0) {
       newErrors.valor_contrato = 'Valor deve ser maior ou igual a zero';
     }
 
@@ -167,7 +168,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
 
     setLoading(true);
     try {
-      const valorContrato = parseFloat(formData.valor_contrato || '0');
+      const isSmallProject = formData.valor_contrato < 100000;
       
       if (projeto) {
         // Update existing project
@@ -175,9 +176,8 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
           nome: formData.nome.trim(),
           descricao: formData.descricao.trim() || null,
           empresa_id: formData.empresa_id,
-          status: formData.status,
           tipo_contrato: formData.tipo_contrato,
-          valor_contrato: valorContrato,
+          valor_contrato: formData.valor_contrato,
           data_inicio_planejada: formData.data_inicio_planejada ? format(formData.data_inicio_planejada, 'yyyy-MM-dd') : null,
           data_fim_planejada: formData.data_fim_planejada ? format(formData.data_fim_planejada, 'yyyy-MM-dd') : null,
           risco_escopo: formData.risco_escopo,
@@ -206,9 +206,8 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
           nome: formData.nome.trim(),
           descricao: formData.descricao.trim() || null,
           empresa_id: formData.empresa_id,
-          status: formData.status,
           tipo_contrato: formData.tipo_contrato,
-          valor_contrato: valorContrato,
+          valor_contrato: formData.valor_contrato,
           data_inicio_planejada: formData.data_inicio_planejada ? format(formData.data_inicio_planejada, 'yyyy-MM-dd') : null,
           data_fim_planejada: formData.data_fim_planejada ? format(formData.data_fim_planejada, 'yyyy-MM-dd') : null,
           risco_escopo: formData.risco_escopo,
@@ -413,14 +412,28 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="valor_contrato">Valor do Contrato (R$) *</Label>
-                <Input
+                <Label htmlFor="valor_contrato" className="flex items-center gap-2">
+                  Valor do Contrato *
+                  {formData.valor_contrato > 0 && formData.valor_contrato < 100000 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 text-xs text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded">
+                            <Info className="h-3 w-3" />
+                            Pequeno projeto
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Projetos abaixo de R$ 100.000 são considerados pequenos.<br/>Considere usar o projeto "ORÇAMENTOS" ou um pacote.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </Label>
+                <CurrencyInput
                   id="valor_contrato"
-                  type="number"
-                  min="0"
-                  step="0.01"
                   value={formData.valor_contrato}
-                  onChange={(e) => setFormData({ ...formData, valor_contrato: e.target.value })}
+                  onValueChange={(value) => setFormData({ ...formData, valor_contrato: value })}
                   placeholder="0,00"
                   disabled={isSystemProject}
                 />
@@ -586,23 +599,25 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
               />
             </div>
 
-            {/* Status */}
-            <div className="space-y-2">
-              <Label>Status *</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-                disabled={isSystemProject}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Status - only show when editing */}
+            {projeto && (
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                  disabled={isSystemProject}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="inativo">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-2 pt-4 border-t">
