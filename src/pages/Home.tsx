@@ -149,7 +149,7 @@ export default function Home() {
       count: pendingCounts?.semCusto ?? 0,
       description: 'pendências de custo',
       status: 'warning' as const,
-      onClick: () => navigate('/custos-projeto?filter=sem_custo'),
+      onClick: () => navigate('/recursos/custos?sem_custo=true'),
     },
     {
       icon: Info,
