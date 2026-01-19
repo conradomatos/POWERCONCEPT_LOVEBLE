@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { syncProjectToOmie } from '@/lib/omie-sync';
 import type { Database } from '@/integrations/supabase/types';
 
 type Projeto = Database['public']['Tables']['projetos']['Row'];
@@ -109,9 +110,19 @@ export default function AprovacoesProjetos() {
       if (error) throw error;
 
       toast.success(`Projeto "${selectedProjeto.nome}" aprovado com sucesso! OS: ${nextOs}`);
+      
+      // Sync to Omie automatically after approval
+      const syncResult = await syncProjectToOmie(selectedProjeto.id);
+      if (syncResult.success) {
+        toast.success('Projeto sincronizado com Omie automaticamente!');
+      } else {
+        toast.warning(`Aprovado, mas falha ao sincronizar com Omie: ${syncResult.message}`);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['projetos-pendentes'] });
       queryClient.invalidateQueries({ queryKey: ['projetos-recentes-aprovados'] });
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
+      queryClient.invalidateQueries({ queryKey: ['home-omie-status'] });
       setSelectedProjeto(null);
       setActionType(null);
     } catch (error: any) {

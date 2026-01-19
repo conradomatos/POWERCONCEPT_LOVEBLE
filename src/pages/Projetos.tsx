@@ -29,11 +29,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Pencil, Trash2, FolderKanban, Pin, Clock, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Plus, Search, Pencil, Trash2, FolderKanban, Pin, Clock, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ProjetoForm from '@/components/ProjetoForm';
 import { useAuth } from '@/hooks/useAuth';
+import { syncProjectToOmie } from '@/lib/omie-sync';
 import type { Database } from '@/integrations/supabase/types';
 
 type Projeto = Database['public']['Tables']['projetos']['Row'];
@@ -54,6 +61,7 @@ export default function Projetos() {
   const [selectedProjeto, setSelectedProjeto] = useState<ProjetoWithEmpresa | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projetoToDelete, setProjetoToDelete] = useState<ProjetoWithEmpresa | null>(null);
+  const [syncingProjectId, setSyncingProjectId] = useState<string | null>(null);
 
   const canEdit = hasRole('admin') || hasRole('rh');
   const canDelete = hasRole('admin');
@@ -137,6 +145,79 @@ export default function Projetos() {
     }
     setProjetoToDelete(projeto);
     setDeleteDialogOpen(true);
+  };
+
+  const handleSyncToOmie = async (projeto: ProjetoWithEmpresa) => {
+    if (!projeto.os || projeto.os.startsWith('TEMP-')) {
+      toast.error('Projeto precisa estar aprovado para sincronizar com Omie');
+      return;
+    }
+
+    setSyncingProjectId(projeto.id);
+    try {
+      const result = await syncProjectToOmie(projeto.id);
+      if (result.success) {
+        toast.success(result.message || 'Projeto sincronizado com Omie!');
+        queryClient.invalidateQueries({ queryKey: ['projetos'] });
+      } else {
+        toast.error(result.message || 'Erro ao sincronizar com Omie');
+      }
+    } catch (error: any) {
+      console.error('Error syncing to Omie:', error);
+      toast.error('Erro inesperado ao sincronizar');
+    } finally {
+      setSyncingProjectId(null);
+    }
+  };
+
+  const getOmieSyncBadge = (projeto: ProjetoWithEmpresa) => {
+    const status = projeto.omie_sync_status;
+    const isTemp = projeto.os?.startsWith('TEMP-');
+    
+    if (isTemp) {
+      return (
+        <span className="text-muted-foreground text-xs">-</span>
+      );
+    }
+
+    switch (status) {
+      case 'SYNCED':
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/30 gap-1">
+                <Cloud className="h-3 w-3" />
+                Sync
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Sincronizado em {projeto.omie_last_sync_at ? new Date(projeto.omie_last_sync_at).toLocaleString('pt-BR') : '-'}</p>
+            </TooltipContent>
+          </Tooltip>
+        );
+      case 'ERROR':
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="bg-destructive/20 text-destructive border-destructive/30 gap-1">
+                <CloudOff className="h-3 w-3" />
+                Erro
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-destructive font-medium">Erro de sincronização</p>
+              <p className="text-xs">{projeto.omie_last_error || 'Erro desconhecido'}</p>
+            </TooltipContent>
+          </Tooltip>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-muted-foreground gap-1">
+            <CloudOff className="h-3 w-3" />
+            Pendente
+          </Badge>
+        );
+    }
   };
 
   const getAprovacaoBadge = (status: string | null) => {
@@ -256,6 +337,7 @@ export default function Projetos() {
           </Select>
         </div>
 
+        <TooltipProvider>
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
@@ -268,6 +350,7 @@ export default function Projetos() {
                 <TableHead>Início</TableHead>
                 <TableHead>Fim</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead className="w-28">Omie</TableHead>
                 {(canEdit || canDelete) && <TableHead className="w-24">Ações</TableHead>}
               </TableRow>
             </TableHeader>
@@ -328,6 +411,23 @@ export default function Projetos() {
                       {projeto.data_fim_planejada ? new Date(projeto.data_fim_planejada).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>{getAprovacaoBadge(projeto.aprovacao_status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {getOmieSyncBadge(projeto)}
+                        {canEdit && !projeto.is_sistema && !projeto.os?.startsWith('TEMP-') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleSyncToOmie(projeto)}
+                            disabled={syncingProjectId === projeto.id}
+                            title="Sincronizar com Omie"
+                            className="h-7 w-7"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${syncingProjectId === projeto.id ? 'animate-spin' : ''}`} />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                     {(canEdit || canDelete) && (
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -358,6 +458,7 @@ export default function Projetos() {
             </TableBody>
           </Table>
         </div>
+        </TooltipProvider>
       </div>
 
       <ProjetoForm

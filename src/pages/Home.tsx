@@ -57,6 +57,41 @@ export default function Home() {
     },
   });
 
+  // Fetch Omie integration status
+  const { data: omieStatus } = useQuery({
+    queryKey: ['home-omie-status'],
+    queryFn: async () => {
+      const [synced, error, notSent, lastSync] = await Promise.all([
+        supabase
+          .from('projetos')
+          .select('id', { count: 'exact', head: true })
+          .eq('omie_sync_status', 'SYNCED'),
+        supabase
+          .from('projetos')
+          .select('id', { count: 'exact', head: true })
+          .eq('omie_sync_status', 'ERROR'),
+        supabase
+          .from('projetos')
+          .select('id', { count: 'exact', head: true })
+          .or('omie_sync_status.is.null,omie_sync_status.eq.NOT_SENT'),
+        supabase
+          .from('projetos')
+          .select('omie_last_sync_at')
+          .not('omie_last_sync_at', 'is', null)
+          .order('omie_last_sync_at', { ascending: false })
+          .limit(1)
+          .single(),
+      ]);
+
+      return {
+        synced: synced.count || 0,
+        error: error.count || 0,
+        notSent: notSent.count || 0,
+        lastSyncAt: lastSync.data?.omie_last_sync_at || null,
+      };
+    },
+  });
+
   // Fetch recent projects
   const { data: recentProjects, isLoading: loadingProjects } = useQuery({
     queryKey: ['home-recent-projects'],
@@ -86,6 +121,44 @@ export default function Home() {
   const handleProjetoCreated = () => {
     queryClient.invalidateQueries({ queryKey: ['home-recent-projects'] });
     queryClient.invalidateQueries({ queryKey: ['projetos'] });
+  };
+
+  const formatLastSync = (dateStr: string | null) => {
+    if (!dateStr) return 'Nunca sincronizado';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'Agora mesmo';
+    if (diffMins < 60) return `Há ${diffMins} min`;
+    if (diffHours < 24) return `Há ${diffHours}h`;
+    return `Há ${diffDays} dias`;
+  };
+
+  const getOmieStatusInfo = () => {
+    if (!omieStatus) return { status: 'loading', label: 'Carregando...', variant: 'outline' as const };
+    
+    if (omieStatus.synced > 0) {
+      if (omieStatus.error > 0) {
+        return { 
+          status: 'warning', 
+          label: `${omieStatus.synced} ok, ${omieStatus.error} erro(s)`, 
+          variant: 'outline' as const,
+          className: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
+        };
+      }
+      return { 
+        status: 'ok', 
+        label: `${omieStatus.synced} sincronizado(s)`, 
+        variant: 'outline' as const,
+        className: 'bg-green-500/20 text-green-500 border-green-500/30'
+      };
+    }
+    
+    return { status: 'not_configured', label: 'Não configurado', variant: 'outline' as const };
   };
 
   const quickActions = [
@@ -277,17 +350,27 @@ export default function Home() {
                     <p className="font-medium">Omie</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Não configurado
+                      {formatLastSync(omieStatus?.lastSyncAt)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-muted-foreground">
-                    Não configurado
+                  <Badge 
+                    variant={getOmieStatusInfo().variant} 
+                    className={getOmieStatusInfo().className}
+                  >
+                    {getOmieStatusInfo().label}
                   </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}>
-                    Configurar
-                  </Button>
+                  {omieStatus?.error && omieStatus.error > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/projetos?omie=ERROR')}>
+                      Ver erros
+                    </Button>
+                  )}
+                  {getOmieStatusInfo().status === 'not_configured' && (
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}>
+                      Configurar
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="border-t border-border" />
