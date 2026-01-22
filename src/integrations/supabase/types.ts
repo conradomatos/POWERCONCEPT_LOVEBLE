@@ -79,6 +79,13 @@ export type Database = {
             referencedRelation: "vw_custo_projeto"
             referencedColumns: ["projeto_id"]
           },
+          {
+            foreignKeyName: "alocacoes_blocos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       alocacoes_padrao: {
@@ -138,6 +145,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "alocacoes_padrao_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
           },
         ]
@@ -252,6 +266,13 @@ export type Database = {
             referencedRelation: "vw_custo_projeto"
             referencedColumns: ["projeto_id"]
           },
+          {
+            foreignKeyName: "apontamentos_consolidado_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       apontamentos_horas_dia: {
@@ -326,6 +347,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "apontamentos_horas_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
           },
         ]
@@ -538,6 +566,13 @@ export type Database = {
             referencedRelation: "vw_custo_projeto"
             referencedColumns: ["projeto_id"]
           },
+          {
+            foreignKeyName: "custo_projeto_dia_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       custos_colaborador: {
@@ -658,6 +693,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "custos_diretos_projeto_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
           },
         ]
@@ -840,6 +882,13 @@ export type Database = {
             referencedRelation: "vw_custo_projeto"
             referencedColumns: ["projeto_id"]
           },
+          {
+            foreignKeyName: "omie_contas_pagar_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
         ]
       }
       omie_contas_receber: {
@@ -922,6 +971,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "omie_contas_receber_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
           },
         ]
@@ -1024,6 +1080,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "pendencias_financeiras_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
           },
         ]
@@ -1190,6 +1253,13 @@ export type Database = {
             referencedRelation: "empresas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "projetos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["empresa_id"]
+          },
         ]
       }
       user_roles: {
@@ -1268,6 +1338,47 @@ export type Database = {
           registros_mo_ok: number | null
           registros_sem_custo: number | null
           total_custos_diretos: number | null
+        }
+        Relationships: []
+      }
+      vw_rentabilidade_projeto: {
+        Row: {
+          a_pagar: number | null
+          a_receber: number | null
+          cliente_codigo: string | null
+          cliente_nome: string | null
+          custo_direto_caixa: number | null
+          custo_direto_competencia: number | null
+          custo_mao_obra: number | null
+          custo_medio_hora: number | null
+          data_fim_planejada: string | null
+          data_fim_real: string | null
+          data_inicio_planejada: string | null
+          data_inicio_real: string | null
+          empresa_id: string | null
+          horas_totais: number | null
+          margem_caixa_pct: number | null
+          margem_competencia_pct: number | null
+          omie_codigo: number | null
+          pendencias_abertas: number | null
+          projeto_id: string | null
+          projeto_nome: string | null
+          projeto_os: string | null
+          receita_caixa: number | null
+          receita_competencia: number | null
+          receita_por_hora: number | null
+          registros_sem_custo: number | null
+          resultado_competencia: number | null
+          saldo_caixa: number | null
+          status_margem: string | null
+          status_projeto: Database["public"]["Enums"]["status_projeto"] | null
+          tem_aditivos: boolean | null
+          tipo_contrato: Database["public"]["Enums"]["tipo_contrato"] | null
+          titulos_atrasados_ap: number | null
+          titulos_atrasados_ar: number | null
+          valor_aditivos_previsto: number | null
+          valor_contrato: number | null
+          valor_total_contrato: number | null
         }
         Relationships: []
       }
