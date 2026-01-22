@@ -758,6 +758,276 @@ export type Database = {
         }
         Relationships: []
       }
+      omie_contas_pagar: {
+        Row: {
+          categoria: string | null
+          created_at: string
+          data_emissao: string
+          data_pagamento: string | null
+          descricao: string | null
+          fornecedor: string | null
+          fornecedor_cnpj: string | null
+          id: string
+          id_omie_titulo: number
+          numero_documento: string | null
+          observacoes: string | null
+          omie_projeto_codigo: number | null
+          parcela: string | null
+          projeto_id: string | null
+          status: Database["public"]["Enums"]["titulo_status"]
+          sync_id: string | null
+          updated_at: string
+          valor: number
+          valor_pago: number
+          vencimento: string
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string
+          data_emissao: string
+          data_pagamento?: string | null
+          descricao?: string | null
+          fornecedor?: string | null
+          fornecedor_cnpj?: string | null
+          id?: string
+          id_omie_titulo: number
+          numero_documento?: string | null
+          observacoes?: string | null
+          omie_projeto_codigo?: number | null
+          parcela?: string | null
+          projeto_id?: string | null
+          status?: Database["public"]["Enums"]["titulo_status"]
+          sync_id?: string | null
+          updated_at?: string
+          valor?: number
+          valor_pago?: number
+          vencimento: string
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string
+          data_emissao?: string
+          data_pagamento?: string | null
+          descricao?: string | null
+          fornecedor?: string | null
+          fornecedor_cnpj?: string | null
+          id?: string
+          id_omie_titulo?: number
+          numero_documento?: string | null
+          observacoes?: string | null
+          omie_projeto_codigo?: number | null
+          parcela?: string | null
+          projeto_id?: string | null
+          status?: Database["public"]["Enums"]["titulo_status"]
+          sync_id?: string | null
+          updated_at?: string
+          valor?: number
+          valor_pago?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omie_contas_pagar_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omie_contas_pagar_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
+      omie_contas_receber: {
+        Row: {
+          categoria: string | null
+          cliente: string | null
+          cliente_cnpj: string | null
+          created_at: string
+          data_emissao: string
+          data_recebimento: string | null
+          descricao: string | null
+          id: string
+          id_omie_titulo: number
+          numero_documento: string | null
+          observacoes: string | null
+          omie_projeto_codigo: number | null
+          parcela: string | null
+          projeto_id: string | null
+          status: Database["public"]["Enums"]["titulo_status"]
+          sync_id: string | null
+          updated_at: string
+          valor: number
+          valor_recebido: number
+          vencimento: string
+        }
+        Insert: {
+          categoria?: string | null
+          cliente?: string | null
+          cliente_cnpj?: string | null
+          created_at?: string
+          data_emissao: string
+          data_recebimento?: string | null
+          descricao?: string | null
+          id?: string
+          id_omie_titulo: number
+          numero_documento?: string | null
+          observacoes?: string | null
+          omie_projeto_codigo?: number | null
+          parcela?: string | null
+          projeto_id?: string | null
+          status?: Database["public"]["Enums"]["titulo_status"]
+          sync_id?: string | null
+          updated_at?: string
+          valor?: number
+          valor_recebido?: number
+          vencimento: string
+        }
+        Update: {
+          categoria?: string | null
+          cliente?: string | null
+          cliente_cnpj?: string | null
+          created_at?: string
+          data_emissao?: string
+          data_recebimento?: string | null
+          descricao?: string | null
+          id?: string
+          id_omie_titulo?: number
+          numero_documento?: string | null
+          observacoes?: string | null
+          omie_projeto_codigo?: number | null
+          parcela?: string | null
+          projeto_id?: string | null
+          status?: Database["public"]["Enums"]["titulo_status"]
+          sync_id?: string | null
+          updated_at?: string
+          valor?: number
+          valor_recebido?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omie_contas_receber_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omie_contas_receber_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
+      omie_sync_log: {
+        Row: {
+          detalhes: Json | null
+          erro_mensagem: string | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          iniciado_por: string | null
+          pendencias_criadas: number
+          registros_atualizados: number
+          registros_novos: number
+          registros_processados: number
+          status: Database["public"]["Enums"]["sync_status"]
+          tipo: Database["public"]["Enums"]["sync_tipo"]
+        }
+        Insert: {
+          detalhes?: Json | null
+          erro_mensagem?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          iniciado_por?: string | null
+          pendencias_criadas?: number
+          registros_atualizados?: number
+          registros_novos?: number
+          registros_processados?: number
+          status?: Database["public"]["Enums"]["sync_status"]
+          tipo: Database["public"]["Enums"]["sync_tipo"]
+        }
+        Update: {
+          detalhes?: Json | null
+          erro_mensagem?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          iniciado_por?: string | null
+          pendencias_criadas?: number
+          registros_atualizados?: number
+          registros_novos?: number
+          registros_processados?: number
+          status?: Database["public"]["Enums"]["sync_status"]
+          tipo?: Database["public"]["Enums"]["sync_tipo"]
+        }
+        Relationships: []
+      }
+      pendencias_financeiras: {
+        Row: {
+          created_at: string
+          detalhes: Json | null
+          id: string
+          origem: Database["public"]["Enums"]["pendencia_origem"]
+          projeto_id: string | null
+          referencia_id: string
+          referencia_omie_codigo: number | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          status: Database["public"]["Enums"]["pendencia_status"]
+          tipo: Database["public"]["Enums"]["pendencia_tipo"]
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          origem: Database["public"]["Enums"]["pendencia_origem"]
+          projeto_id?: string | null
+          referencia_id: string
+          referencia_omie_codigo?: number | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: Database["public"]["Enums"]["pendencia_status"]
+          tipo: Database["public"]["Enums"]["pendencia_tipo"]
+        }
+        Update: {
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          origem?: Database["public"]["Enums"]["pendencia_origem"]
+          projeto_id?: string | null
+          referencia_id?: string
+          referencia_omie_codigo?: number | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: Database["public"]["Enums"]["pendencia_status"]
+          tipo?: Database["public"]["Enums"]["pendencia_tipo"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pendencias_financeiras_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pendencias_financeiras_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1093,9 +1363,20 @@ export type Database = {
       empresa_status: "ativo" | "inativo"
       integracao_status: "OK" | "ERRO" | "PENDENTE"
       nivel_risco: "BAIXO" | "MEDIO" | "ALTO"
+      pendencia_origem: "OMIE_AR" | "OMIE_AP" | "HORAS"
+      pendencia_status: "ABERTA" | "RESOLVIDA" | "IGNORADA"
+      pendencia_tipo:
+        | "SEM_PROJETO"
+        | "PROJETO_INEXISTENTE"
+        | "SEM_CATEGORIA"
+        | "APONTAMENTO_SEM_CUSTO"
+        | "OUTRO"
       status_projeto: "ATIVO" | "CONCLUIDO" | "SUSPENSO" | "CANCELADO"
+      sync_status: "INICIADO" | "SUCESSO" | "ERRO" | "PARCIAL"
+      sync_tipo: "CONTAS_RECEBER" | "CONTAS_PAGAR" | "PROJETOS"
       tipo_contrato: "PRECO_FECHADO" | "MAO_DE_OBRA"
       tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
+      titulo_status: "ABERTO" | "PAGO" | "ATRASADO" | "CANCELADO" | "PARCIAL"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1244,9 +1525,21 @@ export const Constants = {
       empresa_status: ["ativo", "inativo"],
       integracao_status: ["OK", "ERRO", "PENDENTE"],
       nivel_risco: ["BAIXO", "MEDIO", "ALTO"],
+      pendencia_origem: ["OMIE_AR", "OMIE_AP", "HORAS"],
+      pendencia_status: ["ABERTA", "RESOLVIDA", "IGNORADA"],
+      pendencia_tipo: [
+        "SEM_PROJETO",
+        "PROJETO_INEXISTENTE",
+        "SEM_CATEGORIA",
+        "APONTAMENTO_SEM_CUSTO",
+        "OUTRO",
+      ],
       status_projeto: ["ATIVO", "CONCLUIDO", "SUSPENSO", "CANCELADO"],
+      sync_status: ["INICIADO", "SUCESSO", "ERRO", "PARCIAL"],
+      sync_tipo: ["CONTAS_RECEBER", "CONTAS_PAGAR", "PROJETOS"],
       tipo_contrato: ["PRECO_FECHADO", "MAO_DE_OBRA"],
       tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
+      titulo_status: ["ABERTO", "PAGO", "ATRASADO", "CANCELADO", "PARCIAL"],
     },
   },
 } as const
