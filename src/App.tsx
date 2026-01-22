@@ -20,6 +20,7 @@ import CollaboratorDefaults from "./pages/CollaboratorDefaults";
 import CustosProjeto from "./pages/CustosProjeto";
 import AprovacoesProjetos from "./pages/AprovacoesProjetos";
 import CustosPessoal from "./pages/CustosPessoal";
+import Rentabilidade from "./pages/Rentabilidade";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/planejamento" element={<Planejamento />} />
             <Route path="/custos-projeto" element={<CustosProjeto />} />
             <Route path="/recursos/custos" element={<CustosPessoal />} />
+            <Route path="/rentabilidade" element={<Rentabilidade />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

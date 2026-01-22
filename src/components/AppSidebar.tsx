@@ -69,6 +69,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     label: 'Relatórios',
     items: [
       { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+      { title: 'Rentabilidade', url: '/rentabilidade', icon: DollarSign },
       { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
       { title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
     ],
