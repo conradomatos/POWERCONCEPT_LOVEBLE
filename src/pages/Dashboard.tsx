@@ -2,71 +2,32 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserMinus, Building2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-interface Stats {
-  total: number;
-  active: number;
-  inactive: number;
-  departments: { name: string; count: number }[];
-}
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
+import { useDashboardData, Periodo } from '@/hooks/useDashboardData';
+import { AlertBanner } from '@/components/dashboard/AlertBanner';
+import { ProjetosCard } from '@/components/dashboard/ProjetosCard';
+import { AcoesPendentes } from '@/components/dashboard/AcoesPendentes';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading, hasAnyRole } = useAuth();
-  const [stats, setStats] = useState<Stats>({
-    total: 0,
-    active: 0,
-    inactive: 0,
-    departments: [],
-  });
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [periodo, setPeriodo] = useState<Periodo>('mes');
+  
+  const { alertas, projetos, pendencias, isLoading, refetchAll } = useDashboardData(periodo);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (!user) return;
-
-      const { data: collaborators, error } = await supabase
-        .from('collaborators')
-        .select('status, department');
-
-      if (error) {
-        console.error('Error fetching stats:', error);
-        setLoadingStats(false);
-        return;
-      }
-
-      const total = collaborators?.length || 0;
-      const active = collaborators?.filter((c) => c.status === 'ativo').length || 0;
-      const inactive = total - active;
-
-      // Group by department
-      const deptMap = new Map<string, number>();
-      collaborators?.forEach((c) => {
-        const dept = c.department || 'Sem departamento';
-        deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
-      });
-
-      const departments = Array.from(deptMap.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 6);
-
-      setStats({ total, active, inactive, departments });
-      setLoadingStats(false);
-    };
-
-    fetchStats();
-  }, [user]);
 
   if (loading) {
     return (
@@ -92,92 +53,55 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Visão geral da gestão de pessoas</p>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
+            <p className="text-muted-foreground">Visão geral da gestão de projetos</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semana">Semana</SelectItem>
+                <SelectItem value="mes">Mês</SelectItem>
+                <SelectItem value="trimestre">Trimestre</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={refetchAll}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Colaboradores
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {loadingStats ? '-' : stats.total}
-              </div>
-            </CardContent>
-          </Card>
+        {/* Bloco 1: Alertas Críticos */}
+        <AlertBanner 
+          alertas={alertas.data || []} 
+          isLoading={alertas.isLoading} 
+        />
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Ativos
-              </CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                {loadingStats ? '-' : stats.active}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Inativos
-              </CardTitle>
-              <UserMinus className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {loadingStats ? '-' : stats.inactive}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Departamentos
-              </CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {loadingStats ? '-' : stats.departments.length}
-              </div>
-            </CardContent>
-          </Card>
+        {/* Bloco 2: Projetos (por enquanto único card - Fase 2 adiciona Equipe e Financeiro) */}
+        <div className="grid gap-6 lg:grid-cols-1">
+          <ProjetosCard
+            contadores={projetos.data?.contadores || { ativos: 0, emDia: 0, emAlerta: 0, critico: 0 }}
+            projetos={projetos.data?.projetos || []}
+            isLoading={projetos.isLoading}
+          />
         </div>
 
-        {/* Chart */}
-        {stats.departments.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Colaboradores por Departamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.departments} layout="vertical" margin={{ left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Bloco 5: Ações Pendentes */}
+        <AcoesPendentes
+          pendencias={pendencias.data || []}
+          isLoading={pendencias.isLoading}
+        />
       </div>
     </Layout>
   );
