@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
@@ -8,14 +8,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import { Download, FileSpreadsheet, Clock, AlertCircle, CheckCircle2, XCircle, Filter, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { 
+  Download, FileSpreadsheet, Clock, AlertCircle, CheckCircle2, XCircle, 
+  Filter, RefreshCw, AlertTriangle, Edit3, Trash2, Ban, X, CheckSquare 
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
-import { useEffect } from 'react';
 
 type ApontamentoOrigem = 'IMPORTACAO' | 'MANUAL' | 'SISTEMA';
 type TipoHora = 'NORMAL' | 'H50' | 'H100' | 'NOTURNA';
@@ -53,6 +58,7 @@ interface ApontamentoConsolidado {
 
 export default function ApontamentosConsolidado() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading, hasRole } = useAuth();
   
   // Filters
@@ -63,6 +69,17 @@ export default function ApontamentosConsolidado() {
   const [filterFuncionario, setFilterFuncionario] = useState<string>('');
   const [filterDataInicio, setFilterDataInicio] = useState<string>('');
   const [filterDataFim, setFilterDataFim] = useState<string>('');
+
+  // Selection state
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
+  // Modal states
+  const [showChangeOSModal, setShowChangeOSModal] = useState(false);
+  const [showIgnoreDialog, setShowIgnoreDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [newProjetoId, setNewProjetoId] = useState<string>('');
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const canAccess = hasRole('admin') || hasRole('rh');
 
@@ -87,7 +104,7 @@ export default function ApontamentosConsolidado() {
     enabled: canAccess,
   });
 
-  // Fetch projetos for filter
+  // Fetch projetos for filter and OS change
   const { data: projetos } = useQuery({
     queryKey: ['projetos-filter'],
     queryFn: async () => {
@@ -106,19 +123,11 @@ export default function ApontamentosConsolidado() {
     if (!apontamentos) return [];
     
     return apontamentos.filter((a) => {
-      // Status filter
       if (filterStatus !== 'all' && a.status_apontamento !== filterStatus) return false;
-      
-      // Integracao filter
       if (filterIntegracao !== 'all' && a.status_integracao !== filterIntegracao) return false;
-      
-      // Origem filter
       if (filterOrigem !== 'all' && a.origem !== filterOrigem) return false;
-      
-      // Projeto filter
       if (filterProjeto !== 'all' && a.projeto_id !== filterProjeto) return false;
       
-      // Funcionario filter (search by name or CPF)
       if (filterFuncionario) {
         const search = filterFuncionario.toLowerCase();
         const matchNome = a.nome_funcionario?.toLowerCase().includes(search);
@@ -126,7 +135,6 @@ export default function ApontamentosConsolidado() {
         if (!matchNome && !matchCpf) return false;
       }
       
-      // Date range filter
       if (filterDataInicio && a.data_apontamento < filterDataInicio) return false;
       if (filterDataFim && a.data_apontamento > filterDataFim) return false;
       
@@ -134,21 +142,164 @@ export default function ApontamentosConsolidado() {
     });
   }, [apontamentos, filterStatus, filterIntegracao, filterOrigem, filterProjeto, filterFuncionario, filterDataInicio, filterDataFim]);
 
-  // Counters - updated to use correct statuses
+  // Displayed data (limited to 100)
+  const displayedData = useMemo(() => filteredData.slice(0, 100), [filteredData]);
+
+  // Handle select all toggle
+  useEffect(() => {
+    if (selectAll) {
+      const allIds = new Set(displayedData.map(a => a.id));
+      setSelectedRows(allIds);
+    } else if (selectedRows.size === displayedData.length && displayedData.length > 0) {
+      // Only clear if we're unchecking "select all" explicitly
+      // Don't clear if it was just a mismatch
+    }
+  }, [selectAll, displayedData]);
+
+  // Update selectAll state when individual selections change
+  useEffect(() => {
+    if (displayedData.length > 0 && selectedRows.size === displayedData.length) {
+      setSelectAll(true);
+    } else if (selectedRows.size < displayedData.length) {
+      setSelectAll(false);
+    }
+  }, [selectedRows.size, displayedData.length]);
+
+  // Toggle single row selection
+  const toggleRowSelection = (id: string) => {
+    const newSelected = new Set(selectedRows);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedRows(newSelected);
+  };
+
+  // Toggle select all
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedRows(new Set());
+      setSelectAll(false);
+    } else {
+      const allIds = new Set(displayedData.map(a => a.id));
+      setSelectedRows(allIds);
+      setSelectAll(true);
+    }
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedRows(new Set());
+    setSelectAll(false);
+  };
+
+  // Bulk change OS
+  const handleBulkChangeOS = async () => {
+    if (!newProjetoId) {
+      toast.error('Selecione um projeto');
+      return;
+    }
+
+    const selectedProject = projetos?.find(p => p.id === newProjetoId);
+    if (!selectedProject) return;
+
+    setBulkActionLoading(true);
+    try {
+      const ids = Array.from(selectedRows);
+      
+      const { error } = await supabase
+        .from('apontamentos_consolidado')
+        .update({ 
+          projeto_id: newProjetoId,
+          os_numero: selectedProject.os,
+          status_integracao: 'OK',
+          status_apontamento: 'LANCADO',
+          updated_at: new Date().toISOString()
+        })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast.success(`${ids.length} apontamentos atualizados com sucesso`);
+      setShowChangeOSModal(false);
+      setNewProjetoId('');
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
+      refetch();
+    } catch (error: any) {
+      console.error('Error updating OS:', error);
+      toast.error('Erro ao atualizar OS: ' + error.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk ignore
+  const handleBulkIgnore = async () => {
+    setBulkActionLoading(true);
+    try {
+      const ids = Array.from(selectedRows);
+      
+      const { error } = await supabase
+        .from('apontamentos_consolidado')
+        .update({ 
+          status_apontamento: 'REPROVADO',
+          observacao: 'Ignorado pelo usuário em ' + format(new Date(), 'dd/MM/yyyy HH:mm'),
+          updated_at: new Date().toISOString()
+        })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast.success(`${ids.length} apontamentos ignorados`);
+      setShowIgnoreDialog(false);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
+      refetch();
+    } catch (error: any) {
+      console.error('Error ignoring:', error);
+      toast.error('Erro ao ignorar: ' + error.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    setBulkActionLoading(true);
+    try {
+      const ids = Array.from(selectedRows);
+      
+      const { error } = await supabase
+        .from('apontamentos_consolidado')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast.success(`${ids.length} apontamentos excluídos`);
+      setShowDeleteDialog(false);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
+      refetch();
+    } catch (error: any) {
+      console.error('Error deleting:', error);
+      toast.error('Erro ao excluir: ' + error.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Counters
   const counters = useMemo(() => {
     if (!apontamentos) return { naoLancados: 0, lancados: 0, erros: 0, total: 0 };
     
-    // Count from ALL data (not filtered) for overview
     const naoLancados = apontamentos.filter((a) => a.status_apontamento === 'NAO_LANCADO').length;
     const lancados = apontamentos.filter((a) => a.status_integracao === 'OK').length;
     const erros = apontamentos.filter((a) => a.status_integracao === 'ERRO').length;
     
-    return {
-      naoLancados,
-      lancados,
-      erros,
-      total: apontamentos.length,
-    };
+    return { naoLancados, lancados, erros, total: apontamentos.length };
   }, [apontamentos]);
 
   // Export to XLSX
@@ -194,21 +345,9 @@ export default function ApontamentosConsolidado() {
     
     const headers = ['ID', 'Origem', 'CPF', 'Funcionário', 'Data Apontamento', 'Horas', 'Tipo Hora', 'Projeto', 'OS', 'Status', 'Integração', 'Erro', 'Gantt Atualizado', 'Pendente', 'Observação'];
     const rows = filteredData.map((a) => [
-      a.id,
-      a.origem,
-      a.cpf,
-      a.nome_funcionario || '',
-      a.data_apontamento,
-      a.horas,
-      a.tipo_hora,
-      a.projeto_nome || '',
-      a.os_numero || '',
-      a.status_apontamento,
-      a.status_integracao,
-      a.motivo_erro || '',
-      a.gantt_atualizado ? 'SIM' : 'NAO',
-      a.is_pending ? 'SIM' : 'NAO',
-      a.observacao || '',
+      a.id, a.origem, a.cpf, a.nome_funcionario || '', a.data_apontamento, a.horas, a.tipo_hora,
+      a.projeto_nome || '', a.os_numero || '', a.status_apontamento, a.status_integracao,
+      a.motivo_erro || '', a.gantt_atualizado ? 'SIM' : 'NAO', a.is_pending ? 'SIM' : 'NAO', a.observacao || '',
     ]);
     
     const csvContent = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
@@ -235,35 +374,35 @@ export default function ApontamentosConsolidado() {
   };
 
   const getStatusBadge = (status: ApontamentoStatus) => {
-    const variants: Record<ApontamentoStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }> = {
-      PENDENTE: { variant: 'secondary', label: 'Pendente' },
-      LANCADO: { variant: 'default', label: 'Lançado' },
-      APROVADO: { variant: 'outline', label: 'Aprovado' },
+    const variants: Record<ApontamentoStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'warning' | 'success' | 'pending'; label: string }> = {
+      PENDENTE: { variant: 'pending', label: 'Pendente' },
+      LANCADO: { variant: 'success', label: 'Lançado' },
+      APROVADO: { variant: 'success', label: 'Aprovado' },
       REPROVADO: { variant: 'destructive', label: 'Reprovado' },
-      NAO_LANCADO: { variant: 'outline', label: 'Não Lançado', className: 'border-yellow-500 text-yellow-600 bg-yellow-50' },
+      NAO_LANCADO: { variant: 'warning', label: 'Não Lançado' },
     };
-    const { variant, label, className } = variants[status];
-    return <Badge variant={variant} className={className}>{label}</Badge>;
+    const { variant, label } = variants[status];
+    return <Badge variant={variant}>{label}</Badge>;
   };
 
   const getIntegracaoBadge = (status: IntegracaoStatus) => {
     if (status === 'OK') {
-      return <Badge variant="outline" className="text-green-600 border-green-600"><CheckCircle2 className="h-3 w-3 mr-1" />OK</Badge>;
+      return <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" />OK</Badge>;
     }
     if (status === 'PENDENTE') {
-      return <Badge variant="outline" className="text-yellow-600 border-yellow-600"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+      return <Badge variant="warning"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
     }
-    return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
+    return <Badge variant="error"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
   };
 
   const getOrigemBadge = (origem: ApontamentoOrigem) => {
-    const config: Record<ApontamentoOrigem, { label: string; className: string }> = {
-      IMPORTACAO: { label: 'Importação', className: 'bg-blue-100 text-blue-700 border-blue-300' },
-      MANUAL: { label: 'Manual', className: 'bg-purple-100 text-purple-700 border-purple-300' },
-      SISTEMA: { label: 'Sistema', className: 'bg-gray-100 text-gray-700 border-gray-300' },
+    const config: Record<ApontamentoOrigem, { label: string; variant: 'info' | 'secondary' | 'outline' }> = {
+      IMPORTACAO: { label: 'Importação', variant: 'info' },
+      MANUAL: { label: 'Manual', variant: 'secondary' },
+      SISTEMA: { label: 'Sistema', variant: 'outline' },
     };
-    const { label, className } = config[origem];
-    return <Badge variant="outline" className={className}>{label}</Badge>;
+    const { label, variant } = config[origem];
+    return <Badge variant={variant}>{label}</Badge>;
   };
 
   if (loading || !canAccess) {
@@ -284,9 +423,9 @@ export default function ApontamentosConsolidado() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Apontamentos Consolidado</h1>
-            <p className="text-muted-foreground">
-              Visualização única: apontamentos reais + pendências do planejamento
+            <h1 className="text-2xl font-bold tracking-tight">Apontamentos</h1>
+            <p className="text-muted-foreground text-sm">
+              Visualização consolidada: apontamentos reais + pendências do planejamento
             </p>
           </div>
           <div className="flex gap-2">
@@ -305,49 +444,118 @@ export default function ApontamentosConsolidado() {
           </div>
         </div>
 
+        {/* Floating Action Bar */}
+        {selectedRows.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <Card className="shadow-xl border-primary/20 bg-card/95 backdrop-blur-sm">
+              <CardContent className="py-3 px-4 flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{selectedRows.size} selecionados</span>
+                </div>
+                <div className="h-6 w-px bg-border" />
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowChangeOSModal(true)}
+                  >
+                    <Edit3 className="h-4 w-4 mr-1" />
+                    Alterar OS
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowIgnoreDialog(true)}
+                  >
+                    <Ban className="h-4 w-4 mr-1" />
+                    Ignorar
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Excluir
+                  </Button>
+                </div>
+                <Button variant="ghost" size="icon" onClick={clearSelection}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Counters */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('NAO_LANCADO')}>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 transition-colors" 
+            onClick={() => setFilterStatus('NAO_LANCADO')}
+          >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Não Lançados</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Não Lançados
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <span className="text-2xl font-bold">{counters.naoLancados}</span>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                </div>
+                <span className="text-3xl font-bold">{counters.naoLancados}</span>
               </div>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterIntegracao('OK')}>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 transition-colors" 
+            onClick={() => setFilterIntegracao('OK')}
+          >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Lançados (OK)</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Lançados (OK)
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                <span className="text-2xl font-bold">{counters.lancados}</span>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                </div>
+                <span className="text-3xl font-bold">{counters.lancados}</span>
               </div>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterIntegracao('ERRO')}>
+          <Card 
+            className="cursor-pointer hover:border-primary/50 transition-colors" 
+            onClick={() => setFilterIntegracao('ERRO')}
+          >
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Com Erro</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Com Erro
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <XCircle className="h-5 w-5 text-red-500" />
-                <span className="text-2xl font-bold">{counters.erros}</span>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <XCircle className="h-5 w-5 text-red-500" />
+                </div>
+                <span className="text-3xl font-bold">{counters.erros}</span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Total
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-blue-500" />
-                <span className="text-2xl font-bold">{counters.total}</span>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-blue-500" />
+                </div>
+                <span className="text-3xl font-bold">{counters.total}</span>
               </div>
             </CardContent>
           </Card>
@@ -357,7 +565,7 @@ export default function ApontamentosConsolidado() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
                 <Filter className="h-4 w-4" />
                 Filtros
               </CardTitle>
@@ -369,7 +577,7 @@ export default function ApontamentosConsolidado() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</label>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
@@ -385,7 +593,7 @@ export default function ApontamentosConsolidado() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Integração</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Integração</label>
                 <Select value={filterIntegracao} onValueChange={setFilterIntegracao}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
@@ -399,7 +607,7 @@ export default function ApontamentosConsolidado() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Origem</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Origem</label>
                 <Select value={filterOrigem} onValueChange={setFilterOrigem}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
@@ -413,7 +621,7 @@ export default function ApontamentosConsolidado() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Projeto/OS</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Projeto/OS</label>
                 <Select value={filterProjeto} onValueChange={setFilterProjeto}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
@@ -427,15 +635,15 @@ export default function ApontamentosConsolidado() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Funcionário (Nome/CPF)</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Funcionário</label>
                 <Input 
-                  placeholder="Buscar..." 
+                  placeholder="Nome ou CPF..." 
                   value={filterFuncionario}
                   onChange={(e) => setFilterFuncionario(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Data Início</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Data Início</label>
                 <Input 
                   type="date" 
                   value={filterDataInicio}
@@ -443,7 +651,7 @@ export default function ApontamentosConsolidado() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Data Fim</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Data Fim</label>
                 <Input 
                   type="date" 
                   value={filterDataFim}
@@ -467,10 +675,16 @@ export default function ApontamentosConsolidado() {
                 <p className="text-muted-foreground">Nenhum apontamento encontrado</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[600px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox 
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>CPF</TableHead>
@@ -481,33 +695,42 @@ export default function ApontamentosConsolidado() {
                       <TableHead>Origem</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Integração</TableHead>
-                      <TableHead>Erro</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredData.slice(0, 100).map((a) => (
-                      <TableRow key={`${a.id}-${a.data_apontamento}-${a.is_pending}`} className={a.is_pending ? 'bg-yellow-50/50' : ''}>
-                        <TableCell className="font-medium">
+                    {displayedData.map((a) => (
+                      <TableRow 
+                        key={`${a.id}-${a.data_apontamento}-${a.is_pending}`} 
+                        className={`
+                          ${a.is_pending ? 'bg-amber-500/5' : ''}
+                          ${selectedRows.has(a.id) ? 'bg-primary/5 border-primary/20' : ''}
+                        `}
+                        data-state={selectedRows.has(a.id) ? 'selected' : undefined}
+                      >
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedRows.has(a.id)}
+                            onCheckedChange={() => toggleRowSelection(a.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">
                           {format(new Date(a.data_apontamento), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
-                        <TableCell>{a.nome_funcionario || '-'}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{a.nome_funcionario || '-'}</TableCell>
                         <TableCell className="font-mono text-xs">{a.cpf}</TableCell>
-                        <TableCell className="font-mono">{a.os_numero || '-'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{a.projeto_nome || '-'}</TableCell>
+                        <TableCell className="font-mono">{a.os_numero || <span className="text-muted-foreground">-</span>}</TableCell>
+                        <TableCell className="max-w-[180px] truncate">{a.projeto_nome || <span className="text-muted-foreground">-</span>}</TableCell>
                         <TableCell className="text-right font-mono">
                           {a.horas > 0 ? a.horas.toFixed(2) : '-'}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
                             {a.tipo_hora}
                           </Badge>
                         </TableCell>
                         <TableCell>{getOrigemBadge(a.origem)}</TableCell>
                         <TableCell>{getStatusBadge(a.status_apontamento)}</TableCell>
                         <TableCell>{getIntegracaoBadge(a.status_integracao)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-xs text-red-600">
-                          {a.motivo_erro || '-'}
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -522,6 +745,83 @@ export default function ApontamentosConsolidado() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Change OS Modal */}
+      <Dialog open={showChangeOSModal} onOpenChange={setShowChangeOSModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar OS</DialogTitle>
+            <DialogDescription>
+              Selecione o projeto/OS para atribuir aos {selectedRows.size} apontamentos selecionados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Projeto/OS</label>
+              <Select value={newProjetoId} onValueChange={setNewProjetoId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um projeto..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {projetos?.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.os} - {p.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangeOSModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleBulkChangeOS} disabled={bulkActionLoading || !newProjetoId}>
+              {bulkActionLoading ? 'Atualizando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ignore Confirmation Dialog */}
+      <AlertDialog open={showIgnoreDialog} onOpenChange={setShowIgnoreDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ignorar apontamentos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá marcar {selectedRows.size} apontamentos como "Reprovado". 
+              Eles não serão considerados nos cálculos de custo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkIgnore} disabled={bulkActionLoading}>
+              {bulkActionLoading ? 'Ignorando...' : 'Confirmar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir apontamentos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá excluir permanentemente {selectedRows.size} apontamentos. 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDelete} 
+              disabled={bulkActionLoading}
+              className="bg-destructive/15 text-destructive border border-destructive/30 hover:bg-destructive/25"
+            >
+              {bulkActionLoading ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
