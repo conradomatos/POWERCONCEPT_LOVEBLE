@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 import { formatCPF } from '@/lib/cpf';
-import { Plus, Search, Pencil, Eye, DollarSign } from 'lucide-react';
+import { Plus, Search, Pencil, Eye, DollarSign, Target } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -26,6 +26,7 @@ export default function Collaborators() {
   const [loadingData, setLoadingData] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [equipeFilter, setEquipeFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -57,16 +58,21 @@ export default function Collaborators() {
     }
   }, [user, hasAnyRole]);
 
+  // Get unique equipes for filter
+  const uniqueEquipes = [...new Set(collaborators.map(c => (c as any).equipe).filter(Boolean))].sort();
+
   const filteredCollaborators = collaborators.filter((c) => {
     const matchesSearch =
       c.full_name.toLowerCase().includes(search.toLowerCase()) ||
       c.cpf.includes(search.replace(/\D/g, '')) ||
       c.department?.toLowerCase().includes(search.toLowerCase()) ||
-      c.position?.toLowerCase().includes(search.toLowerCase());
+      c.position?.toLowerCase().includes(search.toLowerCase()) ||
+      (c as any).equipe?.toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+    const matchesEquipe = equipeFilter === 'all' || (c as any).equipe === equipeFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesEquipe;
   });
 
   const handleEdit = (collaborator: Collaborator) => {
@@ -156,6 +162,17 @@ export default function Collaborators() {
               <SelectItem value="desligado">Desligado</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={equipeFilter} onValueChange={setEquipeFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Equipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as equipes</SelectItem>
+              {uniqueEquipes.map((equipe) => (
+                <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Table */}
@@ -183,6 +200,7 @@ export default function Collaborators() {
                       <TableHead>CPF</TableHead>
                       <TableHead>Cargo</TableHead>
                       <TableHead>Departamento</TableHead>
+                      <TableHead>Equipe</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -194,6 +212,7 @@ export default function Collaborators() {
                         <TableCell>{formatCPF(collaborator.cpf)}</TableCell>
                         <TableCell>{collaborator.position || '-'}</TableCell>
                         <TableCell>{collaborator.department || '-'}</TableCell>
+                        <TableCell>{(collaborator as any).equipe || '-'}</TableCell>
                         <TableCell>{getStatusBadge(collaborator.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -212,6 +231,14 @@ export default function Collaborators() {
                               title="Custos"
                             >
                               <DollarSign className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => navigate(`/collaborators/${collaborator.id}/defaults`)}
+                              title="Projetos Padrão"
+                            >
+                              <Target className="h-4 w-4" />
                             </Button>
                             {canEdit && (
                               <Button
@@ -293,6 +320,10 @@ export default function Collaborators() {
                 <div>
                   <p className="text-muted-foreground">Departamento</p>
                   <p className="font-medium">{viewCollaborator.department || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Equipe</p>
+                  <p className="font-medium">{(viewCollaborator as any).equipe || '-'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Email</p>
