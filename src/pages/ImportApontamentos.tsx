@@ -246,9 +246,9 @@ export default function ImportApontamentos() {
   const downloadXLSXTemplate = () => {
     const wb = XLSX.utils.book_new();
     const data = [
-      ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'],
+      ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas (opcional)'],
       ['123.456.789-09', '2026-01-02', '250001', '08:00', '00:00', '00:00', '00:00', '00:00'],
-      ['123.456.789-09', '2026-01-03', '250001', '07:30', '00:30', '00:00', '00:00', '00:00'],
+      ['123.456.789-09', '2026-01-03', '250001', '07:30', '00:30', '00:00', '00:00', ''],
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     
@@ -261,7 +261,7 @@ export default function ImportApontamentos() {
       { wch: 10 }, // horas_50
       { wch: 10 }, // horas_100
       { wch: 14 }, // horas_noturnas
-      { wch: 12 }, // falta_horas
+      { wch: 20 }, // falta_horas (opcional)
     ];
     
     XLSX.utils.book_append_sheet(wb, ws, 'apontamentos');
@@ -270,9 +270,9 @@ export default function ImportApontamentos() {
 
   // Download CSV template (keep for backward compatibility)
   const downloadCSVTemplate = () => {
-    const headers = 'cpf,data,os,horas_normais,horas_50,horas_100,horas_noturnas,falta_horas';
+    const headers = 'cpf,data,os,horas_normais,horas_50,horas_100,horas_noturnas,falta_horas (opcional)';
     const row1 = '123.456.789-09,2026-01-02,250001,08:00,00:00,00:00,00:00,00:00';
-    const row2 = '123.456.789-09,2026-01-03,250001,07:30,00:30,00:00,00:00,00:00';
+    const row2 = '123.456.789-09,2026-01-03,250001,07:30,00:30,00:00,00:00,';
     const content = `${headers}\n${row1}\n${row2}`;
     
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
@@ -407,9 +407,8 @@ export default function ImportApontamentos() {
     }
     result.projeto_id = projeto.id;
     
-    // Validation: Hours are valid
-    if (horasNormais === null || horas50 === null || horas100 === null || 
-        horasNoturnas === null || faltaHoras === null) {
+    // Validation: Hours are valid (falta_horas is optional, defaults to 0)
+    if (horasNormais === null || horas50 === null || horas100 === null || horasNoturnas === null) {
       result.status_linha = 'ERRO';
       result.codigo_erro_ou_aviso = 'HORAS_INVALIDAS';
       result.mensagem = 'Uma ou mais colunas de horas contém valor inválido ou negativo';
@@ -455,10 +454,10 @@ export default function ImportApontamentos() {
     // Get raw data with original types for hours parsing
     const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: true });
     
-    // Validate required columns
+    // Validate required columns (falta_horas is optional)
     const firstRow = jsonData[0];
-    const headers = Object.keys(firstRow).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'];
+    const headers = Object.keys(firstRow).map((h) => h.toLowerCase().replace(/\s+/g, '_').replace(/\s*\(opcional\)/g, ''));
+    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas'];
     const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
     
     if (missingColumns.length > 0) {
@@ -468,10 +467,11 @@ export default function ImportApontamentos() {
     
     // Process rows using raw data for proper type handling
     const previewData = rawData.map((row, index) => {
-      // Normalize keys to lowercase
+      // Normalize keys to lowercase and remove (opcional) suffix
       const normalizedRow: Record<string, unknown> = {};
       Object.keys(row).forEach((key) => {
-        normalizedRow[key.toLowerCase().replace(/\s+/g, '_')] = row[key];
+        const normalizedKey = key.toLowerCase().replace(/\s+/g, '_').replace(/\s*\(opcional\)/g, '');
+        normalizedRow[normalizedKey] = row[key];
       });
       return validateRow(normalizedRow, index + 2);
     });
@@ -490,10 +490,10 @@ export default function ImportApontamentos() {
       return;
     }
 
-    const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+    const headers = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, '_').replace(/\s*\(opcional\)/g, ''));
     
-    // Validate required columns
-    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas', 'falta_horas'];
+    // Validate required columns (falta_horas is optional)
+    const requiredColumns = ['cpf', 'data', 'os', 'horas_normais', 'horas_50', 'horas_100', 'horas_noturnas'];
     const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
     
     if (missingColumns.length > 0) {
