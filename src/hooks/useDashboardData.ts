@@ -86,20 +86,85 @@ export function useDashboardData(periodo: Periodo = 'mes') {
   const inicioPeriodo = inicio.toISOString().split('T')[0];
   const fimPeriodo = fim.toISOString().split('T')[0];
 
-  // Query alertas críticos
+  // Query alertas críticos - usando Promise.all para paralelizar
   const alertasQuery = useQuery({
     queryKey: ['dashboard-alertas'],
     queryFn: async () => {
+      const hoje = new Date().toISOString().split('T')[0];
+      const quinzeDiasFrente = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      // Executar todas as queries em paralelo
+      const [
+        prazoCriticoResult,
+        margemNegativaResult,
+        apontamentosPendentesResult,
+        titulosVencidosResult,
+        colaboradoresAtivosResult,
+        custosVigentesResult,
+        pendentesAprovacaoResult,
+        projetosHorasResult
+      ] = await Promise.all([
+        // Projetos com prazo <= 15 dias
+        supabase
+          .from('projetos')
+          .select('*', { count: 'exact', head: true })
+          .eq('status_projeto', 'ATIVO')
+          .gte('data_fim_planejada', hoje)
+          .lte('data_fim_planejada', quinzeDiasFrente),
+        
+        // Projetos com margem negativa
+        supabase
+          .from('vw_rentabilidade_projeto')
+          .select('projeto_id')
+          .eq('status_projeto', 'ATIVO')
+          .lt('margem_competencia_pct', 0),
+        
+        // Apontamentos não lançados
+        supabase
+          .from('apontamentos_consolidado')
+          .select('*', { count: 'exact', head: true })
+          .eq('status_apontamento', 'NAO_LANCADO'),
+        
+        // Títulos vencidos > 30 dias
+        supabase
+          .from('omie_contas_receber')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'ATRASADO')
+          .lt('vencimento', thirtyDaysAgo),
+        
+        // Colaboradores ativos
+        supabase
+          .from('collaborators')
+          .select('id')
+          .eq('status', 'ativo'),
+        
+        // Custos vigentes
+        supabase
+          .from('custos_colaborador')
+          .select('colaborador_id')
+          .lte('inicio_vigencia', hoje)
+          .or(`fim_vigencia.is.null,fim_vigencia.gte.${hoje}`),
+        
+        // Projetos pendentes de aprovação
+        supabase
+          .from('projetos')
+          .select('*', { count: 'exact', head: true })
+          .eq('aprovacao_status', 'PENDENTE_APROVACAO'),
+        
+        // Projetos com estouro de horas
+        supabase
+          .from('vw_rentabilidade_projeto')
+          .select('projeto_id, horas_previstas, horas_totais, desvio_horas_pct')
+          .eq('status_projeto', 'ATIVO')
+          .not('horas_previstas', 'is', null)
+          .gt('horas_previstas', 0)
+      ]);
+
       const alertas: Alerta[] = [];
 
-      // Projetos com prazo <= 15 dias
-      const { count: prazoCritico } = await supabase
-        .from('projetos')
-        .select('*', { count: 'exact', head: true })
-        .eq('status_projeto', 'ATIVO')
-        .gte('data_fim_planejada', new Date().toISOString().split('T')[0])
-        .lte('data_fim_planejada', new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-
+      // Processar resultados
+      const prazoCritico = prazoCriticoResult.count;
       if (prazoCritico && prazoCritico > 0) {
         alertas.push({
           tipo: 'prazo_critico',
@@ -110,13 +175,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Projetos com margem negativa
-      const { data: margemNegativa } = await supabase
-        .from('vw_rentabilidade_projeto')
-        .select('projeto_id')
-        .eq('status_projeto', 'ATIVO')
-        .lt('margem_competencia_pct', 0);
-
+      const margemNegativa = margemNegativaResult.data;
       if (margemNegativa && margemNegativa.length > 0) {
         alertas.push({
           tipo: 'margem_negativa',
@@ -127,30 +186,18 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Apontamentos não lançados
-      const { count: apontamentosPendentes } = await supabase
-        .from('apontamentos_consolidado')
-        .select('*', { count: 'exact', head: true })
-        .eq('status_apontamento', 'NAO_LANCADO');
-
+      const apontamentosPendentes = apontamentosPendentesResult.count;
       if (apontamentosPendentes && apontamentosPendentes > 0) {
         alertas.push({
           tipo: 'apontamentos_pendentes',
           quantidade: apontamentosPendentes,
           prioridade: 'amarelo',
           label: `${apontamentosPendentes} apontamento(s) não lançado(s)`,
-          link: '/apontamentos-consolidado'
+          link: '/apontamentos'
         });
       }
 
-      // Títulos vencidos > 30 dias
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { count: titulosVencidos } = await supabase
-        .from('omie_contas_receber')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'ATRASADO')
-        .lt('vencimento', thirtyDaysAgo);
-
+      const titulosVencidos = titulosVencidosResult.count;
       if (titulosVencidos && titulosVencidos > 0) {
         alertas.push({
           tipo: 'titulos_vencidos',
@@ -162,17 +209,8 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       }
 
       // Colaboradores sem custo vigente
-      const { data: colaboradoresAtivos } = await supabase
-        .from('collaborators')
-        .select('id')
-        .eq('status', 'ativo');
-
-      const { data: custosVigentes } = await supabase
-        .from('custos_colaborador')
-        .select('colaborador_id')
-        .lte('inicio_vigencia', new Date().toISOString().split('T')[0])
-        .or(`fim_vigencia.is.null,fim_vigencia.gte.${new Date().toISOString().split('T')[0]}`);
-
+      const colaboradoresAtivos = colaboradoresAtivosResult.data;
+      const custosVigentes = custosVigentesResult.data;
       const colaboradoresComCusto = new Set(custosVigentes?.map(c => c.colaborador_id) || []);
       const semCusto = colaboradoresAtivos?.filter(c => !colaboradoresComCusto.has(c.id)) || [];
 
@@ -186,12 +224,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Projetos pendentes de aprovação
-      const { count: pendentesAprovacao } = await supabase
-        .from('projetos')
-        .select('*', { count: 'exact', head: true })
-        .eq('aprovacao_status', 'PENDENTE_APROVACAO');
-
+      const pendentesAprovacao = pendentesAprovacaoResult.count;
       if (pendentesAprovacao && pendentesAprovacao > 0) {
         alertas.push({
           tipo: 'pendente_aprovacao',
@@ -202,14 +235,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Projetos com estouro de horas > 20%
-      const { data: projetosHoras } = await supabase
-        .from('vw_rentabilidade_projeto')
-        .select('projeto_id, horas_previstas, horas_totais, desvio_horas_pct')
-        .eq('status_projeto', 'ATIVO')
-        .not('horas_previstas', 'is', null)
-        .gt('horas_previstas', 0);
-
+      const projetosHoras = projetosHorasResult.data;
       const projetosComEstouro = projetosHoras?.filter(p => 
         p.desvio_horas_pct !== null && Number(p.desvio_horas_pct) > 20
       ) || [];
@@ -231,6 +257,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       });
     },
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 
   // Query projetos
@@ -455,34 +482,83 @@ export function useDashboardData(periodo: Periodo = 'mes') {
     staleTime: 1000 * 60 * 5,
   });
 
-  // Query pendências (ações pendentes)
+  // Query pendências (ações pendentes) - usando Promise.all para paralelizar
   const pendenciasQuery = useQuery({
     queryKey: ['dashboard-pendencias'],
     queryFn: async () => {
+      const hoje = new Date().toISOString().split('T')[0];
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      // Executar todas as queries em paralelo
+      const [
+        apontamentosResult,
+        aprovacoesResult,
+        colaboradoresAtivosResult,
+        custosVigentesResult,
+        naoSincronizadosResult,
+        margemNegativaResult,
+        titulosVencidos60Result
+      ] = await Promise.all([
+        // Apontamentos não lançados
+        supabase
+          .from('apontamentos_consolidado')
+          .select('*', { count: 'exact', head: true })
+          .eq('status_apontamento', 'NAO_LANCADO'),
+        
+        // Projetos pendentes de aprovação
+        supabase
+          .from('projetos')
+          .select('*', { count: 'exact', head: true })
+          .eq('aprovacao_status', 'PENDENTE_APROVACAO'),
+        
+        // Colaboradores ativos
+        supabase
+          .from('collaborators')
+          .select('id')
+          .eq('status', 'ativo'),
+        
+        // Custos vigentes
+        supabase
+          .from('custos_colaborador')
+          .select('colaborador_id')
+          .lte('inicio_vigencia', hoje)
+          .or(`fim_vigencia.is.null,fim_vigencia.gte.${hoje}`),
+        
+        // Projetos não sincronizados com Omie
+        supabase
+          .from('projetos')
+          .select('*', { count: 'exact', head: true })
+          .eq('omie_sync_status', 'NOT_SENT'),
+        
+        // Projetos com margem negativa
+        supabase
+          .from('vw_rentabilidade_projeto')
+          .select('projeto_id')
+          .eq('status_projeto', 'ATIVO')
+          .lt('margem_competencia_pct', 0),
+        
+        // Títulos vencidos > 60 dias
+        supabase
+          .from('omie_contas_receber')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'ATRASADO')
+          .lt('vencimento', sixtyDaysAgo)
+      ]);
+
       const pendencias: Pendencia[] = [];
 
-      // Apontamentos não lançados
-      const { count: apontamentos } = await supabase
-        .from('apontamentos_consolidado')
-        .select('*', { count: 'exact', head: true })
-        .eq('status_apontamento', 'NAO_LANCADO');
-
+      const apontamentos = apontamentosResult.count;
       if (apontamentos && apontamentos > 0) {
         pendencias.push({
           tipo: 'apontamentos',
           quantidade: apontamentos,
           prioridade: 'amarelo',
           label: 'Apontamentos não lançados',
-          link: '/apontamentos-consolidado'
+          link: '/apontamentos'
         });
       }
 
-      // Projetos pendentes de aprovação
-      const { count: aprovacoes } = await supabase
-        .from('projetos')
-        .select('*', { count: 'exact', head: true })
-        .eq('aprovacao_status', 'PENDENTE_APROVACAO');
-
+      const aprovacoes = aprovacoesResult.count;
       if (aprovacoes && aprovacoes > 0) {
         pendencias.push({
           tipo: 'aprovacoes',
@@ -494,17 +570,8 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       }
 
       // Colaboradores sem custo vigente
-      const { data: colaboradoresAtivos } = await supabase
-        .from('collaborators')
-        .select('id')
-        .eq('status', 'ativo');
-
-      const { data: custosVigentes } = await supabase
-        .from('custos_colaborador')
-        .select('colaborador_id')
-        .lte('inicio_vigencia', new Date().toISOString().split('T')[0])
-        .or(`fim_vigencia.is.null,fim_vigencia.gte.${new Date().toISOString().split('T')[0]}`);
-
+      const colaboradoresAtivos = colaboradoresAtivosResult.data;
+      const custosVigentes = custosVigentesResult.data;
       const colaboradoresComCusto = new Set(custosVigentes?.map(c => c.colaborador_id) || []);
       const semCusto = colaboradoresAtivos?.filter(c => !colaboradoresComCusto.has(c.id)) || [];
 
@@ -518,12 +585,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Projetos não sincronizados com Omie
-      const { count: naoSincronizados } = await supabase
-        .from('projetos')
-        .select('*', { count: 'exact', head: true })
-        .eq('omie_sync_status', 'NOT_SENT');
-
+      const naoSincronizados = naoSincronizadosResult.count;
       if (naoSincronizados && naoSincronizados > 0) {
         pendencias.push({
           tipo: 'omie',
@@ -534,13 +596,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Projetos com margem negativa (prioridade vermelha)
-      const { data: margemNegativa } = await supabase
-        .from('vw_rentabilidade_projeto')
-        .select('projeto_id')
-        .eq('status_projeto', 'ATIVO')
-        .lt('margem_competencia_pct', 0);
-
+      const margemNegativa = margemNegativaResult.data;
       if (margemNegativa && margemNegativa.length > 0) {
         pendencias.push({
           tipo: 'margem',
@@ -551,14 +607,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
-      // Títulos vencidos > 60 dias (prioridade vermelha)
-      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { count: titulosVencidos60 } = await supabase
-        .from('omie_contas_receber')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'ATRASADO')
-        .lt('vencimento', sixtyDaysAgo);
-
+      const titulosVencidos60 = titulosVencidos60Result.count;
       if (titulosVencidos60 && titulosVencidos60 > 0) {
         pendencias.push({
           tipo: 'titulos',
@@ -576,6 +625,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       });
     },
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   });
 
   return {

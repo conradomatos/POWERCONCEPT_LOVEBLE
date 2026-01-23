@@ -614,8 +614,8 @@ export default function ApontamentosConsolidado() {
                     variant="destructive" 
                     size="sm"
                     onClick={() => setShowDeleteDialog(true)}
-                    disabled={selectionInfo.editableCount === 0}
-                    title={selectionInfo.editableCount === 0 ? 'Apenas registros do planejamento selecionados' : ''}
+                    disabled={selectionInfo.total === 0}
+                    title={selectionInfo.total === 0 ? 'Nenhum registro selecionado' : ''}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Excluir
