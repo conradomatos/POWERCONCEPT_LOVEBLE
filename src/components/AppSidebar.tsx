@@ -1,4 +1,4 @@
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Users,
@@ -25,6 +25,7 @@ import {
   FileText,
   Eye,
   Percent,
+  ChevronDown,
 } from 'lucide-react';
 
 import {
@@ -39,6 +40,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { NavLink } from '@/components/NavLink';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { NavigationArea } from './Layout';
 
 type NavItem = {
@@ -89,26 +91,12 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
   },
   orcamentos: {
     label: 'Orçamentos',
-    items: [
-      { title: 'Lista de Orçamentos', url: '/orcamentos', icon: Calculator },
-      { title: 'Bases Globais', url: '/orcamentos/bases', icon: Layers },
-    ],
+    items: [], // Will be handled specially
   },
 };
 
-// Global bases contextual navigation
-const basesGlobaisNavItems: NavItem[] = [
-  { title: 'Materiais', url: '/orcamentos/bases/materiais', icon: Package },
-  { title: 'Templates WBS', url: '/orcamentos/bases/wbs-templates', icon: Layers },
-  { title: 'Funções MO', url: '/orcamentos/bases/mo-funcoes', icon: HardHat },
-  { title: 'Parâmetros MO', url: '/orcamentos/bases/mo-parametros', icon: Cog },
-  { title: 'Indiretos', url: '/orcamentos/bases/indiretos', icon: Truck },
-  { title: 'Impostos', url: '/orcamentos/bases/impostos', icon: Calculator },
-  { title: 'Markup', url: '/orcamentos/bases/markup', icon: Percent },
-];
-
-// Budget detail contextual navigation
-const budgetDetailNavItems: NavItem[] = [
+// Budget sections navigation
+const budgetSectionNavItems: NavItem[] = [
   { title: 'Visão Geral', url: '', icon: Eye },
   { title: 'Parâmetros', url: '/parametros', icon: Cog },
   { title: 'Estrutura WBS', url: '/estrutura', icon: Layers },
@@ -124,6 +112,17 @@ const budgetDetailNavItems: NavItem[] = [
   { title: 'Documentos', url: '/documentos', icon: FileText },
 ];
 
+// Global bases navigation items
+const basesGlobaisNavItems: NavItem[] = [
+  { title: 'Materiais', url: '/orcamentos/bases/materiais', icon: Package },
+  { title: 'Templates WBS', url: '/orcamentos/bases/wbs-templates', icon: Layers },
+  { title: 'Funções MO', url: '/orcamentos/bases/mo-funcoes', icon: HardHat },
+  { title: 'Parâmetros MO', url: '/orcamentos/bases/mo-parametros', icon: Cog },
+  { title: 'Indiretos', url: '/orcamentos/bases/indiretos', icon: Truck },
+  { title: 'Impostos', url: '/orcamentos/bases/impostos', icon: Calculator },
+  { title: 'Markup', url: '/orcamentos/bases/markup', icon: Percent },
+];
+
 interface AppSidebarProps {
   activeArea: NavigationArea;
 }
@@ -132,80 +131,193 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const params = useParams();
+  const [searchParams] = useSearchParams();
   const { hasRole } = useAuth();
 
-  // Check if we're in a budget detail page
-  const budgetId = params.id;
-  const isBudgetDetail = activeArea === 'orcamentos' && budgetId && location.pathname.startsWith(`/orcamentos/${budgetId}`);
+  // Extract budget ID from URL if present
+  const budgetMatch = location.pathname.match(/^\/orcamentos\/([a-f0-9-]+)/);
+  const budgetId = budgetMatch ? budgetMatch[1] : null;
   
   // Check if we're in Bases Globais context
   const isBasesGlobais = location.pathname.startsWith('/orcamentos/bases');
+  const isOrcamentosArea = activeArea === 'orcamentos';
 
   const isActive = (path: string) => {
-    if (isBudgetDetail) {
-      const fullPath = `/orcamentos/${budgetId}${path}`;
-      // For the index route (Visão Geral), check exact match
-      if (path === '') {
-        return location.pathname === `/orcamentos/${budgetId}`;
-      }
-      return location.pathname === fullPath;
-    }
-    // For bases globais and regular routes, use exact match
     return location.pathname === path;
   };
 
-  // Get navigation items based on context
-  let navLabel: string;
-  let visibleItems: NavItem[];
+  const isBudgetSectionActive = (sectionUrl: string) => {
+    if (!budgetId) return false;
+    const fullPath = `/orcamentos/${budgetId}${sectionUrl}`;
+    if (sectionUrl === '') {
+      return location.pathname === `/orcamentos/${budgetId}`;
+    }
+    return location.pathname === fullPath;
+  };
 
-  if (isBudgetDetail) {
-    navLabel = 'Seções do Orçamento';
-    visibleItems = budgetDetailNavItems;
-  } else if (isBasesGlobais) {
-    navLabel = 'Bases Globais';
-    visibleItems = basesGlobaisNavItems;
-  } else {
-    const currentAreaConfig = areaNavItems[activeArea];
-    navLabel = currentAreaConfig.label;
-    visibleItems = currentAreaConfig.items.filter(
-      (item) => !item.roles || item.roles.some((r) => hasRole(r))
+  // Build URL for budget sections preserving revision query param
+  const getBudgetSectionUrl = (sectionUrl: string) => {
+    if (!budgetId) return '#';
+    const revParam = searchParams.get('rev');
+    const baseUrl = `/orcamentos/${budgetId}${sectionUrl}`;
+    return revParam ? `${baseUrl}?rev=${revParam}` : baseUrl;
+  };
+
+  // For Orçamentos area, render custom layout with all sections
+  if (isOrcamentosArea) {
+    return (
+      <Sidebar collapsible="icon">
+        <SidebarContent className="pt-4">
+          {/* Main navigation */}
+          <SidebarGroup>
+            <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === '/orcamentos' && !isBasesGlobais}
+                    tooltip="Lista de Orçamentos"
+                  >
+                    <NavLink
+                      to="/orcamentos"
+                      className="flex items-center gap-2"
+                      activeClassName="bg-accent text-accent-foreground"
+                    >
+                      <Calculator className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span>Lista de Orçamentos</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          {/* Bases Globais - Collapsible */}
+          <SidebarGroup>
+            <Collapsible defaultOpen={isBasesGlobais}>
+              <CollapsibleTrigger className="w-full">
+                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded px-2 py-1">
+                  <span>Bases Globais</span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {basesGlobaisNavItems.map((item) => (
+                      <SidebarMenuItem key={item.url}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.url)}
+                          tooltip={item.title}
+                        >
+                          <NavLink
+                            to={item.url}
+                            className="flex items-center gap-2"
+                            activeClassName="bg-accent text-accent-foreground"
+                          >
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            {!collapsed && <span>{item.title}</span>}
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+
+          {/* Budget Sections - Collapsible */}
+          <SidebarGroup>
+            <Collapsible defaultOpen={!!budgetId}>
+              <CollapsibleTrigger className="w-full">
+                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded px-2 py-1">
+                  <span className="flex items-center gap-2">
+                    Seções do Orçamento
+                    {!budgetId && (
+                      <span className="text-[10px] text-muted-foreground">(selecione)</span>
+                    )}
+                  </span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {budgetSectionNavItems.map((item) => {
+                      const isDisabled = !budgetId;
+                      const itemUrl = getBudgetSectionUrl(item.url);
+                      
+                      return (
+                        <SidebarMenuItem key={item.url || 'index'}>
+                          <SidebarMenuButton
+                            asChild={!isDisabled}
+                            isActive={isBudgetSectionActive(item.url)}
+                            tooltip={isDisabled ? 'Selecione um orçamento' : item.title}
+                            disabled={isDisabled}
+                          >
+                            {isDisabled ? (
+                              <span className="flex items-center gap-2 opacity-40 cursor-not-allowed">
+                                <item.icon className="h-4 w-4 shrink-0" />
+                                {!collapsed && <span>{item.title}</span>}
+                              </span>
+                            ) : (
+                              <NavLink
+                                to={itemUrl}
+                                className="flex items-center gap-2"
+                                activeClassName="bg-accent text-accent-foreground"
+                              >
+                                <item.icon className="h-4 w-4 shrink-0" />
+                                {!collapsed && <span>{item.title}</span>}
+                              </NavLink>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
     );
   }
+
+  // Standard sidebar for other areas
+  const currentAreaConfig = areaNavItems[activeArea];
+  const visibleItems = currentAreaConfig.items.filter(
+    (item) => !item.roles || item.roles.some((r) => hasRole(r))
+  );
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent className="pt-4">
         <SidebarGroup>
-          <SidebarGroupLabel>{navLabel}</SidebarGroupLabel>
+          <SidebarGroupLabel>{currentAreaConfig.label}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleItems.map((item) => {
-                // For budget detail, construct URL from base + suffix
-                // For bases globais and regular routes, use URL as-is
-                const itemUrl = isBudgetDetail 
-                  ? `/orcamentos/${budgetId}${item.url}` 
-                  : item.url;
-                
-                return (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(isBudgetDetail ? item.url : itemUrl)}
-                      tooltip={item.title}
+              {visibleItems.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    tooltip={item.title}
+                  >
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-2"
+                      activeClassName="bg-accent text-accent-foreground"
                     >
-                      <NavLink
-                        to={itemUrl}
-                        className="flex items-center gap-2"
-                        activeClassName="bg-accent text-accent-foreground"
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
