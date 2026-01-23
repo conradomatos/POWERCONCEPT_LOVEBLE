@@ -19,8 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, Save } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Plus, Trash2, Search } from 'lucide-react';
 import { useMaterials, type MaterialFormData } from '@/hooks/orcamentos/useMaterials';
+import { useMaterialCatalog, type CatalogItem } from '@/hooks/orcamentos/useMaterialCatalog';
 import { SUPPLY_TYPE_CONFIG, type SupplyType } from '@/lib/orcamentos/types';
 import { formatCurrency } from '@/lib/currency';
 
@@ -32,6 +40,7 @@ interface OutletContext {
 export default function Materiais() {
   const { selectedRevision, lockState } = useOutletContext<OutletContext>();
   const { items, totals, isLoading, createItem, updateItem, deleteItem } = useMaterials(selectedRevision?.id);
+  const { searchCatalog } = useMaterialCatalog();
   
   const [newItem, setNewItem] = useState<MaterialFormData>({
     descricao: '',
@@ -41,6 +50,11 @@ export default function Materiais() {
     fator_dificuldade: 1,
     preco_unit: 0,
   });
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<CatalogItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleAddItem = async () => {
     if (!newItem.descricao) return;
@@ -59,6 +73,28 @@ export default function Materiais() {
     await updateItem.mutateAsync({ id, [field]: value });
   };
 
+  const handleSearch = async () => {
+    if (searchTerm.length < 2) return;
+    setIsSearching(true);
+    const results = await searchCatalog(searchTerm);
+    setSearchResults(results);
+    setIsSearching(false);
+  };
+
+  const handleSelectFromCatalog = (item: CatalogItem) => {
+    setNewItem(prev => ({
+      ...prev,
+      codigo: item.codigo,
+      descricao: item.descricao,
+      unidade: item.unidade,
+      preco_unit: item.preco_ref ?? 0,
+      hh_unitario: item.hh_unit_ref ?? 0,
+    }));
+    setDialogOpen(false);
+    setSearchTerm('');
+    setSearchResults([]);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -71,8 +107,69 @@ export default function Materiais() {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Levantamento de Materiais</CardTitle>
+        {!lockState.isLocked && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Search className="h-4 w-4 mr-2" />
+                Buscar na Base
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Buscar Material no Catálogo</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Digite código ou descrição..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                  <Button onClick={handleSearch} disabled={isSearching || searchTerm.length < 2}>
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                {searchResults.length > 0 && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Un</TableHead>
+                        <TableHead className="text-right">Preço</TableHead>
+                        <TableHead className="text-right">HH</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {searchResults.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
+                          <TableCell className="text-xs">{item.descricao}</TableCell>
+                          <TableCell className="text-xs">{item.unidade}</TableCell>
+                          <TableCell className="text-right text-xs">{formatCurrency(item.preco_ref ?? 0)}</TableCell>
+                          <TableCell className="text-right text-xs">{item.hh_unit_ref?.toFixed(2) ?? '-'}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost" onClick={() => handleSelectFromCatalog(item)}>
+                              Usar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                {searchResults.length === 0 && searchTerm.length >= 2 && !isSearching && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum material encontrado</p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">

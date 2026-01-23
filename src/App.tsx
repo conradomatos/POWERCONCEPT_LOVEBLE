@@ -38,6 +38,7 @@ import Histograma from "./pages/orcamentos/Histograma";
 import Cronograma from "./pages/orcamentos/Cronograma";
 import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
 import Documentos from "./pages/orcamentos/Documentos";
+import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -76,6 +77,7 @@ const App = () => (
               <Route path="parametros" element={<Parametros />} />
               <Route path="estrutura" element={<Estrutura />} />
               <Route path="materiais" element={<Materiais />} />
+              <Route path="alimentacao-industrial" element={<AlimentacaoIndustrial />} />
               <Route path="mao-de-obra" element={<MaoDeObra />} />
               <Route path="mobilizacao" element={<Mobilizacao />} />
               <Route path="canteiro" element={<Canteiro />} />

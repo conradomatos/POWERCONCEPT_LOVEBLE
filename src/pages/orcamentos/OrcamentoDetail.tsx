@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
@@ -32,6 +32,7 @@ export default function OrcamentoDetail() {
   const { id: budgetId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole } = useAuth();
 
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>();
@@ -58,12 +59,30 @@ export default function OrcamentoDetail() {
 
   const { revisions, isLoading: revisionsLoading, createRevision, sendRevision, approveRevision, rejectRevision } = useRevisions(budgetId);
 
-  // Select latest revision by default
+  // Handle revision selection from querystring
   useEffect(() => {
-    if (revisions.length > 0 && !selectedRevisionId) {
-      setSelectedRevisionId(revisions[0].id);
+    if (revisions.length === 0) return;
+    
+    const revFromUrl = searchParams.get('rev');
+    
+    if (revFromUrl && revisions.find(r => r.id === revFromUrl)) {
+      // URL has valid revision - use it
+      if (selectedRevisionId !== revFromUrl) {
+        setSelectedRevisionId(revFromUrl);
+      }
+    } else if (!selectedRevisionId) {
+      // No revision selected - use latest and update URL
+      const latestRevision = revisions[0];
+      setSelectedRevisionId(latestRevision.id);
+      setSearchParams({ rev: latestRevision.id }, { replace: true });
     }
-  }, [revisions, selectedRevisionId]);
+  }, [revisions, searchParams, selectedRevisionId, setSearchParams]);
+
+  // Handle revision change from dropdown
+  const handleRevisionChange = (id: string) => {
+    setSelectedRevisionId(id);
+    setSearchParams({ rev: id });
+  };
 
   const selectedRevision = revisions.find((r) => r.id === selectedRevisionId) as BudgetRevision | undefined;
   const lockState = useRevisionLock(selectedRevision || null);
@@ -77,6 +96,7 @@ export default function OrcamentoDetail() {
     const newRevision = await createRevision.mutateAsync(selectedRevisionId);
     if (newRevision) {
       setSelectedRevisionId(newRevision.id);
+      setSearchParams({ rev: newRevision.id });
     }
   };
 
@@ -187,7 +207,7 @@ export default function OrcamentoDetail() {
                   <RevisionSelector
                     revisions={revisions}
                     selectedRevisionId={selectedRevisionId}
-                    onSelect={setSelectedRevisionId}
+                    onSelect={handleRevisionChange}
                   />
                 </div>
               </div>
