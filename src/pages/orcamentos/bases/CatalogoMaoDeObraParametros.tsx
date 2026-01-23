@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Trash2, Cog, ArrowLeft, Pencil } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, Cog, Pencil } from 'lucide-react';
 import { useLaborParamCatalog, type LaborParamCatalogFormData } from '@/hooks/orcamentos/useLaborParamCatalog';
 
 export default function CatalogoMaoDeObraParametros() {
@@ -74,125 +72,117 @@ export default function CatalogoMaoDeObraParametros() {
   };
 
   return (
-    <Layout>
-      <div className="container py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/orcamentos/bases">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Cog className="h-6 w-6" />
-                Parâmetros de Mão de Obra
-              </h1>
-              <p className="text-muted-foreground">
-                Conjuntos de encargos e adicionais reutilizáveis
-              </p>
-            </div>
-          </div>
+    <div className="container py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Cog className="h-6 w-6" />
+            Parâmetros de Mão de Obra
+          </h1>
+          <p className="text-muted-foreground">
+            Conjuntos de encargos e adicionais reutilizáveis
+          </p>
+        </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleOpenCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Conjunto
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{editingId ? 'Editar Conjunto' : 'Novo Conjunto de Parâmetros'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={handleOpenCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Conjunto
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>{editingId ? 'Editar Conjunto' : 'Novo Conjunto de Parâmetros'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome do Conjunto</Label>
+                <Input
+                  value={formData.nome}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  placeholder="Ex: Padrão Industrial"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome do Conjunto</Label>
+                  <Label>Encargos (%)</Label>
                   <Input
-                    value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    placeholder="Ex: Padrão Industrial"
+                    type="number"
+                    step="0.1"
+                    value={formData.encargos_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, encargos_pct_ref: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label>Encargos (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.encargos_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, encargos_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>HE 50% (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.he50_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, he50_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>HE 100% (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.he100_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, he100_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Periculosidade (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.periculosidade_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, periculosidade_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Insalubridade (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.insalubridade_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, insalubridade_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Adic. Noturno (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.adicional_noturno_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, adicional_noturno_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Improdutividade (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={formData.improdutividade_pct_ref}
-                      onChange={(e) => setFormData({ ...formData, improdutividade_pct_ref: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label>HE 50% (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.he50_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, he50_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
                 </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSubmit} disabled={!formData.nome || createParam.isPending || updateParam.isPending}>
-                    {editingId ? 'Salvar' : 'Criar Conjunto'}
-                  </Button>
+                <div className="space-y-2">
+                  <Label>HE 100% (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.he100_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, he100_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Periculosidade (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.periculosidade_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, periculosidade_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Insalubridade (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.insalubridade_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, insalubridade_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Adic. Noturno (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.adicional_noturno_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, adicional_noturno_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Improdutividade (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.improdutividade_pct_ref}
+                    onChange={(e) => setFormData({ ...formData, improdutividade_pct_ref: parseFloat(e.target.value) || 0 })}
+                  />
                 </div>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSubmit} disabled={!formData.nome || createParam.isPending || updateParam.isPending}>
+                  {editingId ? 'Salvar' : 'Criar Conjunto'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
         <Card>
           <CardHeader className="pb-3">
@@ -267,7 +257,6 @@ export default function CatalogoMaoDeObraParametros() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </Layout>
+    </div>
   );
 }

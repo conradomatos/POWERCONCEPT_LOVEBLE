@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, HardHat, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, HardHat } from 'lucide-react';
 import { useLaborRoleCatalog, type LaborRoleCatalogFormData } from '@/hooks/orcamentos/useLaborRoleCatalog';
-import { formatCurrency } from '@/lib/currency';
 
 export default function CatalogoMaoDeObraFuncoes() {
   const { roles, isLoading, createRole, updateRole, deleteRole } = useLaborRoleCatalog();
@@ -27,24 +24,16 @@ export default function CatalogoMaoDeObraFuncoes() {
   };
 
   return (
-    <Layout>
-      <div className="container py-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Link to="/orcamentos/bases">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <HardHat className="h-6 w-6" />
-              Catálogo de Funções
-            </h1>
-            <p className="text-muted-foreground">
-              Base global de funções de mão de obra e salários de referência
-            </p>
-          </div>
-        </div>
+    <div className="container py-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <HardHat className="h-6 w-6" />
+          Catálogo de Funções
+        </h1>
+        <p className="text-muted-foreground">
+          Base global de funções de mão de obra e salários de referência
+        </p>
+      </div>
 
         <Card>
           <CardHeader className="pb-3">
@@ -190,7 +179,6 @@ export default function CatalogoMaoDeObraFuncoes() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </Layout>
+    </div>
   );
 }

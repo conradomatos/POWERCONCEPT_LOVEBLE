@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import Layout from '@/components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, Layers, ArrowLeft, FolderOpen, ListTodo } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, Layers, FolderOpen, ListTodo } from 'lucide-react';
 import { useWbsTemplates, type WbsTemplateFormData, type WbsTemplateItemFormData } from '@/hooks/orcamentos/useWbsTemplates';
 
 export default function WbsTemplates() {
@@ -65,66 +63,58 @@ export default function WbsTemplates() {
   };
 
   return (
-    <Layout>
-      <div className="container py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/orcamentos/bases">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Layers className="h-6 w-6" />
-                Templates WBS
-              </h1>
-              <p className="text-muted-foreground">
-                Estruturas de projeto reutilizáveis
-              </p>
-            </div>
-          </div>
-
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Template
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Novo Template WBS</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome</Label>
-                  <Input
-                    value={newTemplate.nome}
-                    onChange={(e) => setNewTemplate({ ...newTemplate, nome: e.target.value })}
-                    placeholder="Ex: Subestação 138kV"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea
-                    value={newTemplate.descricao || ''}
-                    onChange={(e) => setNewTemplate({ ...newTemplate, descricao: e.target.value })}
-                    placeholder="Descrição do template..."
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCreateTemplate} disabled={!newTemplate.nome || createTemplate.isPending}>
-                    Criar Template
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+    <div className="container py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Layers className="h-6 w-6" />
+            Templates WBS
+          </h1>
+          <p className="text-muted-foreground">
+            Estruturas de projeto reutilizáveis
+          </p>
         </div>
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Template
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Template WBS</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  value={newTemplate.nome}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, nome: e.target.value })}
+                  placeholder="Ex: Subestação 138kV"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={newTemplate.descricao || ''}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, descricao: e.target.value })}
+                  placeholder="Descrição do template..."
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreateTemplate} disabled={!newTemplate.nome || createTemplate.isPending}>
+                  Criar Template
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
         {/* Item Dialog */}
         <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
@@ -298,7 +288,6 @@ export default function WbsTemplates() {
             ))}
           </Accordion>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

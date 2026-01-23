@@ -41,6 +41,7 @@ import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
 // Global bases pages
 import BasesGlobais from "./pages/orcamentos/BasesGlobais";
+import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
 import CatalogoMateriais from "./pages/orcamentos/bases/CatalogoMateriais";
 import WbsTemplates from "./pages/orcamentos/bases/WbsTemplates";
 import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoes";
@@ -78,12 +79,14 @@ const App = () => (
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
-            {/* Global bases routes - outside budget context */}
-            <Route path="/orcamentos/bases" element={<BasesGlobais />} />
-            <Route path="/orcamentos/bases/materiais" element={<CatalogoMateriais />} />
-            <Route path="/orcamentos/bases/wbs-templates" element={<WbsTemplates />} />
-            <Route path="/orcamentos/bases/mo-funcoes" element={<CatalogoMaoDeObraFuncoes />} />
-            <Route path="/orcamentos/bases/mo-parametros" element={<CatalogoMaoDeObraParametros />} />
+            {/* Global bases routes - with contextual sidebar */}
+            <Route path="/orcamentos/bases" element={<BasesGlobaisLayout />}>
+              <Route index element={<BasesGlobais />} />
+              <Route path="materiais" element={<CatalogoMateriais />} />
+              <Route path="wbs-templates" element={<WbsTemplates />} />
+              <Route path="mo-funcoes" element={<CatalogoMaoDeObraFuncoes />} />
+              <Route path="mo-parametros" element={<CatalogoMaoDeObraParametros />} />
+            </Route>
             {/* Budget detail routes */}
             <Route path="/orcamentos/:id" element={<OrcamentoDetail />}>
               <Route index element={<VisaoGeral />} />

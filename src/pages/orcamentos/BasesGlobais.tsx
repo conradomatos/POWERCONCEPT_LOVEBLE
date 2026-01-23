@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Layout from '@/components/Layout';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Package, 
   Layers, 
@@ -72,31 +71,29 @@ const bases = [
 
 export default function BasesGlobais() {
   return (
-    <Layout>
-      <div className="container py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Bases Globais</h1>
-          <p className="text-muted-foreground">
-            Catálogos e templates reutilizáveis em todos os orçamentos
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {bases.map((base) => (
-            <Link key={base.href} to={base.href}>
-              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-primary/50">
-                <CardHeader className="pb-3">
-                  <div className={`w-12 h-12 rounded-lg ${base.bgColor} flex items-center justify-center mb-2`}>
-                    <base.icon className={`h-6 w-6 ${base.color}`} />
-                  </div>
-                  <CardTitle className="text-lg">{base.title}</CardTitle>
-                  <CardDescription>{base.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
-        </div>
+    <div className="container py-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Bases Globais</h1>
+        <p className="text-muted-foreground">
+          Catálogos e templates reutilizáveis em todos os orçamentos. Selecione uma base no menu lateral ou clique em um card abaixo.
+        </p>
       </div>
-    </Layout>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {bases.map((base) => (
+          <Link key={base.href} to={base.href}>
+            <Card className="h-full hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-primary/50">
+              <CardHeader className="pb-3">
+                <div className={`w-12 h-12 rounded-lg ${base.bgColor} flex items-center justify-center mb-2`}>
+                  <base.icon className={`h-6 w-6 ${base.color}`} />
+                </div>
+                <CardTitle className="text-lg">{base.title}</CardTitle>
+                <CardDescription>{base.description}</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
