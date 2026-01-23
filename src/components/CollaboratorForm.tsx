@@ -54,6 +54,7 @@ export default function CollaboratorForm({
     termination_date: '',
     position: '',
     department: '',
+    equipe: '',
     status: 'ativo' as EmployeeStatus,
     email: '',
     phone: '',
@@ -92,6 +93,7 @@ export default function CollaboratorForm({
           termination_date: collaborator.termination_date || '',
           position: collaborator.position || '',
           department: collaborator.department || '',
+          equipe: (collaborator as any).equipe || '',
           status: collaborator.status,
           email: collaborator.email || '',
           phone: collaborator.phone || '',
@@ -107,6 +109,7 @@ export default function CollaboratorForm({
           termination_date: '',
           position: '',
           department: '',
+          equipe: '',
           status: 'ativo',
           email: '',
           phone: '',
@@ -235,6 +238,7 @@ export default function CollaboratorForm({
       termination_date: formData.termination_date || null,
       position: formData.position || null,
       department: formData.department || null,
+      equipe: formData.equipe || null,
       status: formData.status,
       email: formData.email || null,
       phone: formData.phone || null,
@@ -318,6 +322,7 @@ export default function CollaboratorForm({
       termination_date: formData.termination_date || null,
       position: formData.position || null,
       department: formData.department || null,
+      equipe: formData.equipe || null,
       status: formData.status,
       email: formData.email || null,
       phone: formData.phone || null,
@@ -440,6 +445,16 @@ export default function CollaboratorForm({
             id="department"
             value={formData.department}
             onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="equipe">Equipe</Label>
+          <Input
+            id="equipe"
+            value={formData.equipe}
+            onChange={(e) => setFormData((prev) => ({ ...prev, equipe: e.target.value }))}
+            placeholder="Ex: Equipe A, Frente Sul..."
           />
         </div>
 

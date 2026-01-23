@@ -431,6 +431,7 @@ export type Database = {
           created_by: string | null
           department: string | null
           email: string | null
+          equipe: string | null
           full_name: string
           hire_date: string
           id: string
@@ -448,6 +449,7 @@ export type Database = {
           created_by?: string | null
           department?: string | null
           email?: string | null
+          equipe?: string | null
           full_name: string
           hire_date: string
           id?: string
@@ -465,6 +467,7 @@ export type Database = {
           created_by?: string | null
           department?: string | null
           email?: string | null
+          equipe?: string | null
           full_name?: string
           hire_date?: string
           id?: string

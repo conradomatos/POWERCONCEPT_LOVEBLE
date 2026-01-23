@@ -66,6 +66,7 @@ export default function ApontamentosConsolidado() {
   const [filterIntegracao, setFilterIntegracao] = useState<string>('all');
   const [filterOrigem, setFilterOrigem] = useState<string>('all');
   const [filterProjeto, setFilterProjeto] = useState<string>('all');
+  const [filterEquipe, setFilterEquipe] = useState<string>('all');
   const [filterFuncionario, setFilterFuncionario] = useState<string>('');
   const [filterDataInicio, setFilterDataInicio] = useState<string>('');
   const [filterDataFim, setFilterDataFim] = useState<string>('');
@@ -120,6 +121,36 @@ export default function ApontamentosConsolidado() {
     enabled: canAccess,
   });
 
+  // Fetch collaborators for equipe filter
+  const { data: collaborators } = useQuery({
+    queryKey: ['collaborators-equipes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('collaborators')
+        .select('id, cpf, equipe')
+        .order('full_name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: canAccess,
+  });
+
+  // Get unique equipes
+  const uniqueEquipes = useMemo(() => {
+    if (!collaborators) return [];
+    return [...new Set(collaborators.map(c => c.equipe).filter(Boolean))].sort() as string[];
+  }, [collaborators]);
+
+  // Map CPF to equipe for filtering
+  const cpfToEquipe = useMemo(() => {
+    if (!collaborators) return new Map<string, string>();
+    const map = new Map<string, string>();
+    collaborators.forEach(c => {
+      if (c.equipe) map.set(c.cpf, c.equipe);
+    });
+    return map;
+  }, [collaborators]);
+
   // Filter data
   const filteredData = useMemo(() => {
     if (!apontamentos) return [];
@@ -129,6 +160,12 @@ export default function ApontamentosConsolidado() {
       if (filterIntegracao !== 'all' && a.status_integracao !== filterIntegracao) return false;
       if (filterOrigem !== 'all' && a.origem !== filterOrigem) return false;
       if (filterProjeto !== 'all' && a.projeto_id !== filterProjeto) return false;
+      
+      // Filter by equipe using CPF mapping
+      if (filterEquipe !== 'all') {
+        const apontamentoEquipe = cpfToEquipe.get(a.cpf);
+        if (apontamentoEquipe !== filterEquipe) return false;
+      }
       
       if (filterFuncionario) {
         const search = filterFuncionario.toLowerCase();
@@ -142,7 +179,7 @@ export default function ApontamentosConsolidado() {
       
       return true;
     });
-  }, [apontamentos, filterStatus, filterIntegracao, filterOrigem, filterProjeto, filterFuncionario, filterDataInicio, filterDataFim]);
+  }, [apontamentos, filterStatus, filterIntegracao, filterOrigem, filterProjeto, filterEquipe, filterFuncionario, filterDataInicio, filterDataFim, cpfToEquipe]);
 
   // Displayed data (limited to 100)
   const displayedData = useMemo(() => filteredData.slice(0, 100), [filteredData]);
@@ -475,6 +512,7 @@ export default function ApontamentosConsolidado() {
     setFilterIntegracao('all');
     setFilterOrigem('all');
     setFilterProjeto('all');
+    setFilterEquipe('all');
     setFilterFuncionario('');
     setFilterDataInicio('');
     setFilterDataFim('');
@@ -771,6 +809,20 @@ export default function ApontamentosConsolidado() {
                     <SelectItem value="all">Todos</SelectItem>
                     {projetos?.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.os} - {p.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Equipe</label>
+                <Select value={filterEquipe} onValueChange={setFilterEquipe}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {uniqueEquipes.map((equipe) => (
+                      <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
