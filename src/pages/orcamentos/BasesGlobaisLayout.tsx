@@ -4,7 +4,9 @@ import Layout from '@/components/Layout';
 export default function BasesGlobaisLayout() {
   return (
     <Layout>
-      <Outlet />
+      <div className="flex-1">
+        <Outlet />
+      </div>
     </Layout>
   );
 }
