@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.omie-financeiro]
 verify_jwt = false
+
+[functions.generate-budget-pdf]
+verify_jwt = false
