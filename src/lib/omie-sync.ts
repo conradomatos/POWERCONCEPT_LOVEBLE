@@ -61,10 +61,10 @@ async function callOmieProjectsFunction(
  */
 export async function syncProjectToOmie(projectId: string): Promise<SyncResult> {
   try {
-    // 1. Fetch the project
+    // 1. Fetch the project with empresa data
     const { data: project, error: fetchError } = await supabase
       .from('projetos')
-      .select('id, os, nome')
+      .select('id, os, nome, empresa_id, empresas(codigo)')
       .eq('id', projectId)
       .single();
 
@@ -91,12 +91,24 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
       };
     }
 
-    // 3. Call the Edge Function
+    // Get empresa codigo (client abbreviation)
+    const empresaData = project.empresas as { codigo: string } | null;
+    if (!empresaData?.codigo) {
+      return {
+        success: false,
+        message: "Projeto não possui cliente vinculado com código.",
+      };
+    }
+
+    // 3. Format name as: OS / NOME DO PROJETO / ABREVIACAO CLIENTE
+    const nomeOmie = `${project.os} / ${project.nome.toUpperCase()} / ${empresaData.codigo}`;
+
+    // 4. Call the Edge Function
     const response = await callOmieProjectsFunction(
       'UpsertProjeto',
       {
         codInt: project.os,
-        nome: project.nome,
+        nome: nomeOmie,
         inativo: 'N',
       },
       {
