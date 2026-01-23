@@ -18,7 +18,8 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Block {
   id: string;
@@ -30,6 +31,7 @@ interface Block {
   data_inicio: string;
   data_fim: string;
   observacao?: string | null;
+  tipo: 'planejado' | 'realizado';
 }
 
 interface Collaborator {
@@ -49,6 +51,7 @@ interface GanttChartProps {
   onMoveBlock?: (blockId: string, newStartDate: Date, newEndDate: Date) => void;
   onResizeBlock?: (blockId: string, newStartDate: Date, newEndDate: Date) => void;
   viewMode: 'gantt' | 'grid';
+  canDeleteRealized?: boolean;
 }
 
 export default function GanttChart({
@@ -61,6 +64,7 @@ export default function GanttChart({
   onMoveBlock,
   onResizeBlock,
   viewMode,
+  canDeleteRealized = false,
 }: GanttChartProps) {
   const [dragState, setDragState] = useState<{
     type: 'create' | 'move' | 'resize-left' | 'resize-right';
@@ -387,6 +391,7 @@ export default function GanttChart({
                     const duration = differenceInDays(blockEnd, blockStart) + 1;
                     const isLarge = duration > 3;
                     const isMedium = duration > 1;
+                    const isRealized = block.tipo === 'realizado';
 
                     return (
                       <ContextMenu key={block.id}>
@@ -397,7 +402,8 @@ export default function GanttChart({
                                 className={cn(
                                   'absolute top-2 bottom-2 rounded-lg cursor-grab transition-all z-10 flex flex-col justify-center overflow-hidden group',
                                   'shadow-md hover:shadow-xl hover:scale-[1.02]',
-                                  isDragging && 'opacity-80 cursor-grabbing shadow-xl scale-[1.02]'
+                                  isDragging && 'opacity-80 cursor-grabbing shadow-xl scale-[1.02]',
+                                  isRealized && 'border-2 border-dashed border-white/50'
                                 )}
                                 style={{
                                   left: `${position.left}%`,
@@ -429,15 +435,20 @@ export default function GanttChart({
                                 />
                                 
                                 {/* Content */}
-                                <div className="px-2 min-w-0">
-                                  <div className="text-white font-bold text-xs drop-shadow-sm truncate leading-tight">
-                                    {block.projeto_os}
-                                  </div>
-                                  {isLarge && (
-                                    <div className="text-white/80 text-[10px] truncate leading-tight">
-                                      {block.projeto_nome}
-                                    </div>
+                                <div className="px-2 min-w-0 flex items-center gap-1">
+                                  {isRealized && (
+                                    <CheckCircle2 className="h-3 w-3 text-white/80 flex-shrink-0" />
                                   )}
+                                  <div className="min-w-0">
+                                    <div className="text-white font-bold text-xs drop-shadow-sm truncate leading-tight">
+                                      {block.projeto_os}
+                                    </div>
+                                    {isLarge && (
+                                      <div className="text-white/80 text-[10px] truncate leading-tight">
+                                        {block.projeto_nome}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {/* Right resize handle */}
@@ -459,6 +470,11 @@ export default function GanttChart({
                                     style={{ backgroundColor: color }} 
                                   />
                                   <span className="font-bold text-primary">OS {block.projeto_os}</span>
+                                  {isRealized && (
+                                    <span className="text-[10px] bg-accent text-accent-foreground px-1.5 py-0.5 rounded">
+                                      Realizado
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="font-medium">{block.projeto_nome}</div>
                                 <div className="text-muted-foreground text-xs">{block.empresa_nome}</div>
@@ -479,13 +495,24 @@ export default function GanttChart({
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </ContextMenuItem>
-                          <ContextMenuItem
-                            onClick={() => onDeleteBlock(block.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </ContextMenuItem>
+                          {(block.tipo === 'planejado' || canDeleteRealized) ? (
+                            <ContextMenuItem
+                              onClick={() => onDeleteBlock(block.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </ContextMenuItem>
+                          ) : (
+                            <ContextMenuItem
+                              disabled
+                              className="text-muted-foreground cursor-not-allowed"
+                              onClick={() => toast.info('Apenas o Admin Master pode excluir blocos realizados')}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir (somente Admin Master)
+                            </ContextMenuItem>
+                          )}
                         </ContextMenuContent>
                       </ContextMenu>
                     );

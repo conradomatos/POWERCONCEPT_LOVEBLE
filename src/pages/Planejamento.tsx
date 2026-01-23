@@ -58,10 +58,11 @@ interface Block {
   data_inicio: string;
   data_fim: string;
   observacao?: string | null;
+  tipo: 'planejado' | 'realizado';
 }
 
 export default function Planejamento() {
-  const { loading: authLoading, user, hasAnyRole } = useAuth();
+  const { loading: authLoading, user, hasAnyRole, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -114,6 +115,7 @@ export default function Planejamento() {
           data_inicio,
           data_fim,
           observacao,
+          tipo,
           projetos (
             nome,
             os,
@@ -132,6 +134,7 @@ export default function Planejamento() {
         data_inicio: b.data_inicio,
         data_fim: b.data_fim,
         observacao: b.observacao,
+        tipo: b.tipo || 'planejado',
         projeto_nome: b.projetos?.nome || '',
         projeto_os: b.projetos?.os || '',
         empresa_nome: b.projetos?.empresas?.empresa || '',
@@ -722,6 +725,7 @@ export default function Planejamento() {
             onMoveBlock={handleMoveBlock}
             onResizeBlock={handleResizeBlock}
             viewMode={viewMode}
+            canDeleteRealized={isSuperAdmin()}
           />
         )}
 
