@@ -25,6 +25,19 @@ import MapeamentoOmie from "./pages/MapeamentoOmie";
 import ReceitasConferencia from "./pages/ReceitasConferencia";
 import OrcamentosList from "./pages/orcamentos/OrcamentosList";
 import OrcamentoDetail from "./pages/orcamentos/OrcamentoDetail";
+import VisaoGeral from "./pages/orcamentos/VisaoGeral";
+import Materiais from "./pages/orcamentos/Materiais";
+import MaoDeObra from "./pages/orcamentos/MaoDeObra";
+import Parametros from "./pages/orcamentos/Parametros";
+import Mobilizacao from "./pages/orcamentos/Mobilizacao";
+import Canteiro from "./pages/orcamentos/Canteiro";
+import Equipamentos from "./pages/orcamentos/Equipamentos";
+import Engenharia from "./pages/orcamentos/Engenharia";
+import Estrutura from "./pages/orcamentos/Estrutura";
+import Histograma from "./pages/orcamentos/Histograma";
+import Cronograma from "./pages/orcamentos/Cronograma";
+import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
+import Documentos from "./pages/orcamentos/Documentos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,8 +71,21 @@ const App = () => (
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
-            <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
-            <Route path="/orcamentos/:id/*" element={<OrcamentoDetail />} />
+            <Route path="/orcamentos/:id" element={<OrcamentoDetail />}>
+              <Route index element={<VisaoGeral />} />
+              <Route path="parametros" element={<Parametros />} />
+              <Route path="estrutura" element={<Estrutura />} />
+              <Route path="materiais" element={<Materiais />} />
+              <Route path="mao-de-obra" element={<MaoDeObra />} />
+              <Route path="mobilizacao" element={<Mobilizacao />} />
+              <Route path="canteiro" element={<Canteiro />} />
+              <Route path="equipamentos" element={<Equipamentos />} />
+              <Route path="engenharia" element={<Engenharia />} />
+              <Route path="histograma" element={<Histograma />} />
+              <Route path="cronograma" element={<Cronograma />} />
+              <Route path="resumo" element={<ResumoPrecos />} />
+              <Route path="documentos" element={<Documentos />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
