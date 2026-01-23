@@ -55,6 +55,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
     os: '',
     tipo_contrato: 'PRECO_FECHADO' as 'PRECO_FECHADO' | 'MAO_DE_OBRA',
     valor_contrato: 0,
+    horas_previstas: null as number | null,
     data_inicio_planejada: null as Date | null,
     data_fim_planejada: null as Date | null,
     risco_escopo: 'MEDIO' as 'BAIXO' | 'MEDIO' | 'ALTO',
@@ -90,6 +91,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         os: projeto.os,
         tipo_contrato: (projeto.tipo_contrato as 'PRECO_FECHADO' | 'MAO_DE_OBRA') || 'PRECO_FECHADO',
         valor_contrato: projeto.valor_contrato || 0,
+        horas_previstas: projeto.horas_previstas || null,
         data_inicio_planejada: projeto.data_inicio_planejada ? new Date(projeto.data_inicio_planejada) : null,
         data_fim_planejada: projeto.data_fim_planejada ? new Date(projeto.data_fim_planejada) : null,
         risco_escopo: (projeto.risco_escopo as 'BAIXO' | 'MEDIO' | 'ALTO') || 'MEDIO',
@@ -104,6 +106,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
         os: '',
         tipo_contrato: 'PRECO_FECHADO',
         valor_contrato: 0,
+        horas_previstas: null,
         data_inicio_planejada: null,
         data_fim_planejada: null,
         risco_escopo: 'MEDIO',
@@ -171,6 +174,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
           empresa_id: formData.empresa_id,
           tipo_contrato: formData.tipo_contrato,
           valor_contrato: formData.valor_contrato,
+          horas_previstas: formData.horas_previstas,
           data_inicio_planejada: formData.data_inicio_planejada ? format(formData.data_inicio_planejada, 'yyyy-MM-dd') : null,
           data_fim_planejada: formData.data_fim_planejada ? format(formData.data_fim_planejada, 'yyyy-MM-dd') : null,
           risco_escopo: formData.risco_escopo,
@@ -201,6 +205,7 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
           empresa_id: formData.empresa_id,
           tipo_contrato: formData.tipo_contrato,
           valor_contrato: formData.valor_contrato,
+          horas_previstas: formData.horas_previstas,
           data_inicio_planejada: formData.data_inicio_planejada ? format(formData.data_inicio_planejada, 'yyyy-MM-dd') : null,
           data_fim_planejada: formData.data_fim_planejada ? format(formData.data_fim_planejada, 'yyyy-MM-dd') : null,
           risco_escopo: formData.risco_escopo,
@@ -437,6 +442,27 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
                 />
                 {errors.valor_contrato && <p className="text-sm text-destructive">{errors.valor_contrato}</p>}
               </div>
+            </div>
+
+            {/* Horas Previstas */}
+            <div className="space-y-2">
+              <Label htmlFor="horas_previstas">Horas Previstas</Label>
+              <Input
+                id="horas_previstas"
+                type="number"
+                min="0"
+                step="1"
+                value={formData.horas_previstas ?? ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  horas_previstas: e.target.value ? parseInt(e.target.value) : null 
+                })}
+                placeholder="Ex: 500"
+                disabled={isSystemProject}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opcional. Usado para calcular desvio de horas realizadas vs previstas.
+              </p>
             </div>
 
             {/* Dates Section */}

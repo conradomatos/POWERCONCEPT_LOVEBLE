@@ -16,6 +16,9 @@ interface ProjetoResumo {
   dias_restantes: number | null;
   progresso: number | null;
   status_visual: 'ok' | 'alerta' | 'critico';
+  horas_previstas: number | null;
+  horas_totais: number | null;
+  desvio_horas_pct: number | null;
 }
 
 interface ProjetosCardProps {
@@ -122,12 +125,13 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
           <div className="rounded-md border">
             <Table>
               <TableHeader>
-                <TableRow>
+              <TableRow>
                   <TableHead className="w-[180px]">Projeto</TableHead>
-                  <TableHead className="w-[120px]">Cliente</TableHead>
+                  <TableHead className="w-[100px]">Cliente</TableHead>
                   <TableHead className="w-[100px]">Progresso</TableHead>
                   <TableHead className="w-[80px] text-right">Margem</TableHead>
-                  <TableHead className="w-[80px] text-right">Prazo</TableHead>
+                  <TableHead className="w-[80px] text-right">Horas</TableHead>
+                  <TableHead className="w-[60px] text-right">Prazo</TableHead>
                   <TableHead className="w-[50px] text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -172,6 +176,20 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
                             ? `${projeto.margem_competencia_pct.toFixed(1)}%` 
                             : '-'}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {projeto.horas_previstas ? (
+                          <span className={cn(
+                            "text-xs font-medium",
+                            Number(projeto.desvio_horas_pct) > 20 ? "text-destructive" :
+                            Number(projeto.desvio_horas_pct) > 0 ? "text-amber-500" :
+                            "text-emerald-500"
+                          )}>
+                            {Math.round(Number(projeto.horas_totais))}/{projeto.horas_previstas}h
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge 

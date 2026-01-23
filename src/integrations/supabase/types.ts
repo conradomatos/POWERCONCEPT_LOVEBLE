@@ -1133,6 +1133,7 @@ export type Database = {
           data_inicio_real: string | null
           descricao: string | null
           empresa_id: string
+          horas_previstas: number | null
           id: string
           is_sistema: boolean | null
           motivo_reprovacao: string | null
@@ -1175,6 +1176,7 @@ export type Database = {
           data_inicio_real?: string | null
           descricao?: string | null
           empresa_id: string
+          horas_previstas?: number | null
           id?: string
           is_sistema?: boolean | null
           motivo_reprovacao?: string | null
@@ -1217,6 +1219,7 @@ export type Database = {
           data_inicio_real?: string | null
           descricao?: string | null
           empresa_id?: string
+          horas_previstas?: number | null
           id?: string
           is_sistema?: boolean | null
           motivo_reprovacao?: string | null
@@ -1252,13 +1255,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "empresas"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projetos_empresa_id_fkey"
-            columns: ["empresa_id"]
-            isOneToOne: false
-            referencedRelation: "vw_rentabilidade_projeto"
-            referencedColumns: ["empresa_id"]
           },
         ]
       }
@@ -1355,7 +1351,10 @@ export type Database = {
           data_fim_real: string | null
           data_inicio_planejada: string | null
           data_inicio_real: string | null
+          desvio_horas: number | null
+          desvio_horas_pct: number | null
           empresa_id: string | null
+          horas_previstas: number | null
           horas_totais: number | null
           margem_caixa_pct: number | null
           margem_competencia_pct: number | null
@@ -1380,7 +1379,15 @@ export type Database = {
           valor_contrato: number | null
           valor_total_contrato: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projetos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {

@@ -5,7 +5,7 @@ import { differenceInDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, sta
 export type Periodo = 'semana' | 'mes' | 'trimestre';
 
 interface Alerta {
-  tipo: 'prazo_critico' | 'margem_negativa' | 'apontamentos_pendentes' | 'titulos_vencidos' | 'sem_custo' | 'pendente_aprovacao';
+  tipo: 'prazo_critico' | 'margem_negativa' | 'apontamentos_pendentes' | 'titulos_vencidos' | 'sem_custo' | 'pendente_aprovacao' | 'estouro_horas';
   quantidade: number;
   prioridade: 'vermelho' | 'amarelo';
   label: string;
@@ -24,6 +24,9 @@ interface ProjetoResumo {
   dias_restantes: number | null;
   progresso: number | null;
   status_visual: 'ok' | 'alerta' | 'critico';
+  horas_previstas: number | null;
+  horas_totais: number | null;
+  desvio_horas_pct: number | null;
 }
 
 interface Pendencia {
@@ -199,6 +202,28 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         });
       }
 
+      // Projetos com estouro de horas > 20%
+      const { data: projetosHoras } = await supabase
+        .from('vw_rentabilidade_projeto')
+        .select('projeto_id, horas_previstas, horas_totais, desvio_horas_pct')
+        .eq('status_projeto', 'ATIVO')
+        .not('horas_previstas', 'is', null)
+        .gt('horas_previstas', 0);
+
+      const projetosComEstouro = projetosHoras?.filter(p => 
+        p.desvio_horas_pct !== null && Number(p.desvio_horas_pct) > 20
+      ) || [];
+
+      if (projetosComEstouro.length > 0) {
+        alertas.push({
+          tipo: 'estouro_horas',
+          quantidade: projetosComEstouro.length,
+          prioridade: 'amarelo',
+          label: `${projetosComEstouro.length} projeto(s) com estouro de horas > 20%`,
+          link: '/rentabilidade'
+        });
+      }
+
       return alertas.sort((a, b) => {
         if (a.prioridade === 'vermelho' && b.prioridade !== 'vermelho') return -1;
         if (a.prioridade !== 'vermelho' && b.prioridade === 'vermelho') return 1;
@@ -259,7 +284,10 @@ export function useDashboardData(periodo: Periodo = 'mes') {
           status_projeto: p.status_projeto,
           dias_restantes: diasRestantes,
           progresso,
-          status_visual
+          status_visual,
+          horas_previstas: p.horas_previstas,
+          horas_totais: p.horas_totais,
+          desvio_horas_pct: p.desvio_horas_pct
         };
       });
 

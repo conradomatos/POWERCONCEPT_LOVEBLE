@@ -27,8 +27,11 @@ import {
   AlertTriangle,
   Clock,
   Building2,
+  Timer,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { formatCurrency } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 
 export default function RentabilidadeProjeto() {
   const { id } = useParams<{ id: string }>();
@@ -339,6 +342,39 @@ export default function RentabilidadeProjeto() {
           />
         </div>
 
+        {/* Hours KPIs - only show if horas_previstas is set */}
+        {projeto.horas_previstas && Number(projeto.horas_previstas) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <KPICard
+              title="Horas Previstas"
+              value={`${Number(projeto.horas_previstas).toLocaleString('pt-BR')}h`}
+              icon={Timer}
+              variant="default"
+              tooltip="Total de horas planejadas para o projeto"
+            />
+            <KPICard
+              title="Horas Realizadas"
+              value={`${Number(projeto.horas_totais).toLocaleString('pt-BR')}h`}
+              icon={Clock}
+              variant="info"
+              tooltip="Total de horas apontadas até o momento"
+            />
+            <KPICard
+              title="Desvio"
+              value={projeto.desvio_horas_pct !== null 
+                ? `${Number(projeto.desvio_horas_pct) > 0 ? '+' : ''}${Number(projeto.desvio_horas_pct).toFixed(1)}%`
+                : '-'}
+              icon={Number(projeto.desvio_horas_pct || 0) > 0 ? TrendingUp : TrendingDown}
+              variant={
+                Number(projeto.desvio_horas_pct || 0) <= 0 ? 'success' :
+                Number(projeto.desvio_horas_pct || 0) <= 20 ? 'warning' :
+                'danger'
+              }
+              tooltip={`${Number(projeto.desvio_horas || 0) > 0 ? '+' : ''}${Number(projeto.desvio_horas || 0).toLocaleString('pt-BR')}h`}
+            />
+          </div>
+        )}
+
         {/* Contract info */}
         {projeto.valor_contrato && Number(projeto.valor_contrato) > 0 && (
           <Card>
@@ -465,7 +501,37 @@ export default function RentabilidadeProjeto() {
             />
           </TabsContent>
 
-          <TabsContent value="mao-obra">
+          <TabsContent value="mao-obra" className="space-y-4">
+            {/* Hours Progress Bar */}
+            {projeto.horas_previstas && Number(projeto.horas_previstas) > 0 && (
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium">Consumo de Horas</span>
+                    <span className={cn(
+                      "font-medium",
+                      Number(projeto.horas_totais) > Number(projeto.horas_previstas) ? 'text-destructive' :
+                      Number(projeto.horas_totais) > Number(projeto.horas_previstas) * 0.8 ? 'text-amber-500' :
+                      'text-emerald-500'
+                    )}>
+                      {Number(projeto.horas_totais).toLocaleString('pt-BR')}h / {Number(projeto.horas_previstas).toLocaleString('pt-BR')}h previstas
+                    </span>
+                  </div>
+                  <Progress 
+                    value={Math.min(100, (Number(projeto.horas_totais) / Number(projeto.horas_previstas)) * 100)} 
+                    className={cn(
+                      "h-3",
+                      Number(projeto.horas_totais) > Number(projeto.horas_previstas) && "[&>div]:bg-destructive",
+                      Number(projeto.horas_totais) > Number(projeto.horas_previstas) * 0.8 && 
+                      Number(projeto.horas_totais) <= Number(projeto.horas_previstas) && "[&>div]:bg-amber-500"
+                    )}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {Math.round((Number(projeto.horas_totais) / Number(projeto.horas_previstas)) * 100)}% do total previsto
+                  </p>
+                </CardContent>
+              </Card>
+            )}
             <MaoObraTable data={maoObraAgregada} />
           </TabsContent>
 

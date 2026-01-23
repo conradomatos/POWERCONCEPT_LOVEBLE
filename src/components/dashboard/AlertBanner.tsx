@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface Alerta {
-  tipo: 'prazo_critico' | 'margem_negativa' | 'apontamentos_pendentes' | 'titulos_vencidos' | 'sem_custo' | 'pendente_aprovacao';
+  tipo: 'prazo_critico' | 'margem_negativa' | 'apontamentos_pendentes' | 'titulos_vencidos' | 'sem_custo' | 'pendente_aprovacao' | 'estouro_horas';
   quantidade: number;
   prioridade: 'vermelho' | 'amarelo';
   label: string;
@@ -23,6 +23,7 @@ const alertaIcons = {
   titulos_vencidos: DollarSign,
   sem_custo: Users,
   pendente_aprovacao: AlertTriangle,
+  estouro_horas: Clock,
 };
 
 export function AlertBanner({ alertas, isLoading }: AlertBannerProps) {
