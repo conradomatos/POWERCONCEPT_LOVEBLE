@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Users,
@@ -23,7 +23,7 @@ import {
   BarChart2,
   CalendarClock,
   FileText,
-  FilePlus,
+  Eye,
 } from 'lucide-react';
 
 import {
@@ -94,6 +94,23 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
   },
 };
 
+// Budget detail contextual navigation
+const budgetDetailNavItems: NavItem[] = [
+  { title: 'Visão Geral', url: '', icon: Eye },
+  { title: 'Parâmetros', url: '/parametros', icon: Cog },
+  { title: 'Estrutura WBS', url: '/estrutura', icon: Layers },
+  { title: 'Materiais', url: '/materiais', icon: Package },
+  { title: 'Mão de Obra', url: '/mao-de-obra', icon: HardHat },
+  { title: 'Mobilização', url: '/mobilizacao', icon: Truck },
+  { title: 'Canteiro', url: '/canteiro', icon: Wrench },
+  { title: 'Equipamentos', url: '/equipamentos', icon: PencilRuler },
+  { title: 'Engenharia', url: '/engenharia', icon: PencilRuler },
+  { title: 'Histograma', url: '/histograma', icon: BarChart2 },
+  { title: 'Cronograma', url: '/cronograma', icon: CalendarClock },
+  { title: 'Resumo', url: '/resumo', icon: DollarSign },
+  { title: 'Documentos', url: '/documentos', icon: FileText },
+];
+
 interface AppSidebarProps {
   activeArea: NavigationArea;
 }
@@ -102,42 +119,71 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
+  const params = useParams();
   const { hasRole } = useAuth();
 
-  const isActive = (path: string) => location.pathname === path;
+  // Check if we're in a budget detail page
+  const budgetId = params.id;
+  const isBudgetDetail = activeArea === 'orcamentos' && budgetId && location.pathname.startsWith(`/orcamentos/${budgetId}`);
 
-  const currentAreaConfig = areaNavItems[activeArea];
-  
-  // Filter items based on user roles
-  const visibleItems = currentAreaConfig.items.filter(
-    (item) => !item.roles || item.roles.some((r) => hasRole(r))
-  );
+  const isActive = (path: string) => {
+    if (isBudgetDetail) {
+      const fullPath = `/orcamentos/${budgetId}${path}`;
+      // For the index route (Visão Geral), check exact match
+      if (path === '') {
+        return location.pathname === `/orcamentos/${budgetId}`;
+      }
+      return location.pathname === fullPath;
+    }
+    return location.pathname === path;
+  };
+
+  // Get navigation items based on context
+  let navLabel: string;
+  let visibleItems: NavItem[];
+
+  if (isBudgetDetail) {
+    navLabel = 'Seções do Orçamento';
+    visibleItems = budgetDetailNavItems;
+  } else {
+    const currentAreaConfig = areaNavItems[activeArea];
+    navLabel = currentAreaConfig.label;
+    visibleItems = currentAreaConfig.items.filter(
+      (item) => !item.roles || item.roles.some((r) => hasRole(r))
+    );
+  }
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent className="pt-4">
         <SidebarGroup>
-          <SidebarGroupLabel>{currentAreaConfig.label}</SidebarGroupLabel>
+          <SidebarGroupLabel>{navLabel}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleItems.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                  >
-                    <NavLink
-                      to={item.url}
-                      className="flex items-center gap-2"
-                      activeClassName="bg-accent text-accent-foreground"
+              {visibleItems.map((item) => {
+                const itemUrl = isBudgetDetail 
+                  ? `/orcamentos/${budgetId}${item.url}` 
+                  : item.url;
+                
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(isBudgetDetail ? item.url : itemUrl)}
+                      tooltip={item.title}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      <NavLink
+                        to={itemUrl}
+                        className="flex items-center gap-2"
+                        activeClassName="bg-accent text-accent-foreground"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -3,6 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useBudgetSummary } from '@/hooks/orcamentos/useBudgetSummary';
+import { useMaterials } from '@/hooks/orcamentos/useMaterials';
+import { useLaborRoles } from '@/hooks/orcamentos/useLaborRoles';
+import { useLaborCostSnapshot } from '@/hooks/orcamentos/useLaborCostSnapshot';
+import { useWbs } from '@/hooks/orcamentos/useWbs';
+import { useHistogram } from '@/hooks/orcamentos/useHistogram';
+import { ValidationChecklist } from '@/components/orcamentos/ValidationChecklist';
 import { formatCurrency } from '@/lib/currency';
 import { Calculator, RefreshCw, AlertTriangle, CheckCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import type { BudgetRevision } from '@/lib/orcamentos/types';
@@ -18,12 +24,31 @@ export default function ResumoPrecos() {
   const { selectedRevision, lockState } = context || {};
   
   const { summary, isLoading, recalculate } = useBudgetSummary(selectedRevision?.id);
+  const { items: materials } = useMaterials(selectedRevision?.id);
+  const { roles } = useLaborRoles(selectedRevision?.id);
+  const { snapshots } = useLaborCostSnapshot(selectedRevision?.id);
+  const { items: wbs } = useWbs(selectedRevision?.id);
+  const { entries: histogram } = useHistogram(selectedRevision?.id);
 
   const handleRecalculate = async () => {
     await recalculate.mutateAsync();
   };
 
   const margemOk = (summary?.margem_pct || 0) >= 15;
+
+  // Calculate validation stats
+  const materialsWithoutPrice = materials.filter((m) => !m.preco_unit || m.preco_unit === 0).length;
+  const materialsWithoutHh = materials.filter((m) => !m.hh_unitario || m.hh_unitario === 0).length;
+  
+  const rolesWithoutCost = roles.filter((r) => {
+    const snapshot = snapshots.find((s) => s.labor_role_id === r.id);
+    return !snapshot || snapshot.custo_hora_normal === 0;
+  }).length;
+
+  const wbsWithoutMaterials = wbs.filter((w) => {
+    const hasMaterials = materials.some((m) => m.wbs_id === w.id);
+    return w.tipo !== 'CHAPTER' && !hasMaterials;
+  }).length;
 
   // Cost breakdown items
   const costItems = [
@@ -53,6 +78,30 @@ export default function ResumoPrecos() {
           </Button>
         )}
       </div>
+
+      {/* Validation Checklist */}
+      <ValidationChecklist
+        materials={{
+          total: materials.length,
+          withoutPrice: materialsWithoutPrice,
+          withoutHh: materialsWithoutHh,
+        }}
+        laborRoles={{
+          total: roles.length,
+          withoutCost: rolesWithoutCost,
+        }}
+        wbs={{
+          total: wbs.length,
+          empty: wbsWithoutMaterials,
+        }}
+        histogram={{
+          hasData: histogram.length > 0,
+        }}
+        summary={{
+          calculated: !!summary,
+          precoVenda: summary?.preco_venda || 0,
+        }}
+      />
 
       {isLoading ? (
         <p className="text-center text-muted-foreground py-8">Carregando...</p>
@@ -108,7 +157,7 @@ export default function ResumoPrecos() {
                 <span>+ Markup ({summary.markup_pct_aplicado}%)</span>
                 <span className="font-mono">{formatCurrency(summary.valor_markup)}</span>
               </div>
-              <div className="flex items-center justify-between py-2 text-orange-600">
+              <div className="flex items-center justify-between py-2 text-amber-600">
                 <span>+ Impostos</span>
                 <span className="font-mono">{formatCurrency(summary.total_impostos)}</span>
               </div>
@@ -127,7 +176,7 @@ export default function ResumoPrecos() {
                 {margemOk ? (
                   <TrendingUp className="h-5 w-5 text-green-600" />
                 ) : (
-                  <TrendingDown className="h-5 w-5 text-red-600" />
+                  <TrendingDown className="h-5 w-5 text-destructive" />
                 )}
                 Análise de Margem
               </CardTitle>
@@ -140,17 +189,17 @@ export default function ResumoPrecos() {
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">Impostos</p>
-                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(summary.total_impostos)}</p>
+                  <p className="text-2xl font-bold text-amber-600">{formatCurrency(summary.total_impostos)}</p>
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">Margem (R$)</p>
-                  <p className={`text-2xl font-bold ${margemOk ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-2xl font-bold ${margemOk ? 'text-green-600' : 'text-destructive'}`}>
                     {formatCurrency(summary.margem_rs)}
                   </p>
                 </div>
-                <div className={`text-center p-4 rounded-lg ${margemOk ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className={`text-center p-4 rounded-lg border ${margemOk ? 'bg-green-50 border-green-200' : 'bg-destructive/10 border-destructive/20'}`}>
                   <p className="text-sm text-muted-foreground">Margem (%)</p>
-                  <p className={`text-3xl font-bold ${margemOk ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-3xl font-bold ${margemOk ? 'text-green-600' : 'text-destructive'}`}>
                     {summary.margem_pct.toFixed(1)}%
                   </p>
                   <div className="flex items-center justify-center gap-1 mt-1">
@@ -161,8 +210,8 @@ export default function ResumoPrecos() {
                       </>
                     ) : (
                       <>
-                        <AlertTriangle className="h-4 w-4 text-red-600" />
-                        <span className="text-xs text-red-600">Abaixo de 15%</span>
+                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                        <span className="text-xs text-destructive">Abaixo de 15%</span>
                       </>
                     )}
                   </div>

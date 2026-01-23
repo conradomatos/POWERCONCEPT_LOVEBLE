@@ -12,6 +12,8 @@ import { StatusBadge } from '@/components/orcamentos/StatusBadge';
 import { LockBanner } from '@/components/orcamentos/LockBanner';
 import { useRevisions } from '@/hooks/orcamentos/useRevisions';
 import { useRevisionLock } from '@/hooks/orcamentos/useRevisionLock';
+import { useBudgetSummary } from '@/hooks/orcamentos/useBudgetSummary';
+import { useCreateProjectFromBudget } from '@/hooks/orcamentos/useCreateProjectFromBudget';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft,
@@ -65,6 +67,8 @@ export default function OrcamentoDetail() {
 
   const selectedRevision = revisions.find((r) => r.id === selectedRevisionId) as BudgetRevision | undefined;
   const lockState = useRevisionLock(selectedRevision || null);
+  const { summary } = useBudgetSummary(selectedRevision?.id);
+  const { createProject } = useCreateProjectFromBudget();
 
   const canManage = hasRole('admin') || hasRole('financeiro') || hasRole('super_admin');
   const canApprove = hasRole('admin') || hasRole('super_admin');
@@ -91,6 +95,23 @@ export default function OrcamentoDetail() {
   const handleReject = async () => {
     if (selectedRevisionId) {
       await rejectRevision.mutateAsync(selectedRevisionId);
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!budget || !selectedRevision || !summary) return;
+    const projeto = await createProject.mutateAsync({
+      budget: {
+        id: budget.id,
+        cliente_id: budget.cliente_id,
+        obra_nome: budget.obra_nome,
+        local: budget.local,
+      },
+      revision: selectedRevision,
+      summary,
+    });
+    if (projeto) {
+      navigate(`/projetos`);
     }
   };
 
@@ -222,9 +243,14 @@ export default function OrcamentoDetail() {
                 )}
 
                 {lockState.canCreateProject && (
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleCreateProject}
+                    disabled={createProject.isPending || !summary}
+                  >
                     <FolderPlus className="h-4 w-4 mr-1" />
-                    Criar Projeto
+                    {createProject.isPending ? 'Criando...' : 'Criar Projeto'}
                   </Button>
                 )}
 
