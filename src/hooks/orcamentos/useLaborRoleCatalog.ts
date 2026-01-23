@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
-type LaborRoleCatalog = Database['public']['Tables']['labor_role_catalog']['Row'];
+export type LaborRoleCatalogItem = Database['public']['Tables']['labor_role_catalog']['Row'];
 
 export interface LaborRoleCatalogFormData {
   funcao: string;
@@ -24,7 +24,7 @@ export function useLaborRoleCatalog() {
         .order('funcao');
 
       if (error) throw error;
-      return data as LaborRoleCatalog[];
+      return data as LaborRoleCatalogItem[];
     },
   });
 
@@ -54,7 +54,7 @@ export function useLaborRoleCatalog() {
   });
 
   const updateRole = useMutation({
-    mutationFn: async ({ id, ...formData }: Partial<LaborRoleCatalog> & { id: string }) => {
+    mutationFn: async ({ id, ...formData }: Partial<LaborRoleCatalogItem> & { id: string }) => {
       const { data, error } = await supabase
         .from('labor_role_catalog')
         .update(formData)
