@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -535,7 +535,13 @@ export default function Planejamento() {
     }
   };
 
-  // Auth check
+  // Auth check - redirect in useEffect to avoid calling navigate during render
+  useEffect(() => {
+    if (!authLoading && (!user || !hasAnyRole())) {
+      navigate('/auth');
+    }
+  }, [authLoading, user, hasAnyRole, navigate]);
+
   if (authLoading) {
     return (
       <Layout>
@@ -547,7 +553,6 @@ export default function Planejamento() {
   }
 
   if (!user || !hasAnyRole()) {
-    navigate('/auth');
     return null;
   }
 
