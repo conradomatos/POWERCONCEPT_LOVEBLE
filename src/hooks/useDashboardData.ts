@@ -21,8 +21,8 @@ interface ProjetoResumo {
   data_inicio_real: string | null;
   data_fim_planejada: string | null;
   status_projeto: string | null;
-  dias_restantes: number;
-  progresso: number;
+  dias_restantes: number | null;
+  progresso: number | null;
   status_visual: 'ok' | 'alerta' | 'critico';
 }
 
@@ -189,23 +189,32 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       
       const projetosProcessados: ProjetoResumo[] = (projetos || []).map(p => {
         const dataFim = p.data_fim_planejada ? new Date(p.data_fim_planejada) : null;
-        const dataInicio = p.data_inicio_real ? new Date(p.data_inicio_real) : null;
+        // Usar data_inicio_real, se não existir usar data_inicio_planejada
+        const dataInicio = p.data_inicio_real 
+          ? new Date(p.data_inicio_real) 
+          : (p.data_inicio_planejada ? new Date(p.data_inicio_planejada) : null);
         
-        const diasRestantes = dataFim ? differenceInDays(dataFim, hoje) : 999;
+        // Se não tem data_fim, retorna null para mostrar "-"
+        const diasRestantes = dataFim ? differenceInDays(dataFim, hoje) : null;
         
-        let progresso = 0;
+        let progresso: number | null = null;
         if (dataInicio && dataFim) {
           const diasTotais = differenceInDays(dataFim, dataInicio);
           const diasDecorridos = differenceInDays(hoje, dataInicio);
           progresso = diasTotais > 0 ? Math.min(100, Math.max(0, (diasDecorridos / diasTotais) * 100)) : 0;
         }
 
-        const margem = p.margem_competencia_pct || 0;
+        // margem_competencia_pct pode ser 0 (válido) ou null (sem dados)
+        const margem = p.margem_competencia_pct;
         let status_visual: 'ok' | 'alerta' | 'critico' = 'ok';
         
-        if (margem < 0 || diasRestantes < 0) {
+        // Se diasRestantes é null, não podemos avaliar prazo
+        const diasParaAvaliar = diasRestantes ?? 999;
+        const margemParaAvaliar = margem ?? 0;
+        
+        if (margemParaAvaliar < 0 || diasParaAvaliar < 0) {
           status_visual = 'critico';
-        } else if (margem < 20 || diasRestantes <= 15) {
+        } else if (margemParaAvaliar < 20 || diasParaAvaliar <= 15) {
           status_visual = 'alerta';
         }
 
@@ -214,7 +223,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
           projeto_nome: p.projeto_nome || '',
           projeto_os: p.projeto_os || '',
           cliente_nome: p.cliente_nome || '',
-          margem_competencia_pct: p.margem_competencia_pct,
+          margem_competencia_pct: margem,
           data_inicio_real: p.data_inicio_real,
           data_fim_planejada: p.data_fim_planejada,
           status_projeto: p.status_projeto,
