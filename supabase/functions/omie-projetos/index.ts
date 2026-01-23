@@ -23,6 +23,13 @@ interface OmieResponse {
   descricao?: string;
   faultstring?: string;
   faultcode?: string;
+  total_de_paginas?: number;
+  cadastro?: Array<{
+    codigo: number;
+    nome: string;
+    codInt?: string;
+    inativo?: string;
+  }>;
   [key: string]: unknown;
 }
 
@@ -67,6 +74,108 @@ serve(async (req) => {
       );
     }
 
+    // Handle ListarProjetos - sync all projects from Omie to local cache
+    if (body.call === 'ListarProjetos') {
+      console.log("Starting ListarProjetos sync...");
+      
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      let pagina = 1;
+      let totalPaginas = 1;
+      const todosOsProjetos: Array<{ codigo: number; nome: string; codInt?: string; inativo?: string }> = [];
+
+      // Paginated fetch from Omie
+      while (pagina <= totalPaginas) {
+        console.log(`Fetching page ${pagina} of ${totalPaginas}...`);
+        
+        const omiePayload = {
+          call: 'ListarProjetos',
+          app_key: OMIE_APP_KEY,
+          app_secret: OMIE_APP_SECRET,
+          param: [{ 
+            pagina, 
+            registros_por_pagina: 500, 
+            apenas_importado_api: "N" 
+          }]
+        };
+
+        const omieResponse = await fetch(OMIE_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(omiePayload),
+        });
+
+        const omieData: OmieResponse = await omieResponse.json();
+        
+        if (omieData.faultstring) {
+          console.error("Omie API error:", omieData.faultstring);
+          return new Response(
+            JSON.stringify({ 
+              ok: false, 
+              error: omieData.faultstring,
+              faultcode: omieData.faultcode
+            }),
+            { 
+              status: 200, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+
+        totalPaginas = omieData.total_de_paginas || 1;
+        
+        if (omieData.cadastro && Array.isArray(omieData.cadastro)) {
+          todosOsProjetos.push(...omieData.cadastro);
+          console.log(`Page ${pagina}: fetched ${omieData.cadastro.length} projects`);
+        }
+        
+        pagina++;
+      }
+
+      console.log(`Total projects fetched: ${todosOsProjetos.length}`);
+
+      // Upsert all projects to omie_projetos table
+      let upsertedCount = 0;
+      for (const projeto of todosOsProjetos) {
+        const { error } = await supabaseClient
+          .from('omie_projetos')
+          .upsert({
+            codigo: projeto.codigo,
+            nome: projeto.nome,
+            cod_int: projeto.codInt || null,
+            inativo: projeto.inativo === 'S',
+            updated_at: new Date().toISOString()
+          }, { 
+            onConflict: 'codigo',
+            ignoreDuplicates: false
+          });
+        
+        if (error) {
+          console.error(`Error upserting project ${projeto.codigo}:`, error);
+        } else {
+          upsertedCount++;
+        }
+      }
+
+      console.log(`Successfully upserted ${upsertedCount} projects`);
+
+      return new Response(
+        JSON.stringify({ 
+          ok: true, 
+          total: todosOsProjetos.length,
+          upserted: upsertedCount,
+          message: `${upsertedCount} projetos sincronizados do Omie`
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     // Validate UpsertProjeto specific fields
     if (body.call === 'UpsertProjeto') {
       const param = body.param as { codInt?: string; nome?: string };
@@ -84,7 +193,7 @@ serve(async (req) => {
       }
     }
 
-    // Build Omie API request
+    // Build Omie API request for other calls
     const omiePayload = {
       call: body.call,
       app_key: OMIE_APP_KEY,

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,12 +17,14 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Link2, AlertTriangle, Check, RefreshCw, Save } from "lucide-react";
+import { ArrowLeft, Link2, AlertTriangle, Check, RefreshCw, Save, Download } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface CodigoNaoMapeado {
   codigo: number;
+  nomeOmie: string | null;
   qtdTitulos: number;
   valorTotal: number;
 }
@@ -34,6 +36,7 @@ export default function MapeamentoOmie() {
   
   // Estado para armazenar os mapeamentos selecionados
   const [mapeamentos, setMapeamentos] = useState<Record<number, string>>({});
+  const [isSyncingProjetos, setIsSyncingProjetos] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -63,13 +66,30 @@ export default function MapeamentoOmie() {
       
       if (errorAP) throw errorAP;
 
+      // Buscar nomes dos projetos Omie do cache
+      const { data: projetosOmie, error: errorProjetos } = await supabase
+        .from('omie_projetos')
+        .select('codigo, nome');
+      
+      if (errorProjetos) throw errorProjetos;
+
+      // Criar mapa de código -> nome
+      const nomeMap = new Map<number, string>(
+        projetosOmie?.map(p => [p.codigo, p.nome]) || []
+      );
+
       // Combinar e agrupar por código
       const todosOsTitulos = [...(titulosAR || []), ...(titulosAP || [])];
       
       const agrupado = todosOsTitulos.reduce<Record<number, CodigoNaoMapeado>>((acc, t) => {
         const codigo = t.omie_projeto_codigo as number;
         if (!acc[codigo]) {
-          acc[codigo] = { codigo, qtdTitulos: 0, valorTotal: 0 };
+          acc[codigo] = { 
+            codigo, 
+            nomeOmie: nomeMap.get(codigo) || null,
+            qtdTitulos: 0, 
+            valorTotal: 0 
+          };
         }
         acc[codigo].qtdTitulos++;
         acc[codigo].valorTotal += Number(t.valor);
@@ -95,6 +115,35 @@ export default function MapeamentoOmie() {
     },
     enabled: !!user && hasAnyRole(),
   });
+
+  // Sincronizar projetos do Omie
+  const sincronizarProjetosOmie = async () => {
+    setIsSyncingProjetos(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('omie-projetos', {
+        body: { call: 'ListarProjetos', param: {} }
+      });
+      
+      if (error) throw error;
+      if (!data.ok) throw new Error(data.error || 'Erro ao sincronizar');
+      
+      toast({
+        title: "Projetos sincronizados",
+        description: data.message,
+      });
+      
+      // Atualizar lista de códigos não mapeados
+      refetchCodigos();
+    } catch (err) {
+      toast({
+        title: "Erro ao sincronizar",
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingProjetos(false);
+    }
+  };
 
   // Mutation para salvar mapeamento individual
   const salvarMapeamentoMutation = useMutation({
@@ -242,6 +291,9 @@ export default function MapeamentoOmie() {
   const qtdMapeamentosPendentes = Object.keys(mapeamentos).length;
   const canEdit = hasRole('admin') || hasRole('financeiro');
 
+  // Verificar se há nomes não encontrados
+  const temNomesNaoEncontrados = codigosNaoMapeados?.some(c => !c.nomeOmie) || false;
+
   if (authLoading) {
     return (
       <Layout>
@@ -283,7 +335,16 @@ export default function MapeamentoOmie() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={sincronizarProjetosOmie}
+              disabled={isSyncingProjetos}
+            >
+              <Download className={cn("h-4 w-4 mr-2", isSyncingProjetos && "animate-spin")} />
+              Buscar Projetos Omie
+            </Button>
             <Button 
               variant="outline" 
               size="sm"
@@ -304,6 +365,23 @@ export default function MapeamentoOmie() {
           </div>
         </div>
 
+        {/* Alerta se houver nomes não encontrados */}
+        {temNomesNaoEncontrados && (
+          <Card className="border-warning/50 bg-warning/10">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex gap-3 items-center">
+                <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Alguns projetos não foram encontrados no cache local.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Clique em "Buscar Projetos Omie" para sincronizar a lista de projetos do Omie.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Content */}
         <Card>
           <CardHeader>
@@ -323,61 +401,73 @@ export default function MapeamentoOmie() {
                 ))}
               </div>
             ) : codigosNaoMapeados && codigosNaoMapeados.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[150px]">Código Omie</TableHead>
-                    <TableHead className="w-[100px] text-center">Títulos</TableHead>
-                    <TableHead className="w-[150px] text-right">Valor Total</TableHead>
-                    <TableHead>Projeto Local</TableHead>
-                    <TableHead className="w-[100px]">Ação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {codigosNaoMapeados.map((item) => (
-                    <TableRow key={item.codigo}>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono">
-                          {item.codigo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {item.qtdTitulos}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(item.valorTotal)}
-                      </TableCell>
-                      <TableCell>
-                        <ProjetoSelector
-                          value={mapeamentos[item.codigo] || null}
-                          onChange={(projetoId) => handleProjetoSelecionado(item.codigo, projetoId)}
-                          projetos={projetos || []}
-                          disabled={!canEdit || salvarMapeamentoMutation.isPending}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleSalvarIndividual(item.codigo)}
-                          disabled={
-                            !mapeamentos[item.codigo] || 
-                            salvarMapeamentoMutation.isPending ||
-                            !canEdit
-                          }
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Salvar
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[130px]">Código Omie</TableHead>
+                      <TableHead className="min-w-[200px]">Nome no Omie</TableHead>
+                      <TableHead className="w-[80px] text-center">Títulos</TableHead>
+                      <TableHead className="w-[130px] text-right">Valor Total</TableHead>
+                      <TableHead className="w-[250px]">Projeto Local</TableHead>
+                      <TableHead className="w-[90px]">Ação</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {codigosNaoMapeados.map((item) => (
+                      <TableRow key={item.codigo}>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono">
+                            {item.codigo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {item.nomeOmie ? (
+                            <span className="font-medium text-sm">{item.nomeOmie}</span>
+                          ) : (
+                            <span className="text-muted-foreground italic text-sm">
+                              (não encontrado - sincronize)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {item.qtdTitulos}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(item.valorTotal)}
+                        </TableCell>
+                        <TableCell>
+                          <ProjetoSelector
+                            value={mapeamentos[item.codigo] || null}
+                            onChange={(projetoId) => handleProjetoSelecionado(item.codigo, projetoId)}
+                            projetos={projetos || []}
+                            disabled={!canEdit || salvarMapeamentoMutation.isPending}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSalvarIndividual(item.codigo)}
+                            disabled={
+                              !mapeamentos[item.codigo] || 
+                              salvarMapeamentoMutation.isPending ||
+                              !canEdit
+                            }
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Salvar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-green-500/10 p-4 mb-4">
-                  <Check className="h-8 w-8 text-green-600" />
+                <div className="rounded-full bg-primary/10 p-4 mb-4">
+                  <Check className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-lg font-medium">Tudo mapeado!</h3>
                 <p className="text-muted-foreground text-sm mt-1">
@@ -396,6 +486,7 @@ export default function MapeamentoOmie() {
                 <h4 className="font-medium">Como funciona?</h4>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                   <li>Os códigos listados acima aparecem em títulos do Omie (Contas a Receber e/ou Contas a Pagar)</li>
+                  <li>Use "Buscar Projetos Omie" para sincronizar a lista de nomes de projetos do Omie</li>
                   <li>Selecione o projeto local correspondente para cada código</li>
                   <li>Ao salvar, o sistema vinculará automaticamente todos os títulos ao projeto</li>
                   <li>Futuras sincronizações usarão este mapeamento automaticamente</li>

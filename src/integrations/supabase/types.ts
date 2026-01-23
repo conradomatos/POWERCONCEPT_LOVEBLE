@@ -982,6 +982,36 @@ export type Database = {
           },
         ]
       }
+      omie_projetos: {
+        Row: {
+          cod_int: string | null
+          codigo: number
+          created_at: string | null
+          id: string
+          inativo: boolean | null
+          nome: string
+          updated_at: string | null
+        }
+        Insert: {
+          cod_int?: string | null
+          codigo: number
+          created_at?: string | null
+          id?: string
+          inativo?: boolean | null
+          nome: string
+          updated_at?: string | null
+        }
+        Update: {
+          cod_int?: string | null
+          codigo?: number
+          created_at?: string | null
+          id?: string
+          inativo?: boolean | null
+          nome?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       omie_sync_log: {
         Row: {
           detalhes: Json | null
