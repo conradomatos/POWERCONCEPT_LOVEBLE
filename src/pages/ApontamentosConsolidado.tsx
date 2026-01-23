@@ -334,40 +334,61 @@ export default function ApontamentosConsolidado() {
     }
   };
 
-  // Bulk delete
+  // Bulk delete - handles both real records and pending (planned) records
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedRows);
+    const selectedRecords = displayedData.filter(row => ids.includes(row.id));
     
-    // Filter only non-pending records (real records that can be deleted)
-    const deletableIds = displayedData
-      .filter(row => ids.includes(row.id) && !row.is_pending)
+    // Separate by source table
+    const apontamentosIds = selectedRecords
+      .filter(row => !row.is_pending)
       .map(row => row.id);
     
-    const pendingCount = ids.length - deletableIds.length;
-    
-    if (deletableIds.length === 0) {
-      toast.error('Os registros selecionados são do planejamento e não podem ser excluídos. Use a tela de Planejamento.');
+    const alocacoesIds = selectedRecords
+      .filter(row => row.is_pending)
+      .map(row => row.id);
+
+    if (apontamentosIds.length === 0 && alocacoesIds.length === 0) {
+      toast.error('Nenhum registro selecionado para excluir.');
       setShowDeleteDialog(false);
       return;
     }
 
     setBulkActionLoading(true);
     try {
-      const { error } = await supabase
-        .from('apontamentos_consolidado')
-        .delete()
-        .in('id', deletableIds);
+      let deletedApontamentos = 0;
+      let deletedAlocacoes = 0;
+      
+      // Delete real apontamentos from apontamentos_consolidado
+      if (apontamentosIds.length > 0) {
+        const { error } = await supabase
+          .from('apontamentos_consolidado')
+          .delete()
+          .in('id', apontamentosIds);
+        if (error) throw error;
+        deletedApontamentos = apontamentosIds.length;
+      }
+      
+      // Delete pending allocations from alocacoes_blocos
+      if (alocacoesIds.length > 0) {
+        const { error } = await supabase
+          .from('alocacoes_blocos')
+          .delete()
+          .in('id', alocacoesIds);
+        if (error) throw error;
+        deletedAlocacoes = alocacoesIds.length;
+      }
 
-      if (error) throw error;
-
-      let message = `${deletableIds.length} apontamentos excluídos`;
-      if (pendingCount > 0) {
-        message += `. ${pendingCount} registros do planejamento foram ignorados (não podem ser excluídos aqui).`;
+      const totalDeleted = deletedApontamentos + deletedAlocacoes;
+      let message = `${totalDeleted} registro(s) excluído(s)`;
+      if (deletedApontamentos > 0 && deletedAlocacoes > 0) {
+        message = `${deletedApontamentos} apontamento(s) e ${deletedAlocacoes} alocação(ões) excluído(s)`;
       }
       toast.success(message);
       setShowDeleteDialog(false);
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
+      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       refetch();
     } catch (error: any) {
       console.error('Error deleting:', error);
