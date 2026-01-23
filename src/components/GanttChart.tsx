@@ -412,6 +412,8 @@ export default function GanttChart({
                                   minWidth: '28px',
                                 }}
                                 onMouseDown={(e) => {
+                                  // Ignorar clique direito para permitir o ContextMenu
+                                  if (e.button === 2) return;
                                   const target = e.target as HTMLElement;
                                   if (target.dataset.resize) return;
                                   const row = e.currentTarget.parentElement as HTMLElement;
