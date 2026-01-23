@@ -23,6 +23,8 @@ import Rentabilidade from "./pages/Rentabilidade";
 import RentabilidadeProjeto from "./pages/RentabilidadeProjeto";
 import MapeamentoOmie from "./pages/MapeamentoOmie";
 import ReceitasConferencia from "./pages/ReceitasConferencia";
+import OrcamentosList from "./pages/orcamentos/OrcamentosList";
+import OrcamentoDetail from "./pages/orcamentos/OrcamentoDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +57,9 @@ const App = () => (
             <Route path="/rentabilidade/mapeamento" element={<MapeamentoOmie />} />
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
+            <Route path="/orcamentos" element={<OrcamentosList />} />
+            <Route path="/orcamentos/:id" element={<OrcamentoDetail />} />
+            <Route path="/orcamentos/:id/*" element={<OrcamentoDetail />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

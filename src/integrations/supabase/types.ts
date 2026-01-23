@@ -391,6 +391,315 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_material_items: {
+        Row: {
+          codigo: string | null
+          descricao: string
+          fator_dificuldade: number
+          fornecimento: Database["public"]["Enums"]["supply_type"]
+          hh_total: number
+          hh_unitario: number
+          id: string
+          item_seq: number
+          observacao: string | null
+          preco_total: number
+          preco_unit: number
+          quantidade: number
+          revision_id: string
+          unidade: string
+          wbs_id: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          descricao: string
+          fator_dificuldade?: number
+          fornecimento?: Database["public"]["Enums"]["supply_type"]
+          hh_total?: number
+          hh_unitario?: number
+          id?: string
+          item_seq: number
+          observacao?: string | null
+          preco_total?: number
+          preco_unit?: number
+          quantidade?: number
+          revision_id: string
+          unidade: string
+          wbs_id?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          descricao?: string
+          fator_dificuldade?: number
+          fornecimento?: Database["public"]["Enums"]["supply_type"]
+          hh_total?: number
+          hh_unitario?: number
+          id?: string
+          item_seq?: number
+          observacao?: string | null
+          preco_total?: number
+          preco_unit?: number
+          quantidade?: number
+          revision_id?: string
+          unidade?: string
+          wbs_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_material_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_material_items_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_revisions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          budget_id: string
+          condicoes_pagamento: string | null
+          created_at: string
+          created_by: string
+          exclusoes: string | null
+          id: string
+          observacoes: string | null
+          prazo_execucao_meses: number | null
+          premissas: string | null
+          projeto_id: string | null
+          revision_number: number
+          sent_at: string | null
+          status: Database["public"]["Enums"]["revision_status"]
+          validade_proposta: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_id: string
+          condicoes_pagamento?: string | null
+          created_at?: string
+          created_by: string
+          exclusoes?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo_execucao_meses?: number | null
+          premissas?: string | null
+          projeto_id?: string | null
+          revision_number?: number
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["revision_status"]
+          validade_proposta?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_id?: string
+          condicoes_pagamento?: string | null
+          created_at?: string
+          created_by?: string
+          exclusoes?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo_execucao_meses?: number | null
+          premissas?: string | null
+          projeto_id?: string | null
+          revision_number?: number
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["revision_status"]
+          validade_proposta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_revisions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
+      budget_summary: {
+        Row: {
+          id: string
+          margem_pct: number
+          margem_rs: number
+          markup_pct_aplicado: number
+          preco_venda: number
+          revision_id: string
+          subtotal_custo: number
+          total_canteiro: number
+          total_engenharia: number
+          total_equipamentos: number
+          total_hh_materiais: number
+          total_impostos: number
+          total_materiais: number
+          total_mo: number
+          total_mobilizacao: number
+          updated_at: string
+          valor_markup: number
+        }
+        Insert: {
+          id?: string
+          margem_pct?: number
+          margem_rs?: number
+          markup_pct_aplicado?: number
+          preco_venda?: number
+          revision_id: string
+          subtotal_custo?: number
+          total_canteiro?: number
+          total_engenharia?: number
+          total_equipamentos?: number
+          total_hh_materiais?: number
+          total_impostos?: number
+          total_materiais?: number
+          total_mo?: number
+          total_mobilizacao?: number
+          updated_at?: string
+          valor_markup?: number
+        }
+        Update: {
+          id?: string
+          margem_pct?: number
+          margem_rs?: number
+          markup_pct_aplicado?: number
+          preco_venda?: number
+          revision_id?: string
+          subtotal_custo?: number
+          total_canteiro?: number
+          total_engenharia?: number
+          total_equipamentos?: number
+          total_hh_materiais?: number
+          total_impostos?: number
+          total_materiais?: number
+          total_mo?: number
+          total_mobilizacao?: number
+          updated_at?: string
+          valor_markup?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_summary_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: true
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_wbs: {
+        Row: {
+          code: string
+          id: string
+          nome: string
+          ordem: number
+          parent_id: string | null
+          revision_id: string
+          tipo: Database["public"]["Enums"]["wbs_type"]
+        }
+        Insert: {
+          code: string
+          id?: string
+          nome: string
+          ordem?: number
+          parent_id?: string | null
+          revision_id: string
+          tipo?: Database["public"]["Enums"]["wbs_type"]
+        }
+        Update: {
+          code?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          parent_id?: string | null
+          revision_id?: string
+          tipo?: Database["public"]["Enums"]["wbs_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_wbs_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_wbs_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          budget_number: string
+          cliente_id: string
+          created_at: string
+          id: string
+          local: string | null
+          obra_nome: string
+          responsavel_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          budget_number: string
+          cliente_id: string
+          created_at?: string
+          id?: string
+          local?: string | null
+          obra_nome: string
+          responsavel_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          budget_number?: string
+          cliente_id?: string
+          created_at?: string
+          id?: string
+          local?: string | null
+          obra_nome?: string
+          responsavel_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collaborator_history: {
         Row: {
           changed_at: string
@@ -800,6 +1109,45 @@ export type Database = {
           salario_educacao?: number
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      material_catalog: {
+        Row: {
+          ativo: boolean
+          categoria: string | null
+          codigo: string
+          created_at: string
+          descricao: string
+          hh_unit_ref: number | null
+          id: string
+          preco_ref: number | null
+          unidade: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string | null
+          codigo: string
+          created_at?: string
+          descricao: string
+          hh_unit_ref?: number | null
+          id?: string
+          preco_ref?: number | null
+          unidade: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string | null
+          codigo?: string
+          created_at?: string
+          descricao?: string
+          hh_unit_ref?: number | null
+          id?: string
+          preco_ref?: number | null
+          unidade?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1425,6 +1773,7 @@ export type Database = {
     }
     Functions: {
       can_approve_projects: { Args: { _user_id: string }; Returns: boolean }
+      generate_next_budget_number: { Args: never; Returns: string }
       generate_next_os: { Args: never; Returns: string }
       get_alocacao_por_data: {
         Args: {
@@ -1512,7 +1861,11 @@ export type Database = {
       custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
+      eng_type: "HH" | "FECHADO"
+      gen_status: "PENDENTE" | "APLICADO"
+      hh_origin: "MATERIAIS" | "MANUAL"
       integracao_status: "OK" | "ERRO" | "PENDENTE"
+      labor_modality: "CLT" | "PACOTE"
       nivel_risco: "BAIXO" | "MEDIO" | "ALTO"
       pendencia_origem: "OMIE_AR" | "OMIE_AP" | "HORAS"
       pendencia_status: "ABERTA" | "RESOLVIDA" | "IGNORADA"
@@ -1522,12 +1875,18 @@ export type Database = {
         | "SEM_CATEGORIA"
         | "APONTAMENTO_SEM_CUSTO"
         | "OUTRO"
+      revision_status: "DRAFT" | "SENT" | "APPROVED" | "REJECTED" | "CANCELED"
       status_projeto: "ATIVO" | "CONCLUIDO" | "SUSPENSO" | "CANCELADO"
+      supply_type: "CONCEPT" | "CLIENTE" | "TERCEIRO" | "A_DEFINIR"
       sync_status: "INICIADO" | "SUCESSO" | "ERRO" | "PARCIAL"
       sync_tipo: "CONTAS_RECEBER" | "CONTAS_PAGAR" | "PROJETOS"
+      tax_base: "SALE" | "COST"
+      tax_scope: "ALL" | "MATERIALS" | "SERVICES"
+      tax_value_type: "PERCENT" | "FIXED"
       tipo_contrato: "PRECO_FECHADO" | "MAO_DE_OBRA"
       tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
       titulo_status: "ABERTO" | "PAGO" | "ATRASADO" | "CANCELADO" | "PARCIAL"
+      wbs_type: "CHAPTER" | "PACKAGE" | "ACTIVITY"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1674,7 +2033,11 @@ export const Constants = {
       custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
+      eng_type: ["HH", "FECHADO"],
+      gen_status: ["PENDENTE", "APLICADO"],
+      hh_origin: ["MATERIAIS", "MANUAL"],
       integracao_status: ["OK", "ERRO", "PENDENTE"],
+      labor_modality: ["CLT", "PACOTE"],
       nivel_risco: ["BAIXO", "MEDIO", "ALTO"],
       pendencia_origem: ["OMIE_AR", "OMIE_AP", "HORAS"],
       pendencia_status: ["ABERTA", "RESOLVIDA", "IGNORADA"],
@@ -1685,12 +2048,18 @@ export const Constants = {
         "APONTAMENTO_SEM_CUSTO",
         "OUTRO",
       ],
+      revision_status: ["DRAFT", "SENT", "APPROVED", "REJECTED", "CANCELED"],
       status_projeto: ["ATIVO", "CONCLUIDO", "SUSPENSO", "CANCELADO"],
+      supply_type: ["CONCEPT", "CLIENTE", "TERCEIRO", "A_DEFINIR"],
       sync_status: ["INICIADO", "SUCESSO", "ERRO", "PARCIAL"],
       sync_tipo: ["CONTAS_RECEBER", "CONTAS_PAGAR", "PROJETOS"],
+      tax_base: ["SALE", "COST"],
+      tax_scope: ["ALL", "MATERIALS", "SERVICES"],
+      tax_value_type: ["PERCENT", "FIXED"],
       tipo_contrato: ["PRECO_FECHADO", "MAO_DE_OBRA"],
       tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
       titulo_status: ["ABERTO", "PAGO", "ATRASADO", "CANCELADO", "PARCIAL"],
+      wbs_type: ["CHAPTER", "PACKAGE", "ACTIVITY"],
     },
   },
 } as const
