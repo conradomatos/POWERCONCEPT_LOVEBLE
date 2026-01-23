@@ -105,6 +105,35 @@ export default function Rentabilidade() {
     enabled: !!user,
   });
 
+  // Fetch total revenue from all AR titles (excluding cancelled)
+  const { data: receitaTotal } = useQuery({
+    queryKey: ['receita-total-geral'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('omie_contas_receber')
+        .select('valor, valor_recebido, status, projeto_id')
+        .neq('status', 'CANCELADO');
+
+      if (error) throw error;
+
+      const totais = data?.reduce(
+        (acc, t) => ({
+          competencia: acc.competencia + Number(t.valor),
+          caixa: acc.caixa + Number(t.valor_recebido),
+          comProjeto: acc.comProjeto + (t.projeto_id ? Number(t.valor) : 0),
+          semProjeto: acc.semProjeto + (t.projeto_id ? 0 : Number(t.valor)),
+          count: acc.count + 1,
+          comProjetoCount: acc.comProjetoCount + (t.projeto_id ? 1 : 0),
+          semProjetoCount: acc.semProjetoCount + (t.projeto_id ? 0 : 1),
+        }),
+        { competencia: 0, caixa: 0, comProjeto: 0, semProjeto: 0, count: 0, comProjetoCount: 0, semProjetoCount: 0 }
+      ) || { competencia: 0, caixa: 0, comProjeto: 0, semProjeto: 0, count: 0, comProjetoCount: 0, semProjetoCount: 0 };
+
+      return totais;
+    },
+    enabled: !!user && hasAnyRole(),
+  });
+
   // Fetch aging data for charts
   const { data: agingAR } = useQuery({
     queryKey: ['aging-ar'],
@@ -342,6 +371,7 @@ export default function Rentabilidade() {
 
   const handleSyncComplete = () => {
     queryClient.invalidateQueries({ queryKey: ['rentabilidade'] });
+    queryClient.invalidateQueries({ queryKey: ['receita-total-geral'] });
     queryClient.invalidateQueries({ queryKey: ['aging-ar'] });
     queryClient.invalidateQueries({ queryKey: ['aging-ap'] });
     queryClient.invalidateQueries({ queryKey: ['last-sync'] });
@@ -410,19 +440,27 @@ export default function Rentabilidade() {
         {/* KPI Cards - Row 1 */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <KPICard
-            title="Receita"
-            value={formatCurrency(totals.receita)}
+            title="Receita Total"
+            value={formatCurrency(visao === 'competencia' ? (receitaTotal?.competencia || 0) : (receitaTotal?.caixa || 0))}
             icon={TrendingUp}
-            variant="success"
-            subtitle={`${totals.projetosCount} projetos`}
-            tooltip={visao === 'competencia' ? 'Total de títulos emitidos' : 'Total efetivamente recebido'}
+            variant={receitaTotal?.semProjetoCount && receitaTotal.semProjetoCount > 0 ? 'warning' : 'success'}
+            subtitle={receitaTotal?.semProjetoCount 
+              ? `${receitaTotal.semProjetoCount} sem projeto (${formatCurrency(receitaTotal.semProjeto)})` 
+              : `${receitaTotal?.count || 0} títulos`}
+            tooltip={visao === 'competencia' 
+              ? 'Total de todos os títulos emitidos (excl. cancelados)' 
+              : 'Total efetivamente recebido (excl. cancelados)'}
+            onClick={() => navigate('/rentabilidade/receitas')}
           />
           <KPICard
-            title="Custos Diretos"
-            value={formatCurrency(totals.custoDireto)}
+            title="Receita Projetos"
+            value={formatCurrency(totals.receita)}
             icon={Receipt}
             variant="default"
-            tooltip={visao === 'competencia' ? 'Total de títulos a pagar' : 'Total efetivamente pago'}
+            subtitle={`${totals.projetosCount} projetos`}
+            tooltip={visao === 'competencia' 
+              ? 'Receita dos projetos vinculados' 
+              : 'Recebido dos projetos vinculados'}
           />
           <KPICard
             title="Mão de Obra"
