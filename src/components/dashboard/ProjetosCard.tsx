@@ -48,18 +48,12 @@ function getMargemColor(margem: number | null) {
   return 'text-destructive';
 }
 
-function getPrazoColor(dias: number | null) {
-  if (dias === null) return 'text-muted-foreground';
-  if (dias > 15) return 'text-emerald-500';
-  if (dias >= 5) return 'text-amber-500';
-  return 'text-destructive';
-}
-
-function getPrazoBadgeVariant(dias: number | null): "default" | "secondary" | "destructive" | "outline" {
-  if (dias === null) return 'outline';
-  if (dias > 15) return 'secondary';
-  if (dias >= 5) return 'outline';
-  return 'destructive';
+function getPrazoBadgeClasses(dias: number | null): string {
+  if (dias === null) return 'bg-muted text-muted-foreground border-muted';
+  if (dias < 0) return 'bg-destructive/10 text-destructive border-destructive/30';
+  if (dias < 5) return 'bg-destructive/10 text-destructive border-destructive/30';
+  if (dias <= 15) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
+  return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
 }
 
 function formatPrazo(dias: number | null): string {
@@ -181,8 +175,8 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge 
-                          variant={getPrazoBadgeVariant(projeto.dias_restantes)}
-                          className={cn("text-xs", getPrazoColor(projeto.dias_restantes))}
+                          variant="outline"
+                          className={cn("text-xs font-medium", getPrazoBadgeClasses(projeto.dias_restantes))}
                         >
                           {formatPrazo(projeto.dias_restantes)}
                         </Badge>
