@@ -448,6 +448,44 @@ export type Database = {
           },
         ]
       }
+      budget_documents: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          nome_arquivo: string
+          revision_id: string
+          storage_path: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          nome_arquivo: string
+          revision_id: string
+          storage_path: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          nome_arquivo?: string
+          revision_id?: string
+          storage_path?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_documents_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_generated_materials: {
         Row: {
           circuit_id: string
@@ -492,6 +530,60 @@ export type Database = {
           },
           {
             foreignKeyName: "budget_generated_materials_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_histogram: {
+        Row: {
+          created_at: string
+          custo_total: number
+          hh_100: number
+          hh_50: number
+          hh_normais: number
+          hh_total: number
+          id: string
+          labor_role_id: string
+          mes_ref: string
+          revision_id: string
+        }
+        Insert: {
+          created_at?: string
+          custo_total?: number
+          hh_100?: number
+          hh_50?: number
+          hh_normais?: number
+          hh_total?: number
+          id?: string
+          labor_role_id: string
+          mes_ref: string
+          revision_id: string
+        }
+        Update: {
+          created_at?: string
+          custo_total?: number
+          hh_100?: number
+          hh_50?: number
+          hh_normais?: number
+          hh_total?: number
+          id?: string
+          labor_role_id?: string
+          mes_ref?: string
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_histogram_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_histogram_revision_id_fkey"
             columns: ["revision_id"]
             isOneToOne: false
             referencedRelation: "budget_revisions"
@@ -804,6 +896,41 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cashflow_schedule: {
+        Row: {
+          categoria: string
+          created_at: string
+          id: string
+          mes_ref: string
+          revision_id: string
+          valor: number
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          id?: string
+          mes_ref: string
+          revision_id: string
+          valor?: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          id?: string
+          mes_ref?: string
+          revision_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashflow_schedule_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
             referencedColumns: ["id"]
           },
         ]

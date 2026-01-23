@@ -246,35 +246,8 @@ export default function OrcamentoDetail() {
           />
         )}
 
-        {/* Content Area - Show sub-routes or default view */}
-        {isSubRoute ? (
-          <Outlet context={{ budget, selectedRevision, lockState }} />
-        ) : (
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center py-12">
-                <h3 className="text-lg font-medium mb-2">Visão Geral do Orçamento</h3>
-                <p className="text-muted-foreground mb-6">
-                  Selecione uma seção no menu lateral para começar a editar o orçamento.
-                </p>
-                <div className="flex justify-center gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate(`/orcamentos/${budgetId}/materiais`)}
-                  >
-                    Ir para Materiais
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => navigate(`/orcamentos/${budgetId}/resumo`)}
-                  >
-                    Ver Resumo
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Content Area - Always show Outlet for nested routes */}
+        <Outlet context={{ budget, selectedRevision, lockState }} />
       </div>
     </Layout>
   );
