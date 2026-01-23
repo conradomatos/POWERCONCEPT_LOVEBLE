@@ -21,12 +21,13 @@ const MULT_50 = 1.5;
 const MULT_100 = 2.0;
 const MULT_NOTURNO = 1.0;
 
-type RowStatus = 'OK' | 'ERRO' | 'AVISO';
+type RowStatus = 'OK' | 'ERRO' | 'AVISO' | 'IGNORADO';
 type ErrorCode = 
   | 'CPF_INVALIDO' 
   | 'CPF_NAO_ENCONTRADO' 
   | 'DATA_INVALIDA' 
   | 'OS_VAZIA'
+  | 'OS_PENDENTE'
   | 'OS_NAO_ENCONTRADA' 
   | 'HORAS_INVALIDAS'
   | 'SEM_CUSTO_VIGENTE';
@@ -331,7 +332,7 @@ export default function ImportApontamentos() {
   };
 
   // Validate a single row
-  const validateRow = (row: Record<string, unknown>, rowNum: number): PreviewRow => {
+  const validateRow = (row: Record<string, unknown>, rowNum: number): PreviewRow | null => {
     const cpfRaw = String(row['cpf'] || '');
     const cpfLimpo = cleanCPF(cpfRaw);
     const dataRaw = row['data'];
@@ -345,6 +346,16 @@ export default function ImportApontamentos() {
     const faltaHoras = parseHours(row['falta_horas']);
     
     const dataParsed = parseDate(dataRaw);
+    
+    // Check if row has any hours
+    const totalHoras = (horasNormais ?? 0) + (horas50 ?? 0) + (horas100 ?? 0) + (horasNoturnas ?? 0);
+    const temHoras = totalHoras > 0;
+    const temOS = osRaw !== '';
+    
+    // If no hours AND no OS, ignore the row completely (return null)
+    if (!temHoras && !temOS) {
+      return null;
+    }
     
     const result: PreviewRow = {
       linha_csv: rowNum,
@@ -389,29 +400,34 @@ export default function ImportApontamentos() {
       return result;
     }
     
-    // Validation: OS not empty
-    if (!osRaw) {
-      result.status_linha = 'ERRO';
-      result.codigo_erro_ou_aviso = 'OS_VAZIA';
-      result.mensagem = 'OS não pode ser vazia';
-      return result;
+    // Validation: OS - if has hours but no OS, mark as PENDENTE (warning, not error)
+    if (!temOS && temHoras) {
+      result.status_linha = 'AVISO';
+      result.codigo_erro_ou_aviso = 'OS_PENDENTE';
+      result.mensagem = 'OS não informada - apontamento pendente de alocação';
+      // Continue validation but won't have projeto_id
+    } else if (temOS) {
+      // Validation: OS exists in projects
+      const projeto = osToProject.get(osRaw);
+      if (!projeto) {
+        result.status_linha = 'ERRO';
+        result.codigo_erro_ou_aviso = 'OS_NAO_ENCONTRADA';
+        result.mensagem = `OS "${osRaw}" não encontrada nos projetos`;
+        return result;
+      }
+      result.projeto_id = projeto.id;
     }
-    
-    // Validation: OS exists in projects
-    const projeto = osToProject.get(osRaw);
-    if (!projeto) {
-      result.status_linha = 'ERRO';
-      result.codigo_erro_ou_aviso = 'OS_NAO_ENCONTRADA';
-      result.mensagem = `OS "${osRaw}" não encontrada nos projetos`;
-      return result;
-    }
-    result.projeto_id = projeto.id;
     
     // Validation: Hours are valid (falta_horas is optional, defaults to 0)
     if (horasNormais === null || horas50 === null || horas100 === null || horasNoturnas === null) {
       result.status_linha = 'ERRO';
       result.codigo_erro_ou_aviso = 'HORAS_INVALIDAS';
       result.mensagem = 'Uma ou mais colunas de horas contém valor inválido ou negativo';
+      return result;
+    }
+    
+    // If already has a warning (OS_PENDENTE), keep it
+    if (result.status_linha === 'AVISO') {
       return result;
     }
     
@@ -474,7 +490,7 @@ export default function ImportApontamentos() {
         normalizedRow[normalizedKey] = row[key];
       });
       return validateRow(normalizedRow, index + 2);
-    });
+    }).filter((row): row is PreviewRow => row !== null); // Filter out ignored rows (null)
     
     setPreview(previewData);
     setImported(false);
@@ -509,7 +525,7 @@ export default function ImportApontamentos() {
         rowObj[header] = row[i] || '';
       });
       return validateRow(rowObj, index + 2);
-    });
+    }).filter((row): row is PreviewRow => row !== null); // Filter out ignored rows (null)
 
     setPreview(previewData);
     setImported(false);
@@ -627,8 +643,11 @@ export default function ImportApontamentos() {
 
       let ganttAtualizado = false;
 
-      if (!hasError && row.data_parsed && row.colaborador_id && row.projeto_id) {
-        // Track dates for block creation
+      // Import both OK and AVISO rows (warnings are still importable)
+      const canImport = !hasError && row.data_parsed && row.colaborador_id;
+      
+      if (canImport && row.projeto_id) {
+        // Track dates for block creation (only when projeto_id exists)
         const blockKey = `${row.colaborador_id}_${row.projeto_id}`;
         if (!blocksMap.has(blockKey)) {
           blocksMap.set(blockKey, {
@@ -638,92 +657,100 @@ export default function ImportApontamentos() {
           });
         }
         blocksMap.get(blockKey)!.dates.push(dateStr);
-        
-        // Upsert apontamentos_horas_dia
-        const { error: apontamentoError } = await supabase
-          .from('apontamentos_horas_dia')
-          .upsert({
-            cpf: row.cpf_limpo,
-            colaborador_id: row.colaborador_id!,
-            data: dateStr,
-            os: row.os,
-            projeto_id: row.projeto_id!,
-            horas_normais: row.horas_normais,
-            horas_50: row.horas_50,
-            horas_100: row.horas_100,
-            horas_noturnas: row.horas_noturnas,
-            falta_horas: row.falta_horas,
-            warning_sem_custo: hasWarning,
-            fonte: 'XLSX',
-          }, {
-            onConflict: 'cpf,data,projeto_id',
-          });
+      }
+      
+      if (canImport) {
+        // Upsert apontamentos_horas_dia (only if has projeto_id)
+        if (row.projeto_id) {
+          const { error: apontamentoError } = await supabase
+            .from('apontamentos_horas_dia')
+            .upsert({
+              cpf: row.cpf_limpo,
+              colaborador_id: row.colaborador_id!,
+              data: dateStr,
+              os: row.os,
+              projeto_id: row.projeto_id!,
+              horas_normais: row.horas_normais,
+              horas_50: row.horas_50,
+              horas_100: row.horas_100,
+              horas_noturnas: row.horas_noturnas,
+              falta_horas: row.falta_horas,
+              warning_sem_custo: hasWarning && row.codigo_erro_ou_aviso === 'SEM_CUSTO_VIGENTE',
+              fonte: 'XLSX',
+            }, {
+              onConflict: 'cpf,data,projeto_id',
+            });
 
-        if (apontamentoError) {
-          console.error('Erro ao inserir apontamento:', apontamentoError);
+          if (apontamentoError) {
+            console.error('Erro ao inserir apontamento:', apontamentoError);
+          }
         }
 
-        // Calculate and upsert custo_projeto_dia
-        if (row.custo_vigente) {
-          const custoHora = row.custo_vigente.custo_hora;
-          const custoNormal = row.horas_normais * custoHora;
-          const custo50 = row.horas_50 * custoHora * MULT_50;
-          const custo100 = row.horas_100 * custoHora * MULT_100;
-          const custoNoturno = row.horas_noturnas * custoHora * MULT_NOTURNO;
-          const custoTotal = custoNormal + custo50 + custo100 + custoNoturno;
+        // Calculate and upsert custo_projeto_dia (only if has projeto_id)
+        if (row.projeto_id) {
+          if (row.custo_vigente) {
+            const custoHora = row.custo_vigente.custo_hora;
+            const custoNormal = row.horas_normais * custoHora;
+            const custo50 = row.horas_50 * custoHora * MULT_50;
+            const custo100 = row.horas_100 * custoHora * MULT_100;
+            const custoNoturno = row.horas_noturnas * custoHora * MULT_NOTURNO;
+            const custoTotal = custoNormal + custo50 + custo100 + custoNoturno;
 
-          await supabase
-            .from('custo_projeto_dia')
-            .upsert({
-              cpf: row.cpf_limpo,
-              colaborador_id: row.colaborador_id!,
-              data: dateStr,
-              projeto_id: row.projeto_id!,
-              custo_hora: custoHora,
-              horas_normais: row.horas_normais,
-              horas_50: row.horas_50,
-              horas_100: row.horas_100,
-              horas_noturnas: row.horas_noturnas,
-              falta_horas: row.falta_horas,
-              custo_normal: Math.round(custoNormal * 100) / 100,
-              custo_50: Math.round(custo50 * 100) / 100,
-              custo_100: Math.round(custo100 * 100) / 100,
-              custo_noturno: Math.round(custoNoturno * 100) / 100,
-              custo_total: Math.round(custoTotal * 100) / 100,
-              status: 'OK',
-              observacao: null,
-            }, {
-              onConflict: 'cpf,data,projeto_id',
-            });
-          okCount++;
+            await supabase
+              .from('custo_projeto_dia')
+              .upsert({
+                cpf: row.cpf_limpo,
+                colaborador_id: row.colaborador_id!,
+                data: dateStr,
+                projeto_id: row.projeto_id!,
+                custo_hora: custoHora,
+                horas_normais: row.horas_normais,
+                horas_50: row.horas_50,
+                horas_100: row.horas_100,
+                horas_noturnas: row.horas_noturnas,
+                falta_horas: row.falta_horas,
+                custo_normal: Math.round(custoNormal * 100) / 100,
+                custo_50: Math.round(custo50 * 100) / 100,
+                custo_100: Math.round(custo100 * 100) / 100,
+                custo_noturno: Math.round(custoNoturno * 100) / 100,
+                custo_total: Math.round(custoTotal * 100) / 100,
+                status: 'OK',
+                observacao: null,
+              }, {
+                onConflict: 'cpf,data,projeto_id',
+              });
+            okCount++;
+          } else {
+            await supabase
+              .from('custo_projeto_dia')
+              .upsert({
+                cpf: row.cpf_limpo,
+                colaborador_id: row.colaborador_id!,
+                data: dateStr,
+                projeto_id: row.projeto_id!,
+                custo_hora: null,
+                horas_normais: row.horas_normais,
+                horas_50: row.horas_50,
+                horas_100: row.horas_100,
+                horas_noturnas: row.horas_noturnas,
+                falta_horas: row.falta_horas,
+                custo_normal: null,
+                custo_50: null,
+                custo_100: null,
+                custo_noturno: null,
+                custo_total: null,
+                status: 'SEM_CUSTO',
+                observacao: 'Sem custo vigente na data',
+              }, {
+                onConflict: 'cpf,data,projeto_id',
+              });
+            okCount++; // Still counts as success, just with warning
+          }
+          ganttAtualizado = true;
         } else {
-          await supabase
-            .from('custo_projeto_dia')
-            .upsert({
-              cpf: row.cpf_limpo,
-              colaborador_id: row.colaborador_id!,
-              data: dateStr,
-              projeto_id: row.projeto_id!,
-              custo_hora: null,
-              horas_normais: row.horas_normais,
-              horas_50: row.horas_50,
-              horas_100: row.horas_100,
-              horas_noturnas: row.horas_noturnas,
-              falta_horas: row.falta_horas,
-              custo_normal: null,
-              custo_50: null,
-              custo_100: null,
-              custo_noturno: null,
-              custo_total: null,
-              status: 'SEM_CUSTO',
-              observacao: 'Sem custo vigente na data',
-            }, {
-              onConflict: 'cpf,data,projeto_id',
-            });
+          // Has hours but no OS - counts as warning/pending
           avisoCount++;
         }
-
-        ganttAtualizado = true;
       } else {
         erroCount++;
       }
@@ -752,8 +779,8 @@ export default function ImportApontamentos() {
             tipo_hora: hourType.tipo,
             descricao: null,
             observacao: row.mensagem || null,
-            status_apontamento: hasError ? 'PENDENTE' : 'LANCADO',
-            status_integracao: hasError ? 'ERRO' : 'OK',
+            status_apontamento: hasError ? 'PENDENTE' : (row.codigo_erro_ou_aviso === 'OS_PENDENTE' ? 'PENDENTE' : 'LANCADO'),
+            status_integracao: hasError ? 'ERRO' : (row.codigo_erro_ou_aviso === 'OS_PENDENTE' ? 'PENDENTE' : 'OK'),
             motivo_erro: hasError ? row.mensagem : null,
             gantt_atualizado: ganttAtualizado,
             data_atualizacao_gantt: ganttAtualizado ? new Date().toISOString() : null,
