@@ -391,6 +391,114 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_circuits: {
+        Row: {
+          corrente_in_a: number | null
+          created_at: string
+          fatores_json: Json | null
+          id: string
+          kw: number | null
+          revision_id: string
+          saida_json: Json | null
+          tag: string
+          tensao_v: number | null
+          tipo_partida: string | null
+          wbs_id: string | null
+        }
+        Insert: {
+          corrente_in_a?: number | null
+          created_at?: string
+          fatores_json?: Json | null
+          id?: string
+          kw?: number | null
+          revision_id: string
+          saida_json?: Json | null
+          tag: string
+          tensao_v?: number | null
+          tipo_partida?: string | null
+          wbs_id?: string | null
+        }
+        Update: {
+          corrente_in_a?: number | null
+          created_at?: string
+          fatores_json?: Json | null
+          id?: string
+          kw?: number | null
+          revision_id?: string
+          saida_json?: Json | null
+          tag?: string
+          tensao_v?: number | null
+          tipo_partida?: string | null
+          wbs_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_circuits_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_circuits_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_generated_materials: {
+        Row: {
+          circuit_id: string
+          created_at: string
+          descricao: string
+          id: string
+          material_codigo: string
+          quantidade: number
+          revision_id: string
+          status: Database["public"]["Enums"]["gen_status"]
+          unidade: string
+        }
+        Insert: {
+          circuit_id: string
+          created_at?: string
+          descricao: string
+          id?: string
+          material_codigo: string
+          quantidade?: number
+          revision_id: string
+          status?: Database["public"]["Enums"]["gen_status"]
+          unidade: string
+        }
+        Update: {
+          circuit_id?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          material_codigo?: string
+          quantidade?: number
+          revision_id?: string
+          status?: Database["public"]["Enums"]["gen_status"]
+          unidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_generated_materials_circuit_id_fkey"
+            columns: ["circuit_id"]
+            isOneToOne: false
+            referencedRelation: "budget_circuits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_generated_materials_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_material_items: {
         Row: {
           codigo: string | null
@@ -1112,6 +1220,352 @@ export type Database = {
         }
         Relationships: []
       }
+      engineering_items: {
+        Row: {
+          created_at: string
+          descricao: string
+          hh: number | null
+          id: string
+          labor_role_id: string | null
+          revision_id: string
+          tipo: Database["public"]["Enums"]["eng_type"]
+          total: number
+          valor: number | null
+          wbs_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          hh?: number | null
+          id?: string
+          labor_role_id?: string | null
+          revision_id: string
+          tipo?: Database["public"]["Enums"]["eng_type"]
+          total?: number
+          valor?: number | null
+          wbs_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          hh?: number | null
+          id?: string
+          labor_role_id?: string | null
+          revision_id?: string
+          tipo?: Database["public"]["Enums"]["eng_type"]
+          total?: number
+          valor?: number | null
+          wbs_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engineering_items_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engineering_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engineering_items_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_rentals: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          meses: number
+          quantidade: number
+          revision_id: string
+          total: number
+          valor_mensal: number
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          meses?: number
+          quantidade?: number
+          revision_id: string
+          total?: number
+          valor_mensal?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          meses?: number
+          quantidade?: number
+          revision_id?: string
+          total?: number
+          valor_mensal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_rentals_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_cost_snapshot: {
+        Row: {
+          custo_hora_he100: number
+          custo_hora_he50: number
+          custo_hora_normal: number
+          id: string
+          labor_role_id: string
+          memoria_json: Json | null
+          revision_id: string
+          updated_at: string
+        }
+        Insert: {
+          custo_hora_he100?: number
+          custo_hora_he50?: number
+          custo_hora_normal?: number
+          id?: string
+          labor_role_id: string
+          memoria_json?: Json | null
+          revision_id: string
+          updated_at?: string
+        }
+        Update: {
+          custo_hora_he100?: number
+          custo_hora_he50?: number
+          custo_hora_normal?: number
+          id?: string
+          labor_role_id?: string
+          memoria_json?: Json | null
+          revision_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_cost_snapshot_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_cost_snapshot_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_hh_allocations: {
+        Row: {
+          created_at: string
+          custo_total: number
+          descricao: string
+          hh_100: number
+          hh_50: number
+          hh_normais: number
+          hh_total: number
+          id: string
+          labor_role_id: string
+          origem: Database["public"]["Enums"]["hh_origin"]
+          revision_id: string
+          wbs_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          custo_total?: number
+          descricao: string
+          hh_100?: number
+          hh_50?: number
+          hh_normais?: number
+          hh_total?: number
+          id?: string
+          labor_role_id: string
+          origem?: Database["public"]["Enums"]["hh_origin"]
+          revision_id: string
+          wbs_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          custo_total?: number
+          descricao?: string
+          hh_100?: number
+          hh_50?: number
+          hh_normais?: number
+          hh_total?: number
+          id?: string
+          labor_role_id?: string
+          origem?: Database["public"]["Enums"]["hh_origin"]
+          revision_id?: string
+          wbs_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_hh_allocations_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_hh_allocations_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_hh_allocations_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_parameters: {
+        Row: {
+          adicional_noturno_pct: number
+          created_at: string
+          custos_pessoa_json: Json | null
+          encargos_pct: number
+          he100_pct: number
+          he50_pct: number
+          id: string
+          improdutividade_pct: number
+          incidencias_json: Json | null
+          insalubridade_pct: number
+          periculosidade_pct: number
+          revision_id: string
+          updated_at: string
+        }
+        Insert: {
+          adicional_noturno_pct?: number
+          created_at?: string
+          custos_pessoa_json?: Json | null
+          encargos_pct?: number
+          he100_pct?: number
+          he50_pct?: number
+          id?: string
+          improdutividade_pct?: number
+          incidencias_json?: Json | null
+          insalubridade_pct?: number
+          periculosidade_pct?: number
+          revision_id: string
+          updated_at?: string
+        }
+        Update: {
+          adicional_noturno_pct?: number
+          created_at?: string
+          custos_pessoa_json?: Json | null
+          encargos_pct?: number
+          he100_pct?: number
+          he50_pct?: number
+          id?: string
+          improdutividade_pct?: number
+          incidencias_json?: Json | null
+          insalubridade_pct?: number
+          periculosidade_pct?: number
+          revision_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_parameters_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: true
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_roles: {
+        Row: {
+          ativo: boolean
+          carga_horaria_mensal: number
+          created_at: string
+          funcao: string
+          id: string
+          modalidade: Database["public"]["Enums"]["labor_modality"]
+          revision_id: string
+          salario_base: number
+        }
+        Insert: {
+          ativo?: boolean
+          carga_horaria_mensal?: number
+          created_at?: string
+          funcao: string
+          id?: string
+          modalidade?: Database["public"]["Enums"]["labor_modality"]
+          revision_id: string
+          salario_base?: number
+        }
+        Update: {
+          ativo?: boolean
+          carga_horaria_mensal?: number
+          created_at?: string
+          funcao?: string
+          id?: string
+          modalidade?: Database["public"]["Enums"]["labor_modality"]
+          revision_id?: string
+          salario_base?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_roles_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      markup_rules: {
+        Row: {
+          allow_per_wbs: boolean
+          created_at: string
+          id: string
+          markup_pct: number
+          revision_id: string
+        }
+        Insert: {
+          allow_per_wbs?: boolean
+          created_at?: string
+          id?: string
+          markup_pct?: number
+          revision_id: string
+        }
+        Update: {
+          allow_per_wbs?: boolean
+          created_at?: string
+          id?: string
+          markup_pct?: number
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "markup_rules_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: true
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_catalog: {
         Row: {
           ativo: boolean
@@ -1150,6 +1604,57 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      mobilization_items: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          quantidade: number
+          revision_id: string
+          total: number
+          unidade: string | null
+          valor_unitario: number
+          wbs_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          quantidade?: number
+          revision_id: string
+          total?: number
+          unidade?: string | null
+          valor_unitario?: number
+          wbs_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          quantidade?: number
+          revision_id?: string
+          total?: number
+          unidade?: string | null
+          valor_unitario?: number
+          wbs_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mobilization_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mobilization_items_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       omie_contas_pagar: {
         Row: {
@@ -1635,6 +2140,88 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_maintenance_items: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          meses: number
+          revision_id: string
+          total: number
+          valor_mensal: number
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          meses?: number
+          revision_id: string
+          total?: number
+          valor_mensal?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          meses?: number
+          revision_id?: string
+          total?: number
+          valor_mensal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_maintenance_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_rules: {
+        Row: {
+          aplica_em: Database["public"]["Enums"]["tax_scope"]
+          ativo: boolean
+          base: Database["public"]["Enums"]["tax_base"]
+          created_at: string
+          id: string
+          nome: string
+          revision_id: string
+          tipo: Database["public"]["Enums"]["tax_value_type"]
+          valor: number
+        }
+        Insert: {
+          aplica_em?: Database["public"]["Enums"]["tax_scope"]
+          ativo?: boolean
+          base?: Database["public"]["Enums"]["tax_base"]
+          created_at?: string
+          id?: string
+          nome: string
+          revision_id: string
+          tipo?: Database["public"]["Enums"]["tax_value_type"]
+          valor?: number
+        }
+        Update: {
+          aplica_em?: Database["public"]["Enums"]["tax_scope"]
+          ativo?: boolean
+          base?: Database["public"]["Enums"]["tax_base"]
+          created_at?: string
+          id?: string
+          nome?: string
+          revision_id?: string
+          tipo?: Database["public"]["Enums"]["tax_value_type"]
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rules_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
             referencedColumns: ["id"]
           },
         ]
