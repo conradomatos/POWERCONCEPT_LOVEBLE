@@ -583,6 +583,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "budget_histogram_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "budget_histogram_revision_id_fkey"
             columns: ["revision_id"]
             isOneToOne: false
@@ -820,6 +827,48 @@ export type Database = {
             columns: ["revision_id"]
             isOneToOne: true
             referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_taxes: {
+        Row: {
+          aliquota: number
+          ativo: boolean
+          created_at: string
+          id: string
+          revision_id: string
+          tax_catalog_id: string
+        }
+        Insert: {
+          aliquota?: number
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          revision_id: string
+          tax_catalog_id: string
+        }
+        Update: {
+          aliquota?: number
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          revision_id?: string
+          tax_catalog_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_taxes_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_taxes_tax_catalog_id_fkey"
+            columns: ["tax_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rules_catalog"
             referencedColumns: ["id"]
           },
         ]
@@ -1386,6 +1435,7 @@ export type Database = {
       }
       engineering_items: {
         Row: {
+          catalog_id: string | null
           created_at: string
           descricao: string
           hh: number | null
@@ -1398,6 +1448,7 @@ export type Database = {
           wbs_id: string | null
         }
         Insert: {
+          catalog_id?: string | null
           created_at?: string
           descricao: string
           hh?: number | null
@@ -1410,6 +1461,7 @@ export type Database = {
           wbs_id?: string | null
         }
         Update: {
+          catalog_id?: string | null
           created_at?: string
           descricao?: string
           hh?: number | null
@@ -1423,10 +1475,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "engineering_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "engineering_catalog"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "engineering_items_labor_role_id_fkey"
             columns: ["labor_role_id"]
             isOneToOne: false
             referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engineering_items_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles"
             referencedColumns: ["id"]
           },
           {
@@ -1447,6 +1513,7 @@ export type Database = {
       }
       equipment_rentals: {
         Row: {
+          catalog_id: string | null
           created_at: string
           descricao: string
           id: string
@@ -1457,6 +1524,7 @@ export type Database = {
           valor_mensal: number
         }
         Insert: {
+          catalog_id?: string | null
           created_at?: string
           descricao: string
           id?: string
@@ -1467,6 +1535,7 @@ export type Database = {
           valor_mensal?: number
         }
         Update: {
+          catalog_id?: string | null
           created_at?: string
           descricao?: string
           id?: string
@@ -1477,6 +1546,13 @@ export type Database = {
           valor_mensal?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "equipment_rentals_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_rentals_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "equipment_rentals_revision_id_fkey"
             columns: ["revision_id"]
@@ -1547,6 +1623,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "labor_cost_snapshot_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "labor_cost_snapshot_revision_id_fkey"
             columns: ["revision_id"]
             isOneToOne: false
@@ -1604,6 +1687,13 @@ export type Database = {
             columns: ["labor_role_id"]
             isOneToOne: false
             referencedRelation: "labor_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_hh_allocations_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles"
             referencedColumns: ["id"]
           },
           {
@@ -1754,6 +1844,7 @@ export type Database = {
         Row: {
           ativo: boolean
           carga_horaria_mensal: number
+          catalog_id: string | null
           created_at: string
           funcao: string
           id: string
@@ -1764,6 +1855,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           carga_horaria_mensal?: number
+          catalog_id?: string | null
           created_at?: string
           funcao: string
           id?: string
@@ -1774,6 +1866,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           carga_horaria_mensal?: number
+          catalog_id?: string | null
           created_at?: string
           funcao?: string
           id?: string
@@ -1782,6 +1875,13 @@ export type Database = {
           salario_base?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "labor_roles_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "labor_role_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "labor_roles_revision_id_fkey"
             columns: ["revision_id"]
@@ -2764,6 +2864,144 @@ export type Database = {
           usuario_lancamento: string | null
         }
         Relationships: []
+      }
+      vw_budget_equipment: {
+        Row: {
+          catalog_id: string | null
+          descricao: string | null
+          from_catalog: boolean | null
+          id: string | null
+          meses: number | null
+          quantidade: number | null
+          revision_id: string | null
+          total: number | null
+          valor_mensal: number | null
+          valor_referencia: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_rentals_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_rentals_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_rentals_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_budget_labor_roles: {
+        Row: {
+          ativo: boolean | null
+          carga_horaria_mensal: number | null
+          catalog_id: string | null
+          from_catalog: boolean | null
+          funcao: string | null
+          id: string | null
+          modalidade: Database["public"]["Enums"]["labor_modality"] | null
+          revision_id: string | null
+          salario_base: number | null
+          salario_referencia: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_roles_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "labor_role_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_roles_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_budget_materials: {
+        Row: {
+          catalog_id: string | null
+          categoria: string | null
+          codigo: string | null
+          descricao: string | null
+          fator_dificuldade: number | null
+          fornecimento: Database["public"]["Enums"]["supply_type"] | null
+          from_catalog: boolean | null
+          hh_total: number | null
+          hh_unitario_ref: number | null
+          id: string | null
+          item_seq: number | null
+          observacao: string | null
+          preco_referencia: number | null
+          preco_total: number | null
+          preco_unit: number | null
+          quantidade: number | null
+          revision_id: string | null
+          unidade: string | null
+          wbs_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_material_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_material_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_material_items_wbs_id_fkey"
+            columns: ["wbs_id"]
+            isOneToOne: false
+            referencedRelation: "budget_wbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_budget_taxes: {
+        Row: {
+          aliquota: number | null
+          aliquota_referencia: number | null
+          ativo: boolean | null
+          base: Database["public"]["Enums"]["tax_base"] | null
+          created_at: string | null
+          escopo: Database["public"]["Enums"]["tax_scope"] | null
+          id: string | null
+          nome: string | null
+          revision_id: string | null
+          sigla: string | null
+          tax_catalog_id: string | null
+          tipo_valor: Database["public"]["Enums"]["tax_value_type"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_taxes_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_taxes_tax_catalog_id_fkey"
+            columns: ["tax_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rules_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_custo_projeto: {
         Row: {
