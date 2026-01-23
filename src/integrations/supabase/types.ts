@@ -1357,6 +1357,33 @@ export type Database = {
         }
         Relationships: []
       }
+      engineering_catalog: {
+        Row: {
+          created_at: string
+          descricao: string
+          hh_ref: number | null
+          id: string
+          tipo: Database["public"]["Enums"]["eng_type"]
+          valor_ref: number | null
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          hh_ref?: number | null
+          id?: string
+          tipo?: Database["public"]["Enums"]["eng_type"]
+          valor_ref?: number | null
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          hh_ref?: number | null
+          id?: string
+          tipo?: Database["public"]["Enums"]["eng_type"]
+          valor_ref?: number | null
+        }
+        Relationships: []
+      }
       engineering_items: {
         Row: {
           created_at: string
@@ -1458,6 +1485,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      equipment_rentals_catalog: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          valor_mensal_ref: number
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          valor_mensal_ref?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          valor_mensal_ref?: number
+        }
+        Relationships: []
       }
       labor_cost_snapshot: {
         Row: {
@@ -1574,6 +1622,51 @@ export type Database = {
           },
         ]
       }
+      labor_param_catalog: {
+        Row: {
+          adicional_noturno_pct_ref: number
+          created_at: string
+          custos_pessoa_json_ref: Json | null
+          encargos_pct_ref: number
+          he100_pct_ref: number
+          he50_pct_ref: number
+          id: string
+          improdutividade_pct_ref: number
+          incidencias_json_ref: Json | null
+          insalubridade_pct_ref: number
+          nome: string
+          periculosidade_pct_ref: number
+        }
+        Insert: {
+          adicional_noturno_pct_ref?: number
+          created_at?: string
+          custos_pessoa_json_ref?: Json | null
+          encargos_pct_ref?: number
+          he100_pct_ref?: number
+          he50_pct_ref?: number
+          id?: string
+          improdutividade_pct_ref?: number
+          incidencias_json_ref?: Json | null
+          insalubridade_pct_ref?: number
+          nome: string
+          periculosidade_pct_ref?: number
+        }
+        Update: {
+          adicional_noturno_pct_ref?: number
+          created_at?: string
+          custos_pessoa_json_ref?: Json | null
+          encargos_pct_ref?: number
+          he100_pct_ref?: number
+          he50_pct_ref?: number
+          id?: string
+          improdutividade_pct_ref?: number
+          incidencias_json_ref?: Json | null
+          insalubridade_pct_ref?: number
+          nome?: string
+          periculosidade_pct_ref?: number
+        }
+        Relationships: []
+      }
       labor_parameters: {
         Row: {
           adicional_noturno_pct: number
@@ -1630,6 +1723,33 @@ export type Database = {
           },
         ]
       }
+      labor_role_catalog: {
+        Row: {
+          carga_horaria_ref: number
+          created_at: string
+          funcao: string
+          id: string
+          modalidade: Database["public"]["Enums"]["labor_modality"]
+          salario_base_ref: number
+        }
+        Insert: {
+          carga_horaria_ref?: number
+          created_at?: string
+          funcao: string
+          id?: string
+          modalidade?: Database["public"]["Enums"]["labor_modality"]
+          salario_base_ref?: number
+        }
+        Update: {
+          carga_horaria_ref?: number
+          created_at?: string
+          funcao?: string
+          id?: string
+          modalidade?: Database["public"]["Enums"]["labor_modality"]
+          salario_base_ref?: number
+        }
+        Relationships: []
+      }
       labor_roles: {
         Row: {
           ativo: boolean
@@ -1671,6 +1791,27 @@ export type Database = {
           },
         ]
       }
+      markup_rule_sets: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       markup_rules: {
         Row: {
           allow_per_wbs: boolean
@@ -1699,6 +1840,35 @@ export type Database = {
             columns: ["revision_id"]
             isOneToOne: true
             referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      markup_rules_catalog: {
+        Row: {
+          allow_per_wbs: boolean
+          id: string
+          markup_pct: number
+          set_id: string
+        }
+        Insert: {
+          allow_per_wbs?: boolean
+          id?: string
+          markup_pct?: number
+          set_id: string
+        }
+        Update: {
+          allow_per_wbs?: boolean
+          id?: string
+          markup_pct?: number
+          set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "markup_rules_catalog_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "markup_rule_sets"
             referencedColumns: ["id"]
           },
         ]
@@ -1739,6 +1909,30 @@ export type Database = {
           preco_ref?: number | null
           unidade?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      mobilization_catalog: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          unidade: string | null
+          valor_unitario_ref: number
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          unidade?: string | null
+          valor_unitario_ref?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          unidade?: string | null
+          valor_unitario_ref?: number
         }
         Relationships: []
       }
@@ -2281,6 +2475,27 @@ export type Database = {
           },
         ]
       }
+      site_maintenance_catalog: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          valor_mensal_ref: number
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          valor_mensal_ref?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          valor_mensal_ref?: number
+        }
+        Relationships: []
+      }
       site_maintenance_items: {
         Row: {
           created_at: string
@@ -2318,6 +2533,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tax_rule_sets: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
       }
       tax_rules: {
         Row: {
@@ -2363,6 +2599,50 @@ export type Database = {
           },
         ]
       }
+      tax_rules_catalog: {
+        Row: {
+          base: Database["public"]["Enums"]["tax_base"]
+          escopo: Database["public"]["Enums"]["tax_scope"]
+          id: string
+          nome: string
+          ordem: number
+          set_id: string
+          sigla: string
+          tipo_valor: Database["public"]["Enums"]["tax_value_type"]
+          valor: number
+        }
+        Insert: {
+          base?: Database["public"]["Enums"]["tax_base"]
+          escopo?: Database["public"]["Enums"]["tax_scope"]
+          id?: string
+          nome: string
+          ordem?: number
+          set_id: string
+          sigla: string
+          tipo_valor?: Database["public"]["Enums"]["tax_value_type"]
+          valor?: number
+        }
+        Update: {
+          base?: Database["public"]["Enums"]["tax_base"]
+          escopo?: Database["public"]["Enums"]["tax_scope"]
+          id?: string
+          nome?: string
+          ordem?: number
+          set_id?: string
+          sigla?: string
+          tipo_valor?: Database["public"]["Enums"]["tax_value_type"]
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rules_catalog_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rule_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -2381,6 +2661,68 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      wbs_template_items: {
+        Row: {
+          code: string
+          id: string
+          nome: string
+          ordem: number
+          parent_code: string | null
+          template_id: string
+          tipo: Database["public"]["Enums"]["wbs_type"]
+        }
+        Insert: {
+          code: string
+          id?: string
+          nome: string
+          ordem?: number
+          parent_code?: string | null
+          template_id: string
+          tipo?: Database["public"]["Enums"]["wbs_type"]
+        }
+        Update: {
+          code?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          parent_code?: string | null
+          template_id?: string
+          tipo?: Database["public"]["Enums"]["wbs_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wbs_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wbs_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
         }
         Relationships: []
       }
