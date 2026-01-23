@@ -45,6 +45,7 @@ const routeToArea: Record<string, NavigationArea> = {
   '/custos-projeto': 'relatorios',
   // Orçamentos
   '/orcamentos': 'orcamentos',
+  '/orcamentos/bases': 'orcamentos',
 };
 
 export default function Layout({ children }: LayoutProps) {

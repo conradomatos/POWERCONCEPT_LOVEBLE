@@ -24,8 +24,6 @@ import {
 import { Plus, Trash2, Save } from 'lucide-react';
 import { useTaxRules, type TaxRuleFormData } from '@/hooks/orcamentos/useTaxRules';
 import { useMarkupRules, type MarkupFormData } from '@/hooks/orcamentos/useMarkupRules';
-import { useMaterialCatalog, type CatalogFormData } from '@/hooks/orcamentos/useMaterialCatalog';
-import { formatCurrency } from '@/lib/currency';
 
 interface OutletContext {
   selectedRevision?: { id: string; status: string };
@@ -36,7 +34,6 @@ export default function Parametros() {
   const { selectedRevision, lockState } = useOutletContext<OutletContext>();
   const { rules: taxRules, isLoading: taxLoading, createRule, updateRule, deleteRule } = useTaxRules(selectedRevision?.id);
   const { markup, isLoading: markupLoading, upsertMarkup } = useMarkupRules(selectedRevision?.id);
-  const { items: catalogItems, isLoading: catalogLoading, createItem: createCatalogItem, updateItem: updateCatalogItem, deleteItem: deleteCatalogItem } = useMaterialCatalog();
 
   const [newTax, setNewTax] = useState<TaxRuleFormData>({
     nome: '',
@@ -49,15 +46,6 @@ export default function Parametros() {
   const [markupForm, setMarkupForm] = useState<MarkupFormData>({
     markup_pct: markup?.markup_pct ?? 15,
     allow_per_wbs: markup?.allow_per_wbs ?? false,
-  });
-
-  const [newCatalogItem, setNewCatalogItem] = useState<CatalogFormData>({
-    codigo: '',
-    descricao: '',
-    unidade: 'pç',
-    preco_ref: null,
-    hh_unit_ref: null,
-    categoria: null,
   });
 
   // Update form when markup loads
@@ -86,13 +74,7 @@ export default function Parametros() {
     await upsertMarkup.mutateAsync(markupForm);
   };
 
-  const handleAddCatalogItem = async () => {
-    if (!newCatalogItem.codigo || !newCatalogItem.descricao) return;
-    await createCatalogItem.mutateAsync(newCatalogItem);
-    setNewCatalogItem({ codigo: '', descricao: '', unidade: 'pç', preco_ref: null, hh_unit_ref: null, categoria: null });
-  };
-
-  const isLoading = taxLoading || markupLoading || catalogLoading;
+  const isLoading = taxLoading || markupLoading;
 
   return (
     <div className="space-y-6">
@@ -100,7 +82,6 @@ export default function Parametros() {
         <TabsList>
           <TabsTrigger value="impostos">Impostos</TabsTrigger>
           <TabsTrigger value="markup">Markup/BDI</TabsTrigger>
-          <TabsTrigger value="catalogo">Base Materiais</TabsTrigger>
         </TabsList>
 
         {/* Tab: Impostos */}
@@ -345,166 +326,6 @@ export default function Parametros() {
           </Card>
         </TabsContent>
 
-        {/* Tab: Base Materiais */}
-        <TabsContent value="catalogo">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Base de Materiais</CardTitle>
-              <CardDescription>Catálogo de materiais para uso nos orçamentos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-28">Código</TableHead>
-                    <TableHead className="min-w-[200px]">Descrição</TableHead>
-                    <TableHead className="w-16">Un</TableHead>
-                    <TableHead className="w-28 text-right">Preço Ref</TableHead>
-                    <TableHead className="w-24 text-right">HH Ref</TableHead>
-                    <TableHead className="w-28">Categoria</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {catalogItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <Input
-                          value={item.codigo}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, codigo: e.target.value })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={item.descricao}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, descricao: e.target.value })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={item.unidade}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, unidade: e.target.value })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs w-14"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={item.preco_ref ?? ''}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, preco_ref: parseFloat(e.target.value) || null })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs text-right"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={item.hh_unit_ref ?? ''}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, hh_unit_ref: parseFloat(e.target.value) || null })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs text-right"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={item.categoria ?? ''}
-                          onChange={(e) => updateCatalogItem.mutate({ id: item.id, categoria: e.target.value || null })}
-                          disabled={lockState.isLocked}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteCatalogItem.mutate(item.id)}
-                          disabled={lockState.isLocked}
-                          className="h-8 w-8"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  
-                  {!lockState.isLocked && (
-                    <TableRow className="bg-muted/30">
-                      <TableCell>
-                        <Input
-                          placeholder="Código"
-                          value={newCatalogItem.codigo}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, codigo: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          placeholder="Descrição do material"
-                          value={newCatalogItem.descricao}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, descricao: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={newCatalogItem.unidade}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, unidade: e.target.value })}
-                          className="h-8 text-xs w-14"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={newCatalogItem.preco_ref ?? ''}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, preco_ref: parseFloat(e.target.value) || null })}
-                          className="h-8 text-xs text-right"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={newCatalogItem.hh_unit_ref ?? ''}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, hh_unit_ref: parseFloat(e.target.value) || null })}
-                          className="h-8 text-xs text-right"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          placeholder="Categoria"
-                          value={newCatalogItem.categoria ?? ''}
-                          onChange={(e) => setNewCatalogItem({ ...newCatalogItem, categoria: e.target.value || null })}
-                          className="h-8 text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={handleAddCatalogItem}
-                          disabled={!newCatalogItem.codigo || !newCatalogItem.descricao || createCatalogItem.isPending}
-                          className="h-8 w-8"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

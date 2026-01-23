@@ -90,6 +90,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     label: 'Orçamentos',
     items: [
       { title: 'Lista de Orçamentos', url: '/orcamentos', icon: Calculator },
+      { title: 'Bases Globais', url: '/orcamentos/bases', icon: Layers },
     ],
   },
 };

@@ -39,6 +39,12 @@ import Cronograma from "./pages/orcamentos/Cronograma";
 import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
 import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
+// Global bases pages
+import BasesGlobais from "./pages/orcamentos/BasesGlobais";
+import CatalogoMateriais from "./pages/orcamentos/bases/CatalogoMateriais";
+import WbsTemplates from "./pages/orcamentos/bases/WbsTemplates";
+import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoes";
+import CatalogoMaoDeObraParametros from "./pages/orcamentos/bases/CatalogoMaoDeObraParametros";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +78,13 @@ const App = () => (
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
+            {/* Global bases routes - outside budget context */}
+            <Route path="/orcamentos/bases" element={<BasesGlobais />} />
+            <Route path="/orcamentos/bases/materiais" element={<CatalogoMateriais />} />
+            <Route path="/orcamentos/bases/wbs-templates" element={<WbsTemplates />} />
+            <Route path="/orcamentos/bases/mo-funcoes" element={<CatalogoMaoDeObraFuncoes />} />
+            <Route path="/orcamentos/bases/mo-parametros" element={<CatalogoMaoDeObraParametros />} />
+            {/* Budget detail routes */}
             <Route path="/orcamentos/:id" element={<OrcamentoDetail />}>
               <Route index element={<VisaoGeral />} />
               <Route path="parametros" element={<Parametros />} />
