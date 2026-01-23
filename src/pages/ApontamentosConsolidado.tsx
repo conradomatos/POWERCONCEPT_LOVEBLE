@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Download, FileSpreadsheet, Clock, AlertCircle, CheckCircle2, XCircle, 
-  Filter, RefreshCw, AlertTriangle, Edit3, Trash2, Ban, X, CheckSquare 
+  Filter, RefreshCw, AlertTriangle, Edit3, Trash2, Ban, X, CheckSquare, Calendar 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -76,9 +76,11 @@ export default function ApontamentosConsolidado() {
 
   // Modal states
   const [showChangeOSModal, setShowChangeOSModal] = useState(false);
+  const [showChangeDateModal, setShowChangeDateModal] = useState(false);
   const [showIgnoreDialog, setShowIgnoreDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [newProjetoId, setNewProjetoId] = useState<string>('');
+  const [newDate, setNewDate] = useState<string>('');
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const canAccess = hasRole('admin') || hasRole('rh');
@@ -235,12 +237,75 @@ export default function ApontamentosConsolidado() {
     }
   };
 
-  // Bulk ignore
-  const handleBulkIgnore = async () => {
+  // Bulk change date
+  const handleBulkChangeDate = async () => {
+    if (!newDate) {
+      toast.error('Selecione uma data');
+      return;
+    }
+
+    const ids = Array.from(selectedRows);
+    
+    // Filter only non-pending records (real records that can be edited)
+    const editableIds = displayedData
+      .filter(row => ids.includes(row.id) && !row.is_pending)
+      .map(row => row.id);
+    
+    const pendingCount = ids.length - editableIds.length;
+    
+    if (editableIds.length === 0) {
+      toast.error('Os registros selecionados são do planejamento e não podem ter a data alterada aqui.');
+      return;
+    }
+
     setBulkActionLoading(true);
     try {
-      const ids = Array.from(selectedRows);
-      
+      const { error } = await supabase
+        .from('apontamentos_consolidado')
+        .update({ 
+          data_apontamento: newDate,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', editableIds);
+
+      if (error) throw error;
+
+      let message = `Data de ${editableIds.length} apontamentos alterada para ${format(new Date(newDate), 'dd/MM/yyyy')}`;
+      if (pendingCount > 0) {
+        message += `. ${pendingCount} registros do planejamento foram ignorados.`;
+      }
+      toast.success(message);
+      setShowChangeDateModal(false);
+      setNewDate('');
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
+      refetch();
+    } catch (error: any) {
+      console.error('Error updating date:', error);
+      toast.error('Erro ao alterar data: ' + error.message);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk ignore
+  const handleBulkIgnore = async () => {
+    const ids = Array.from(selectedRows);
+    
+    // Filter only non-pending records
+    const editableIds = displayedData
+      .filter(row => ids.includes(row.id) && !row.is_pending)
+      .map(row => row.id);
+    
+    const pendingCount = ids.length - editableIds.length;
+    
+    if (editableIds.length === 0) {
+      toast.error('Os registros selecionados são do planejamento e não podem ser ignorados aqui.');
+      return;
+    }
+
+    setBulkActionLoading(true);
+    try {
       const { error } = await supabase
         .from('apontamentos_consolidado')
         .update({ 
@@ -248,11 +313,15 @@ export default function ApontamentosConsolidado() {
           observacao: 'Ignorado pelo usuário em ' + format(new Date(), 'dd/MM/yyyy HH:mm'),
           updated_at: new Date().toISOString()
         })
-        .in('id', ids);
+        .in('id', editableIds);
 
       if (error) throw error;
 
-      toast.success(`${ids.length} apontamentos ignorados`);
+      let message = `${editableIds.length} apontamentos ignorados`;
+      if (pendingCount > 0) {
+        message += `. ${pendingCount} registros do planejamento foram pulados.`;
+      }
+      toast.success(message);
       setShowIgnoreDialog(false);
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
@@ -267,18 +336,35 @@ export default function ApontamentosConsolidado() {
 
   // Bulk delete
   const handleBulkDelete = async () => {
+    const ids = Array.from(selectedRows);
+    
+    // Filter only non-pending records (real records that can be deleted)
+    const deletableIds = displayedData
+      .filter(row => ids.includes(row.id) && !row.is_pending)
+      .map(row => row.id);
+    
+    const pendingCount = ids.length - deletableIds.length;
+    
+    if (deletableIds.length === 0) {
+      toast.error('Os registros selecionados são do planejamento e não podem ser excluídos. Use a tela de Planejamento.');
+      setShowDeleteDialog(false);
+      return;
+    }
+
     setBulkActionLoading(true);
     try {
-      const ids = Array.from(selectedRows);
-      
       const { error } = await supabase
         .from('apontamentos_consolidado')
         .delete()
-        .in('id', ids);
+        .in('id', deletableIds);
 
       if (error) throw error;
 
-      toast.success(`${ids.length} apontamentos excluídos`);
+      let message = `${deletableIds.length} apontamentos excluídos`;
+      if (pendingCount > 0) {
+        message += `. ${pendingCount} registros do planejamento foram ignorados (não podem ser excluídos aqui).`;
+      }
+      toast.success(message);
       setShowDeleteDialog(false);
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
@@ -395,7 +481,15 @@ export default function ApontamentosConsolidado() {
     return <Badge variant="error"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
   };
 
-  const getOrigemBadge = (origem: ApontamentoOrigem) => {
+  const getOrigemBadge = (origem: ApontamentoOrigem, isPending: boolean) => {
+    if (isPending) {
+      return (
+        <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+          <Clock className="h-3 w-3 mr-1" />
+          Planejado
+        </Badge>
+      );
+    }
     const config: Record<ApontamentoOrigem, { label: string; variant: 'info' | 'secondary' | 'outline' }> = {
       IMPORTACAO: { label: 'Importação', variant: 'info' },
       MANUAL: { label: 'Manual', variant: 'secondary' },
@@ -404,6 +498,15 @@ export default function ApontamentosConsolidado() {
     const { label, variant } = config[origem];
     return <Badge variant={variant}>{label}</Badge>;
   };
+
+  // Calculate counts for action bar
+  const selectionInfo = useMemo(() => {
+    const ids = Array.from(selectedRows);
+    const selected = displayedData.filter(row => ids.includes(row.id));
+    const editableCount = selected.filter(row => !row.is_pending).length;
+    const pendingCount = selected.filter(row => row.is_pending).length;
+    return { editableCount, pendingCount, total: selected.length };
+  }, [selectedRows, displayedData]);
 
   if (loading || !canAccess) {
     return (
@@ -452,6 +555,11 @@ export default function ApontamentosConsolidado() {
                 <div className="flex items-center gap-2">
                   <CheckSquare className="h-4 w-4 text-primary" />
                   <span className="font-medium">{selectedRows.size} selecionados</span>
+                  {selectionInfo.pendingCount > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      ({selectionInfo.editableCount} editáveis, {selectionInfo.pendingCount} planejados)
+                    </span>
+                  )}
                 </div>
                 <div className="h-6 w-px bg-border" />
                 <div className="flex items-center gap-2">
@@ -466,7 +574,17 @@ export default function ApontamentosConsolidado() {
                   <Button 
                     variant="outline" 
                     size="sm"
+                    onClick={() => setShowChangeDateModal(true)}
+                  >
+                    <Calendar className="h-4 w-4 mr-1" />
+                    Alterar Data
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
                     onClick={() => setShowIgnoreDialog(true)}
+                    disabled={selectionInfo.editableCount === 0}
+                    title={selectionInfo.editableCount === 0 ? 'Apenas registros do planejamento selecionados' : ''}
                   >
                     <Ban className="h-4 w-4 mr-1" />
                     Ignorar
@@ -475,6 +593,8 @@ export default function ApontamentosConsolidado() {
                     variant="destructive" 
                     size="sm"
                     onClick={() => setShowDeleteDialog(true)}
+                    disabled={selectionInfo.editableCount === 0}
+                    title={selectionInfo.editableCount === 0 ? 'Apenas registros do planejamento selecionados' : ''}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Excluir
@@ -728,7 +848,7 @@ export default function ApontamentosConsolidado() {
                             {a.tipo_hora}
                           </Badge>
                         </TableCell>
-                        <TableCell>{getOrigemBadge(a.origem)}</TableCell>
+                        <TableCell>{getOrigemBadge(a.origem, a.is_pending)}</TableCell>
                         <TableCell>{getStatusBadge(a.status_apontamento)}</TableCell>
                         <TableCell>{getIntegracaoBadge(a.status_integracao)}</TableCell>
                       </TableRow>
@@ -775,6 +895,64 @@ export default function ApontamentosConsolidado() {
               Cancelar
             </Button>
             <Button onClick={handleBulkChangeOS} disabled={bulkActionLoading || !newProjetoId}>
+              {bulkActionLoading ? 'Atualizando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Date Modal */}
+      <Dialog open={showChangeDateModal} onOpenChange={setShowChangeDateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Data</DialogTitle>
+            <DialogDescription>
+              Selecione a nova data para os {selectionInfo.editableCount} apontamentos editáveis.
+              {selectionInfo.pendingCount > 0 && (
+                <span className="block mt-1 text-amber-500">
+                  {selectionInfo.pendingCount} registros do planejamento serão ignorados.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nova Data</label>
+              <Input 
+                type="date" 
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+              />
+            </div>
+            {/* Preview dos registros selecionados */}
+            <div className="max-h-40 overflow-auto border rounded-lg p-2 bg-muted/30">
+              <p className="text-xs text-muted-foreground mb-2">
+                Registros que serão alterados:
+              </p>
+              {Array.from(selectedRows).slice(0, 5).map(id => {
+                const apt = displayedData.find(a => a.id === id);
+                if (!apt || apt.is_pending) return null;
+                return (
+                  <div key={id} className="text-xs py-1 border-b border-border/50 last:border-0">
+                    {apt.nome_funcionario || apt.cpf} - {format(new Date(apt.data_apontamento), 'dd/MM/yyyy')}
+                  </div>
+                );
+              })}
+              {selectionInfo.editableCount > 5 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ... e mais {selectionInfo.editableCount - 5} registros
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangeDateModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleBulkChangeDate} 
+              disabled={bulkActionLoading || !newDate || selectionInfo.editableCount === 0}
+            >
               {bulkActionLoading ? 'Atualizando...' : 'Confirmar'}
             </Button>
           </DialogFooter>
