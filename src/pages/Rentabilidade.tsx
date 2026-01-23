@@ -38,6 +38,7 @@ import {
   Eye,
   ChevronUp,
   ChevronDown,
+  Link2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import {
@@ -168,6 +169,34 @@ export default function Rentabilidade() {
       
       if (error) return 0;
       return count || 0;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch unmapped Omie codes count
+  const { data: codigosNaoMapeadosCount } = useQuery({
+    queryKey: ['codigos-nao-mapeados-count'],
+    queryFn: async () => {
+      // Count distinct omie_projeto_codigo without projeto_id in AR
+      const { data: titulosAR } = await supabase
+        .from('omie_contas_receber')
+        .select('omie_projeto_codigo')
+        .not('omie_projeto_codigo', 'is', null)
+        .is('projeto_id', null);
+      
+      // Count distinct omie_projeto_codigo without projeto_id in AP
+      const { data: titulosAP } = await supabase
+        .from('omie_contas_pagar')
+        .select('omie_projeto_codigo')
+        .not('omie_projeto_codigo', 'is', null)
+        .is('projeto_id', null);
+      
+      const allCodes = new Set([
+        ...(titulosAR?.map(t => t.omie_projeto_codigo) || []),
+        ...(titulosAP?.map(t => t.omie_projeto_codigo) || []),
+      ]);
+      
+      return allCodes.size;
     },
     enabled: !!user,
   });
@@ -317,6 +346,7 @@ export default function Rentabilidade() {
     queryClient.invalidateQueries({ queryKey: ['aging-ap'] });
     queryClient.invalidateQueries({ queryKey: ['last-sync'] });
     queryClient.invalidateQueries({ queryKey: ['pendencias-count'] });
+    queryClient.invalidateQueries({ queryKey: ['codigos-nao-mapeados-count'] });
   };
 
   if (authLoading) {
@@ -354,6 +384,17 @@ export default function Rentabilidade() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {codigosNaoMapeadosCount && codigosNaoMapeadosCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/rentabilidade/mapeamento')}
+                className="border-warning text-warning hover:bg-warning/10"
+              >
+                <Link2 className="h-4 w-4 mr-2" />
+                {codigosNaoMapeadosCount} código(s) não mapeado(s)
+              </Button>
+            )}
             <VisaoSwitch value={visao} onChange={setVisao} />
             <SyncButton lastSyncAt={lastSync} onSyncComplete={handleSyncComplete} />
           </div>
