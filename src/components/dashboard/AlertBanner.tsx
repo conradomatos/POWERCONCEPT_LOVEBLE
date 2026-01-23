@@ -36,7 +36,7 @@ export function AlertBanner({ alertas, isLoading }: AlertBannerProps) {
     );
   }
 
-  if (alertas.length === 0) {
+  if (!alertas || alertas.length === 0) {
     return (
       <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 flex items-center gap-3">
         <CheckCircle className="h-5 w-5 text-emerald-500" />

@@ -13,8 +13,8 @@ interface ProjetoResumo {
   projeto_os: string;
   cliente_nome: string;
   margem_competencia_pct: number | null;
-  dias_restantes: number;
-  progresso: number;
+  dias_restantes: number | null;
+  progresso: number | null;
   status_visual: 'ok' | 'alerta' | 'critico';
 }
 
@@ -48,16 +48,24 @@ function getMargemColor(margem: number | null) {
   return 'text-destructive';
 }
 
-function getPrazoColor(dias: number) {
+function getPrazoColor(dias: number | null) {
+  if (dias === null) return 'text-muted-foreground';
   if (dias > 15) return 'text-emerald-500';
   if (dias >= 5) return 'text-amber-500';
   return 'text-destructive';
 }
 
-function getPrazoBadgeVariant(dias: number): "default" | "secondary" | "destructive" | "outline" {
+function getPrazoBadgeVariant(dias: number | null): "default" | "secondary" | "destructive" | "outline" {
+  if (dias === null) return 'outline';
   if (dias > 15) return 'secondary';
   if (dias >= 5) return 'outline';
   return 'destructive';
+}
+
+function formatPrazo(dias: number | null): string {
+  if (dias === null) return '-';
+  if (dias < 0) return 'Vencido';
+  return `${dias}d`;
 }
 
 export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardProps) {
@@ -150,12 +158,19 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Progress value={projeto.progresso} className="h-2 flex-1" />
-                          <span className="text-xs text-muted-foreground w-8">
-                            {Math.round(projeto.progresso)}%
-                          </span>
-                        </div>
+                        {projeto.progresso !== null ? (
+                          <div className="flex items-center gap-2">
+                            <Progress value={projeto.progresso} className="h-2 flex-1" />
+                            <span className="text-xs text-muted-foreground w-8">
+                              {Math.round(projeto.progresso)}%
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Progress value={0} className="h-2 flex-1 opacity-30" />
+                            <span className="text-xs text-muted-foreground w-8">-</span>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <span className={cn("font-medium", getMargemColor(projeto.margem_competencia_pct))}>
@@ -169,7 +184,7 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
                           variant={getPrazoBadgeVariant(projeto.dias_restantes)}
                           className={cn("text-xs", getPrazoColor(projeto.dias_restantes))}
                         >
-                          {projeto.dias_restantes >= 0 ? `${projeto.dias_restantes}d` : 'Vencido'}
+                          {formatPrazo(projeto.dias_restantes)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
