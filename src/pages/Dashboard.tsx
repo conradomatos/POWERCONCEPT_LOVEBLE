@@ -7,6 +7,8 @@ import { RefreshCw } from 'lucide-react';
 import { useDashboardData, Periodo } from '@/hooks/useDashboardData';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { ProjetosCard } from '@/components/dashboard/ProjetosCard';
+import { EquipeCard } from '@/components/dashboard/EquipeCard';
+import { FinanceiroCard } from '@/components/dashboard/FinanceiroCard';
 import { AcoesPendentes } from '@/components/dashboard/AcoesPendentes';
 import {
   Select,
@@ -21,7 +23,7 @@ export default function Dashboard() {
   const { user, loading, hasAnyRole } = useAuth();
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   
-  const { alertas, projetos, pendencias, isLoading, refetchAll } = useDashboardData(periodo);
+  const { alertas, projetos, equipe, financeiro, pendencias, isLoading, refetchAll } = useDashboardData(periodo);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -88,16 +90,27 @@ export default function Dashboard() {
           isLoading={alertas.isLoading} 
         />
 
-        {/* Bloco 2: Projetos (por enquanto único card - Fase 2 adiciona Equipe e Financeiro) */}
-        <div className="grid gap-6 lg:grid-cols-1">
+        {/* Bloco 2: Cards em 3 colunas (Projetos, Equipe, Financeiro) */}
+        <div className="grid gap-6 lg:grid-cols-3 md:grid-cols-2 grid-cols-1">
           <ProjetosCard
             contadores={projetos.data?.contadores || { ativos: 0, emDia: 0, emAlerta: 0, critico: 0 }}
             projetos={projetos.data?.projetos || []}
             isLoading={projetos.isLoading}
           />
+          <EquipeCard
+            contadores={equipe.data?.contadores || { ativos: 0, alocados: 0, disponiveis: 0, sobrecarregados: 0 }}
+            ocupacaoPct={equipe.data?.ocupacaoPct || 0}
+            listaAtencao={equipe.data?.listaAtencao || []}
+            isLoading={equipe.isLoading}
+          />
+          <FinanceiroCard
+            valores={financeiro.data?.valores || { faturado: 0, aReceber: 0, custoMO: 0, margemPct: null }}
+            aging={financeiro.data?.aging || { aVencer: 0, ate30: 0, ate60: 0, mais60: 0 }}
+            isLoading={financeiro.isLoading}
+          />
         </div>
 
-        {/* Bloco 5: Ações Pendentes */}
+        {/* Bloco 3: Ações Pendentes */}
         <AcoesPendentes
           pendencias={pendencias.data || []}
           isLoading={pendencias.isLoading}

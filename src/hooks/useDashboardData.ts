@@ -34,6 +34,38 @@ interface Pendencia {
   link: string;
 }
 
+interface ColaboradorAtencao {
+  id: string;
+  nome: string;
+  tipo: 'sem_alocacao' | 'conflito';
+}
+
+interface EquipeData {
+  contadores: {
+    ativos: number;
+    alocados: number;
+    disponiveis: number;
+    sobrecarregados: number;
+  };
+  ocupacaoPct: number;
+  listaAtencao: ColaboradorAtencao[];
+}
+
+interface FinanceiroData {
+  valores: {
+    faturado: number;
+    aReceber: number;
+    custoMO: number;
+    margemPct: number | null;
+  };
+  aging: {
+    aVencer: number;
+    ate30: number;
+    ate60: number;
+    mais60: number;
+  };
+}
+
 function getPeriodDates(periodo: Periodo) {
   const now = new Date();
   switch (periodo) {
@@ -48,6 +80,8 @@ function getPeriodDates(periodo: Periodo) {
 
 export function useDashboardData(periodo: Periodo = 'mes') {
   const { inicio, fim } = getPeriodDates(periodo);
+  const inicioPeriodo = inicio.toISOString().split('T')[0];
+  const fimPeriodo = fim.toISOString().split('T')[0];
 
   // Query alertas críticos
   const alertasQuery = useQuery({
@@ -171,7 +205,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
         return 0;
       });
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
   // Query projetos
@@ -189,12 +223,10 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       
       const projetosProcessados: ProjetoResumo[] = (projetos || []).map(p => {
         const dataFim = p.data_fim_planejada ? new Date(p.data_fim_planejada) : null;
-        // Usar data_inicio_real, se não existir usar data_inicio_planejada
         const dataInicio = p.data_inicio_real 
           ? new Date(p.data_inicio_real) 
           : (p.data_inicio_planejada ? new Date(p.data_inicio_planejada) : null);
         
-        // Se não tem data_fim, retorna null para mostrar "-"
         const diasRestantes = dataFim ? differenceInDays(dataFim, hoje) : null;
         
         let progresso: number | null = null;
@@ -204,11 +236,9 @@ export function useDashboardData(periodo: Periodo = 'mes') {
           progresso = diasTotais > 0 ? Math.min(100, Math.max(0, (diasDecorridos / diasTotais) * 100)) : 0;
         }
 
-        // margem_competencia_pct pode ser 0 (válido) ou null (sem dados)
         const margem = p.margem_competencia_pct;
         let status_visual: 'ok' | 'alerta' | 'critico' = 'ok';
         
-        // Se diasRestantes é null, não podemos avaliar prazo
         const diasParaAvaliar = diasRestantes ?? 999;
         const margemParaAvaliar = margem ?? 0;
         
@@ -238,7 +268,6 @@ export function useDashboardData(periodo: Periodo = 'mes') {
       const emAlerta = projetosProcessados.filter(p => p.status_visual === 'alerta').length;
       const critico = projetosProcessados.filter(p => p.status_visual === 'critico').length;
 
-      // Ordenar por criticidade (críticos primeiro, depois alerta, depois ok)
       const projetosOrdenados = [...projetosProcessados].sort((a, b) => {
         const ordem = { critico: 0, alerta: 1, ok: 2 };
         return ordem[a.status_visual] - ordem[b.status_visual];
@@ -246,7 +275,153 @@ export function useDashboardData(periodo: Periodo = 'mes') {
 
       return {
         contadores: { ativos, emDia, emAlerta, critico },
-        projetos: projetosOrdenados.slice(0, 5) // Top 5 mais críticos
+        projetos: projetosOrdenados.slice(0, 5)
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Query equipe
+  const equipeQuery = useQuery({
+    queryKey: ['dashboard-equipe', periodo],
+    queryFn: async (): Promise<EquipeData> => {
+      // 1. Colaboradores ativos
+      const { count: ativos } = await supabase
+        .from('collaborators')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'ativo');
+
+      // 2. Colaboradores alocados no período
+      const { data: alocacoes } = await supabase
+        .from('alocacoes_blocos')
+        .select('colaborador_id, data_inicio')
+        .lte('data_inicio', fimPeriodo)
+        .gte('data_fim', inicioPeriodo);
+
+      const alocadosUnicos = new Set(alocacoes?.map(a => a.colaborador_id) || []);
+      const alocados = alocadosUnicos.size;
+      const disponiveis = Math.max(0, (ativos || 0) - alocados);
+
+      // 3. Colaboradores com conflito (múltiplas alocações no mesmo dia)
+      const contagemPorDia = new Map<string, number>();
+      alocacoes?.forEach(c => {
+        const key = `${c.colaborador_id}_${c.data_inicio}`;
+        contagemPorDia.set(key, (contagemPorDia.get(key) || 0) + 1);
+      });
+
+      const colaboradoresComConflito = new Set<string>();
+      contagemPorDia.forEach((count, key) => {
+        if (count > 1) {
+          colaboradoresComConflito.add(key.split('_')[0]);
+        }
+      });
+
+      // 4. Buscar nomes para lista de atenção
+      const { data: colaboradoresAtivos } = await supabase
+        .from('collaborators')
+        .select('id, full_name')
+        .eq('status', 'ativo');
+
+      const listaAtencao: ColaboradorAtencao[] = [];
+
+      // Com conflito primeiro (prioridade)
+      for (const colab of colaboradoresAtivos || []) {
+        if (colaboradoresComConflito.has(colab.id)) {
+          listaAtencao.push({
+            id: colab.id,
+            nome: colab.full_name,
+            tipo: 'conflito'
+          });
+        }
+        if (listaAtencao.length >= 5) break;
+      }
+
+      // Sem alocação
+      for (const colab of colaboradoresAtivos || []) {
+        if (!alocadosUnicos.has(colab.id) && listaAtencao.length < 5) {
+          listaAtencao.push({
+            id: colab.id,
+            nome: colab.full_name,
+            tipo: 'sem_alocacao'
+          });
+        }
+        if (listaAtencao.length >= 5) break;
+      }
+
+      return {
+        contadores: {
+          ativos: ativos || 0,
+          alocados,
+          disponiveis,
+          sobrecarregados: colaboradoresComConflito.size
+        },
+        ocupacaoPct: ativos ? Math.round((alocados / ativos) * 100) : 0,
+        listaAtencao: listaAtencao.slice(0, 5)
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Query financeiro
+  const financeiroQuery = useQuery({
+    queryKey: ['dashboard-financeiro', periodo],
+    queryFn: async (): Promise<FinanceiroData> => {
+      const hoje = new Date().toISOString().split('T')[0];
+
+      // 1. Faturado no período (títulos recebidos)
+      const { data: faturados } = await supabase
+        .from('omie_contas_receber')
+        .select('valor_recebido')
+        .in('status', ['PAGO', 'PARCIAL'])
+        .gte('data_recebimento', inicioPeriodo)
+        .lte('data_recebimento', fimPeriodo);
+
+      const faturado = faturados?.reduce((sum, t) => sum + (t.valor_recebido || 0), 0) || 0;
+
+      // 2. A Receber (títulos abertos)
+      const { data: abertos } = await supabase
+        .from('omie_contas_receber')
+        .select('valor, valor_recebido')
+        .in('status', ['ABERTO', 'ATRASADO']);
+
+      const aReceber = abertos?.reduce((sum, t) => 
+        sum + ((t.valor || 0) - (t.valor_recebido || 0)), 0) || 0;
+
+      // 3. Custo MO do período (soma da view)
+      const { data: rentabilidade } = await supabase
+        .from('vw_rentabilidade_projeto')
+        .select('custo_mao_obra')
+        .eq('status_projeto', 'ATIVO');
+
+      const custoMO = rentabilidade?.reduce((sum, p) => 
+        sum + (p.custo_mao_obra || 0), 0) || 0;
+
+      // 4. Margem
+      const margemPct = faturado > 0 
+        ? ((faturado - custoMO) / faturado) * 100 
+        : null;
+
+      // 5. Aging por faixa
+      const { data: titulosAbertos } = await supabase
+        .from('omie_contas_receber')
+        .select('vencimento, valor, valor_recebido')
+        .in('status', ['ABERTO', 'ATRASADO']);
+
+      const aging = { aVencer: 0, ate30: 0, ate60: 0, mais60: 0 };
+
+      titulosAbertos?.forEach(t => {
+        const saldo = (t.valor || 0) - (t.valor_recebido || 0);
+        const diasVencido = differenceInDays(new Date(), new Date(t.vencimento));
+
+        if (diasVencido < 0) aging.aVencer += saldo;
+        else if (diasVencido <= 30) aging.ate30 += saldo;
+        else if (diasVencido <= 60) aging.ate60 += saldo;
+        else aging.mais60 += saldo;
+      });
+
+      return {
+        valores: { faturado, aReceber, custoMO, margemPct },
+        aging
       };
     },
     staleTime: 1000 * 60 * 5,
@@ -378,12 +553,16 @@ export function useDashboardData(periodo: Periodo = 'mes') {
   return {
     alertas: alertasQuery,
     projetos: projetosQuery,
+    equipe: equipeQuery,
+    financeiro: financeiroQuery,
     pendencias: pendenciasQuery,
     periodo: { inicio, fim },
-    isLoading: alertasQuery.isLoading || projetosQuery.isLoading || pendenciasQuery.isLoading,
+    isLoading: alertasQuery.isLoading || projetosQuery.isLoading || equipeQuery.isLoading || financeiroQuery.isLoading || pendenciasQuery.isLoading,
     refetchAll: () => {
       alertasQuery.refetch();
       projetosQuery.refetch();
+      equipeQuery.refetch();
+      financeiroQuery.refetch();
       pendenciasQuery.refetch();
     }
   };
