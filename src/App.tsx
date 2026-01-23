@@ -22,6 +22,7 @@ import CustosPessoal from "./pages/CustosPessoal";
 import Rentabilidade from "./pages/Rentabilidade";
 import RentabilidadeProjeto from "./pages/RentabilidadeProjeto";
 import MapeamentoOmie from "./pages/MapeamentoOmie";
+import ReceitasConferencia from "./pages/ReceitasConferencia";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/recursos/custos" element={<CustosPessoal />} />
             <Route path="/rentabilidade" element={<Rentabilidade />} />
             <Route path="/rentabilidade/mapeamento" element={<MapeamentoOmie />} />
+            <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
