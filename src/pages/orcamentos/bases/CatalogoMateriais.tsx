@@ -1,13 +1,10 @@
 import { useState } from 'react';
-import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Package, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, Package } from 'lucide-react';
 import { useMaterialCatalog, type CatalogFormData } from '@/hooks/orcamentos/useMaterialCatalog';
-import { formatCurrency } from '@/lib/currency';
 
 export default function CatalogoMateriais() {
   const { items, isLoading, createItem, updateItem, deleteItem } = useMaterialCatalog();
@@ -28,24 +25,16 @@ export default function CatalogoMateriais() {
   };
 
   return (
-    <Layout>
-      <div className="container py-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Link to="/orcamentos/bases">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Package className="h-6 w-6" />
-              Catálogo de Materiais
-            </h1>
-            <p className="text-muted-foreground">
-              Base global de materiais com preços e HH de referência
-            </p>
-          </div>
-        </div>
+    <div className="container py-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Package className="h-6 w-6" />
+          Catálogo de Materiais
+        </h1>
+        <p className="text-muted-foreground">
+          Base global de materiais com preços e HH de referência
+        </p>
+      </div>
 
         <Card>
           <CardHeader className="pb-3">
@@ -214,7 +203,6 @@ export default function CatalogoMateriais() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </Layout>
+    </div>
   );
 }

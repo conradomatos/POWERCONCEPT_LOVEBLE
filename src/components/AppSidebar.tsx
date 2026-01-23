@@ -24,6 +24,7 @@ import {
   CalendarClock,
   FileText,
   Eye,
+  Percent,
 } from 'lucide-react';
 
 import {
@@ -95,6 +96,17 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
   },
 };
 
+// Global bases contextual navigation
+const basesGlobaisNavItems: NavItem[] = [
+  { title: 'Materiais', url: '/orcamentos/bases/materiais', icon: Package },
+  { title: 'Templates WBS', url: '/orcamentos/bases/wbs-templates', icon: Layers },
+  { title: 'Funções MO', url: '/orcamentos/bases/mo-funcoes', icon: HardHat },
+  { title: 'Parâmetros MO', url: '/orcamentos/bases/mo-parametros', icon: Cog },
+  { title: 'Indiretos', url: '/orcamentos/bases/indiretos', icon: Truck },
+  { title: 'Impostos', url: '/orcamentos/bases/impostos', icon: Calculator },
+  { title: 'Markup', url: '/orcamentos/bases/markup', icon: Percent },
+];
+
 // Budget detail contextual navigation
 const budgetDetailNavItems: NavItem[] = [
   { title: 'Visão Geral', url: '', icon: Eye },
@@ -126,6 +138,9 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
   // Check if we're in a budget detail page
   const budgetId = params.id;
   const isBudgetDetail = activeArea === 'orcamentos' && budgetId && location.pathname.startsWith(`/orcamentos/${budgetId}`);
+  
+  // Check if we're in Bases Globais context
+  const isBasesGlobais = location.pathname.startsWith('/orcamentos/bases');
 
   const isActive = (path: string) => {
     if (isBudgetDetail) {
@@ -136,6 +151,7 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
       }
       return location.pathname === fullPath;
     }
+    // For bases globais and regular routes, use exact match
     return location.pathname === path;
   };
 
@@ -146,6 +162,9 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
   if (isBudgetDetail) {
     navLabel = 'Seções do Orçamento';
     visibleItems = budgetDetailNavItems;
+  } else if (isBasesGlobais) {
+    navLabel = 'Bases Globais';
+    visibleItems = basesGlobaisNavItems;
   } else {
     const currentAreaConfig = areaNavItems[activeArea];
     navLabel = currentAreaConfig.label;
@@ -162,6 +181,8 @@ export function AppSidebar({ activeArea }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleItems.map((item) => {
+                // For budget detail, construct URL from base + suffix
+                // For bases globais and regular routes, use URL as-is
                 const itemUrl = isBudgetDetail 
                   ? `/orcamentos/${budgetId}${item.url}` 
                   : item.url;
