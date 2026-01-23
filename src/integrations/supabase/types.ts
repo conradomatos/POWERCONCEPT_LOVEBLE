@@ -593,6 +593,7 @@ export type Database = {
       }
       budget_material_items: {
         Row: {
+          catalog_id: string | null
           codigo: string | null
           descricao: string
           fator_dificuldade: number
@@ -610,6 +611,7 @@ export type Database = {
           wbs_id: string | null
         }
         Insert: {
+          catalog_id?: string | null
           codigo?: string | null
           descricao: string
           fator_dificuldade?: number
@@ -627,6 +629,7 @@ export type Database = {
           wbs_id?: string | null
         }
         Update: {
+          catalog_id?: string | null
           codigo?: string | null
           descricao?: string
           fator_dificuldade?: number
@@ -644,6 +647,13 @@ export type Database = {
           wbs_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "budget_material_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budget_material_items_revision_id_fkey"
             columns: ["revision_id"]
