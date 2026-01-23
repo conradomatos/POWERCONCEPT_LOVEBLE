@@ -12,6 +12,18 @@ import {
   DollarSign,
   AlertTriangle,
   FileCheck,
+  Calculator,
+  Package,
+  Layers,
+  HardHat,
+  Truck,
+  Wrench,
+  Cog,
+  PencilRuler,
+  BarChart2,
+  CalendarClock,
+  FileText,
+  FilePlus,
 } from 'lucide-react';
 
 import {
@@ -72,6 +84,12 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
       { title: 'Rentabilidade', url: '/rentabilidade', icon: DollarSign },
       { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
       { title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
+    ],
+  },
+  orcamentos: {
+    label: 'Orçamentos',
+    items: [
+      { title: 'Lista de Orçamentos', url: '/orcamentos', icon: Calculator },
     ],
   },
 };
