@@ -156,6 +156,166 @@ export type Database = {
           },
         ]
       }
+      apontamento_dia: {
+        Row: {
+          aprovado_at: string | null
+          aprovado_by: string | null
+          bloqueado_at: string | null
+          bloqueado_by: string | null
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          enviado_at: string | null
+          enviado_by: string | null
+          fonte_base:
+            | Database["public"]["Enums"]["apontamento_fonte_base"]
+            | null
+          horas_base_dia: number | null
+          id: string
+          observacao: string | null
+          status: Database["public"]["Enums"]["apontamento_dia_status"]
+          total_horas_apontadas: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          aprovado_at?: string | null
+          aprovado_by?: string | null
+          bloqueado_at?: string | null
+          bloqueado_by?: string | null
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          data: string
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fonte_base?:
+            | Database["public"]["Enums"]["apontamento_fonte_base"]
+            | null
+          horas_base_dia?: number | null
+          id?: string
+          observacao?: string | null
+          status?: Database["public"]["Enums"]["apontamento_dia_status"]
+          total_horas_apontadas?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          aprovado_at?: string | null
+          aprovado_by?: string | null
+          bloqueado_at?: string | null
+          bloqueado_by?: string | null
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fonte_base?:
+            | Database["public"]["Enums"]["apontamento_fonte_base"]
+            | null
+          horas_base_dia?: number | null
+          id?: string
+          observacao?: string | null
+          status?: Database["public"]["Enums"]["apontamento_dia_status"]
+          total_horas_apontadas?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apontamento_dia_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apontamento_item: {
+        Row: {
+          apontamento_dia_id: string
+          atividade_id: string | null
+          centro_custo_id: string | null
+          created_at: string
+          created_by: string | null
+          custo_hora: number | null
+          custo_total: number | null
+          descricao: string | null
+          horas: number
+          id: string
+          is_overhead: boolean
+          projeto_id: string
+          tipo_hora: Database["public"]["Enums"]["tipo_hora_ext"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          apontamento_dia_id: string
+          atividade_id?: string | null
+          centro_custo_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custo_hora?: number | null
+          custo_total?: number | null
+          descricao?: string | null
+          horas?: number
+          id?: string
+          is_overhead?: boolean
+          projeto_id: string
+          tipo_hora?: Database["public"]["Enums"]["tipo_hora_ext"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          apontamento_dia_id?: string
+          atividade_id?: string | null
+          centro_custo_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custo_hora?: number | null
+          custo_total?: number | null
+          descricao?: string | null
+          horas?: number
+          id?: string
+          is_overhead?: boolean
+          projeto_id?: string
+          tipo_hora?: Database["public"]["Enums"]["tipo_hora_ext"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apontamento_item_apontamento_dia_id_fkey"
+            columns: ["apontamento_dia_id"]
+            isOneToOne: false
+            referencedRelation: "apontamento_dia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
       apontamentos_consolidado: {
         Row: {
           arquivo_importacao_id: string | null
@@ -4617,6 +4777,56 @@ export type Database = {
           },
         ]
       }
+      vw_rateio_dia_projeto: {
+        Row: {
+          colaborador_id: string | null
+          colaborador_nome: string | null
+          cpf: string | null
+          custo_projeto_dia: number | null
+          data: string | null
+          dia_status:
+            | Database["public"]["Enums"]["apontamento_dia_status"]
+            | null
+          horas_projeto_dia: number | null
+          horas_total_dia: number | null
+          is_overhead: boolean | null
+          percentual: number | null
+          projeto_id: string | null
+          projeto_nome: string | null
+          projeto_os: string | null
+          projeto_status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apontamento_dia_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "apontamento_item_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
       vw_rentabilidade_projeto: {
         Row: {
           a_pagar: number | null
@@ -4787,6 +4997,8 @@ export type Database = {
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
+      apontamento_dia_status: "RASCUNHO" | "ENVIADO" | "APROVADO" | "BLOQUEADO"
+      apontamento_fonte_base: "PONTO" | "JORNADA" | "MANUAL"
       apontamento_origem: "IMPORTACAO" | "MANUAL" | "SISTEMA"
       apontamento_status:
         | "PENDENTE"
@@ -4836,6 +5048,13 @@ export type Database = {
       tax_value_type: "PERCENT" | "FIXED"
       tipo_contrato: "PRECO_FECHADO" | "MAO_DE_OBRA"
       tipo_hora: "NORMAL" | "H50" | "H100" | "NOTURNA"
+      tipo_hora_ext:
+        | "NORMAL"
+        | "EXTRA50"
+        | "EXTRA100"
+        | "DESLOCAMENTO"
+        | "TREINAMENTO"
+        | "ADM"
       titulo_status: "ABERTO" | "PAGO" | "ATRASADO" | "CANCELADO" | "PARCIAL"
       wbs_type: "CHAPTER" | "PACKAGE" | "ACTIVITY"
     }
@@ -4966,6 +5185,8 @@ export const Constants = {
   public: {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
+      apontamento_dia_status: ["RASCUNHO", "ENVIADO", "APROVADO", "BLOQUEADO"],
+      apontamento_fonte_base: ["PONTO", "JORNADA", "MANUAL"],
       apontamento_origem: ["IMPORTACAO", "MANUAL", "SISTEMA"],
       apontamento_status: [
         "PENDENTE",
@@ -5013,6 +5234,14 @@ export const Constants = {
       tax_value_type: ["PERCENT", "FIXED"],
       tipo_contrato: ["PRECO_FECHADO", "MAO_DE_OBRA"],
       tipo_hora: ["NORMAL", "H50", "H100", "NOTURNA"],
+      tipo_hora_ext: [
+        "NORMAL",
+        "EXTRA50",
+        "EXTRA100",
+        "DESLOCAMENTO",
+        "TREINAMENTO",
+        "ADM",
+      ],
       titulo_status: ["ABERTO", "PAGO", "ATRASADO", "CANCELADO", "PARCIAL"],
       wbs_type: ["CHAPTER", "PACKAGE", "ACTIVITY"],
     },

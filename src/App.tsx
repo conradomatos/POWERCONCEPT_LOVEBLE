@@ -39,6 +39,7 @@ import Cronograma from "./pages/orcamentos/Cronograma";
 import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
 import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
+import ApontamentoDiario from "./pages/ApontamentoDiario";
 // Global bases pages
 import BasesGlobais from "./pages/orcamentos/BasesGlobais";
 import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/import" element={<ImportCSV />} />
             <Route path="/import-apontamentos" element={<ImportApontamentos />} />
             <Route path="/apontamentos" element={<ApontamentosConsolidado />} />
+            <Route path="/apontamento-diario" element={<ApontamentoDiario />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/aprovacoes-projetos" element={<AprovacoesProjetos />} />
             <Route path="/collaborators/:id/costs" element={<CollaboratorCosts />} />
