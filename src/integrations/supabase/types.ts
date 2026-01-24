@@ -2127,6 +2127,53 @@ export type Database = {
           },
         ]
       }
+      material_catalog_variants: {
+        Row: {
+          ativo: boolean
+          catalog_id: string
+          created_at: string
+          created_by: string | null
+          fabricante: string
+          id: string
+          preco_ref: number
+          sku: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          catalog_id: string
+          created_at?: string
+          created_by?: string | null
+          fabricante: string
+          id?: string
+          preco_ref?: number
+          sku?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          catalog_id?: string
+          created_at?: string
+          created_by?: string | null
+          fabricante?: string
+          id?: string
+          preco_ref?: number
+          sku?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_catalog_variants_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_categories: {
         Row: {
           created_at: string | null
@@ -2229,6 +2276,44 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      material_variant_price_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: string
+          import_run_id: string | null
+          new_price: number
+          old_price: number
+          variant_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          import_run_id?: string | null
+          new_price: number
+          old_price: number
+          variant_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          import_run_id?: string | null
+          new_price?: number
+          old_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_variant_price_history_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog_variants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mobilization_catalog: {
         Row: {
