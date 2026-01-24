@@ -2816,6 +2816,105 @@ export type Database = {
           },
         ]
       }
+      labor_incidence_groups: {
+        Row: {
+          codigo: string
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
+      }
+      labor_incidence_items: {
+        Row: {
+          ativo: boolean
+          calc_tipo: Database["public"]["Enums"]["labor_incidence_calc_tipo"]
+          codigo: string
+          created_at: string
+          created_by: string | null
+          descricao: string
+          group_id: string
+          id: string
+          meses_default: number | null
+          obrigatorio_default: boolean
+          observacao_default: string | null
+          preco_unitario_default: number | null
+          qtd_default: number | null
+          qtd_mes_default: number | null
+          updated_at: string
+          updated_by: string | null
+          valor_mensal_default: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          calc_tipo?: Database["public"]["Enums"]["labor_incidence_calc_tipo"]
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          descricao: string
+          group_id: string
+          id?: string
+          meses_default?: number | null
+          obrigatorio_default?: boolean
+          observacao_default?: string | null
+          preco_unitario_default?: number | null
+          qtd_default?: number | null
+          qtd_mes_default?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_mensal_default?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          calc_tipo?: Database["public"]["Enums"]["labor_incidence_calc_tipo"]
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string
+          group_id?: string
+          id?: string
+          meses_default?: number | null
+          obrigatorio_default?: boolean
+          observacao_default?: string | null
+          preco_unitario_default?: number | null
+          qtd_default?: number | null
+          qtd_mes_default?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_mensal_default?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_incidence_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_role_incidence_costs"
+            referencedColumns: ["group_id"]
+          },
+        ]
+      }
       labor_param_catalog: {
         Row: {
           adicional_noturno_pct_ref: number
@@ -2943,6 +3042,82 @@ export type Database = {
           salario_base_ref?: number
         }
         Relationships: []
+      }
+      labor_role_incidence: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          incidence_item_id: string
+          labor_role_id: string
+          meses_override: number | null
+          obrigatorio: boolean | null
+          observacao: string | null
+          preco_unitario_override: number | null
+          qtd_mes_override: number | null
+          qtd_override: number | null
+          updated_at: string
+          updated_by: string | null
+          valor_mensal_override: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incidence_item_id: string
+          labor_role_id: string
+          meses_override?: number | null
+          obrigatorio?: boolean | null
+          observacao?: string | null
+          preco_unitario_override?: number | null
+          qtd_mes_override?: number | null
+          qtd_override?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_mensal_override?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incidence_item_id?: string
+          labor_role_id?: string
+          meses_override?: number | null
+          obrigatorio?: boolean | null
+          observacao?: string | null
+          preco_unitario_override?: number | null
+          qtd_mes_override?: number | null
+          qtd_override?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_mensal_override?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_role_incidence_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       labor_roles: {
         Row: {
@@ -4777,6 +4952,61 @@ export type Database = {
           },
         ]
       }
+      vw_labor_role_incidence_costs: {
+        Row: {
+          ativo: boolean | null
+          calc_tipo:
+            | Database["public"]["Enums"]["labor_incidence_calc_tipo"]
+            | null
+          created_at: string | null
+          custo_mensal_por_pessoa: number | null
+          group_codigo: string | null
+          group_id: string | null
+          group_nome: string | null
+          group_ordem: number | null
+          has_meses_override: boolean | null
+          has_preco_override: boolean | null
+          has_qtd_mes_override: boolean | null
+          has_qtd_override: boolean | null
+          has_valor_mensal_override: boolean | null
+          id: string | null
+          incidence_item_id: string | null
+          item_codigo: string | null
+          item_descricao: string | null
+          labor_role_id: string | null
+          meses: number | null
+          obrigatorio: boolean | null
+          observacao: string | null
+          preco_unitario: number | null
+          qtd: number | null
+          qtd_mes: number | null
+          updated_at: string | null
+          valor_mensal: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_role_incidence_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_rateio_dia_projeto: {
         Row: {
           colaborador_id: string | null
@@ -4957,6 +5187,15 @@ export type Database = {
           produtividade_valor: number
         }[]
       }
+      get_labor_role_incidence_totals: {
+        Args: { p_labor_role_id: string }
+        Returns: {
+          group_codigo: string
+          group_nome: string
+          total_geral: number
+          total_grupo: number
+        }[]
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -5027,6 +5266,7 @@ export type Database = {
       gen_status: "PENDENTE" | "APLICADO"
       hh_origin: "MATERIAIS" | "MANUAL"
       integracao_status: "OK" | "ERRO" | "PENDENTE"
+      labor_incidence_calc_tipo: "RATEIO_MESES" | "MENSAL"
       labor_modality: "CLT" | "PACOTE"
       nivel_risco: "BAIXO" | "MEDIO" | "ALTO"
       pendencia_origem: "OMIE_AR" | "OMIE_AP" | "HORAS"
@@ -5212,6 +5452,7 @@ export const Constants = {
       gen_status: ["PENDENTE", "APLICADO"],
       hh_origin: ["MATERIAIS", "MANUAL"],
       integracao_status: ["OK", "ERRO", "PENDENTE"],
+      labor_incidence_calc_tipo: ["RATEIO_MESES", "MENSAL"],
       labor_modality: ["CLT", "PACOTE"],
       nivel_risco: ["BAIXO", "MEDIO", "ALTO"],
       pendencia_origem: ["OMIE_AR", "OMIE_AP", "HORAS"],
