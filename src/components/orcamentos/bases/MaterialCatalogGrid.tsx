@@ -9,7 +9,9 @@ import { useMaterialCategories } from '@/hooks/orcamentos/useMaterialCategories'
 import { useMaterialSubcategories } from '@/hooks/orcamentos/useMaterialSubcategories';
 import { useMaterialTags } from '@/hooks/orcamentos/useMaterialTags';
 import { useAllMaterialVariants } from '@/hooks/orcamentos/useMaterialVariants';
+import { useEffectiveMaterialPrices, usePricebooks, useMaterialPriceItems } from '@/hooks/orcamentos/usePricebook';
 import { MaterialVariantsDrawer } from './MaterialVariantsDrawer';
+import { PriceOriginBadge } from './PriceOriginBadge';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import {
@@ -43,7 +45,12 @@ interface CellPosition {
   col: number;
 }
 
-const COLUMNS = ['codigo', 'descricao', 'unidade', 'hh_unit_ref', 'group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'] as const;
+interface MaterialCatalogGridProps {
+  empresaId?: string | null;
+  regiaoId?: string | null;
+}
+
+const COLUMNS = ['codigo', 'descricao', 'unidade', 'hh_unit_ref', 'preco_efetivo', 'group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'] as const;
 type ColumnKey = typeof COLUMNS[number];
 
 const COLUMN_HEADERS: Record<ColumnKey, { label: string; width: string; align?: 'right' }> = {
@@ -51,6 +58,7 @@ const COLUMN_HEADERS: Record<ColumnKey, { label: string; width: string; align?: 
   descricao: { label: 'Descrição', width: 'min-w-[200px]' },
   unidade: { label: 'Un', width: 'w-16' },
   hh_unit_ref: { label: 'HH Ref', width: 'w-24', align: 'right' },
+  preco_efetivo: { label: 'Preço Efetivo', width: 'w-36' },
   group_id: { label: 'Grupo', width: 'w-32' },
   category_id: { label: 'Categoria', width: 'w-32' },
   subcategory_id: { label: 'Subcategoria', width: 'w-32' },
@@ -146,13 +154,27 @@ function TagInput({ materialId, currentTags, allTags, onAdd, onRemove, onCreate 
   );
 }
 
-export function MaterialCatalogGrid() {
+export function MaterialCatalogGrid({ empresaId = null, regiaoId = null }: MaterialCatalogGridProps) {
   const { items, isLoading, createItem, updateItem, deleteItem } = useMaterialCatalog();
   const { groups } = useMaterialGroups();
   const { allCategories } = useMaterialCategories();
   const { allSubcategories } = useMaterialSubcategories();
   const { tags, upsertTag, addTagToMaterial, removeTagFromMaterial } = useMaterialTags();
   const { variantsMap } = useAllMaterialVariants();
+
+  // Pricebook and effective prices
+  const { pricebooks, globalPricebook, getOrCreatePricebook } = usePricebooks('MATERIAIS');
+  const activePricebook = useMemo(() => {
+    return pricebooks.find(p => p.empresa_id === empresaId && p.regiao_id === regiaoId)
+      || pricebooks.find(p => p.empresa_id === empresaId && !p.regiao_id)
+      || pricebooks.find(p => !p.empresa_id && p.regiao_id === regiaoId)
+      || globalPricebook;
+  }, [pricebooks, empresaId, regiaoId, globalPricebook]);
+
+  const { upsertPrice: upsertMaterialPrice } = useMaterialPriceItems(activePricebook?.id);
+  
+  const catalogIds = useMemo(() => items.map(i => i.id), [items]);
+  const { data: effectivePrices = {} } = useEffectiveMaterialPrices(catalogIds, empresaId, regiaoId);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroupId, setFilterGroupId] = useState<string>('');
@@ -265,9 +287,33 @@ export function MaterialCatalogGrid() {
     if (col === 'subcategory_id') return item.subcategory?.nome || '';
     if (col === 'tags') return item.tags?.map(t => t.nome).join(', ') || '';
     if (col === 'fabricantes') return '';
+    if (col === 'preco_efetivo') {
+      const price = effectivePrices[item.id];
+      return price ? String(price.preco) : '';
+    }
     const value = item[col as keyof CatalogItem];
     if (value === null || value === undefined) return '';
     return String(value);
+  };
+
+  // Handle price update for context
+  const handlePriceUpdate = async (catalogId: string, newPrice: number) => {
+    if (!activePricebook) {
+      const pbId = await getOrCreatePricebook('MATERIAIS', empresaId, regiaoId);
+      await upsertMaterialPrice.mutateAsync({
+        pricebook_id: pbId,
+        catalog_id: catalogId,
+        preco: newPrice,
+        fonte: 'manual',
+      });
+    } else {
+      await upsertMaterialPrice.mutateAsync({
+        pricebook_id: activePricebook.id,
+        catalog_id: catalogId,
+        preco: newPrice,
+        fonte: 'manual',
+      });
+    }
   };
 
   const startEditing = (rowIndex: number, colIndex: number, item: CatalogItem) => {
@@ -504,6 +550,54 @@ export function MaterialCatalogGrid() {
           onRemove={(tagId) => handleTagRemove(item.id, tagId)}
           onCreate={handleTagCreate}
         />
+      );
+    }
+
+    // Effective price column
+    if (col === 'preco_efetivo') {
+      const effectivePrice = effectivePrices[item.id];
+      
+      if (isEditing) {
+        return (
+          <Input
+            ref={inputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={async () => {
+              const price = parseFloat(editValue.replace(',', '.')) || 0;
+              await handlePriceUpdate(item.id, price);
+              setEditingCell(null);
+              setEditValue('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const price = parseFloat(editValue.replace(',', '.')) || 0;
+                handlePriceUpdate(item.id, price);
+                setEditingCell(null);
+                setEditValue('');
+              } else if (e.key === 'Escape') {
+                cancelEdit();
+              }
+            }}
+            className="h-7 text-xs text-right"
+          />
+        );
+      }
+
+      return (
+        <div 
+          className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1"
+          onClick={() => startEditing(rowIndex, colIndex, item)}
+        >
+          <span className="font-mono text-xs">
+            {effectivePrice ? formatCurrency(effectivePrice.preco) : '—'}
+          </span>
+          <PriceOriginBadge 
+            origem={effectivePrice?.origem || null} 
+            pricebookNome={effectivePrice?.pricebook_nome}
+          />
+        </div>
       );
     }
 
