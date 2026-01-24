@@ -12,10 +12,13 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   unidade: ['unidade', 'un', 'und', 'unit', 'uom'],
   preco_ref: ['preco_ref', 'preço_ref', 'preco', 'preço', 'price', 'valor', 'custo', 'cost'],
   hh_ref: ['hh_ref', 'hh', 'hh_unit', 'hh_unitario', 'homem_hora'],
-  categoria: ['categoria', 'category', 'grupo', 'group', 'tipo', 'type'],
+  grupo: ['grupo', 'group', 'grupo_nome'],
+  categoria: ['categoria', 'category', 'categoria_nome'],
+  subcategoria: ['subcategoria', 'subcategory', 'sub_categoria', 'sub'],
+  tags: ['tags', 'etiquetas', 'labels'],
 };
 
-export type ImportRowStatus = 'NOVO' | 'UPDATE_PRECO' | 'IGUAL' | 'ERRO';
+export type ImportRowStatus = 'NOVO' | 'UPDATE_PRECO' | 'IGUAL' | 'CONFLITO' | 'ERRO';
 
 export interface ImportPreviewRow {
   rowNumber: number;
@@ -24,15 +27,21 @@ export interface ImportPreviewRow {
   unidade: string;
   preco_ref: number | null;
   hh_ref: number | null;
+  grupo: string | null;
   categoria: string | null;
+  subcategoria: string | null;
+  tags: string[];
   status: ImportRowStatus;
   errorMessage?: string;
+  conflictFields?: string[];
   existingId?: string;
   existingPreco?: number | null;
   existingDescricao?: string;
   existingUnidade?: string;
   existingHhRef?: number | null;
+  existingGrupo?: string | null;
   existingCategoria?: string | null;
+  existingSubcategoria?: string | null;
 }
 
 export interface ImportSummary {
@@ -40,6 +49,7 @@ export interface ImportSummary {
   novos: number;
   updates: number;
   iguais: number;
+  conflitos: number;
   erros: number;
 }
 
@@ -49,7 +59,10 @@ export interface ColumnMapping {
   unidade: number;
   preco_ref: number;
   hh_ref?: number;
+  grupo?: number;
   categoria?: number;
+  subcategoria?: number;
+  tags?: number;
 }
 
 export interface DuplicateInfo {
@@ -188,6 +201,15 @@ export function useMaterialCatalogImport() {
     }
   }, [parseFile, detectColumnMapping]);
 
+  // Parse tags from string (separated by ; or ,)
+  const parseTags = (value: string | undefined): string[] => {
+    if (!value) return [];
+    return value
+      .split(/[;,]/)
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+  };
+
   // Generate preview with validation
   const generatePreview = useCallback(async (data: string[][], mapping: ColumnMapping) => {
     setIsProcessing(true);
@@ -199,7 +221,7 @@ export function useMaterialCatalogImport() {
         const codigo = row[mapping.codigo]?.trim() || '';
         if (codigo) {
           const existing = codigoOccurrences.get(codigo) || [];
-          existing.push(idx + 2); // +2 because row 1 is header, and we want 1-indexed
+          existing.push(idx + 2);
           codigoOccurrences.set(codigo, existing);
         }
       });
@@ -213,25 +235,38 @@ export function useMaterialCatalogImport() {
 
       if (duplicatesList.length > 0) {
         setDuplicates(duplicatesList);
-        setSummary({ total: data.length, novos: 0, updates: 0, iguais: 0, erros: data.length });
+        setSummary({ total: data.length, novos: 0, updates: 0, iguais: 0, conflitos: 0, erros: data.length });
         setIsProcessing(false);
         return;
       }
 
       setDuplicates([]);
 
-      // Fetch existing catalog items
+      // Fetch existing catalog items with relations
       const { data: existingItems, error: fetchError } = await supabase
         .from('material_catalog')
-        .select('id, codigo, descricao, unidade, preco_ref, hh_unit_ref, categoria');
+        .select(`
+          id, codigo, descricao, unidade, preco_ref, hh_unit_ref,
+          group:material_groups(nome),
+          category:material_categories(nome),
+          subcategory:material_subcategories(nome)
+        `);
 
       if (fetchError) throw fetchError;
 
-      const existingMap = new Map(existingItems?.map(item => [item.codigo.toLowerCase(), item]) || []);
+      const existingMap = new Map(existingItems?.map(item => [
+        item.codigo.toLowerCase(),
+        {
+          ...item,
+          grupo: item.group?.nome || null,
+          categoria: item.category?.nome || null,
+          subcategoria: item.subcategory?.nome || null,
+        }
+      ]) || []);
 
       // Process each row
       const previewRows: ImportPreviewRow[] = [];
-      let novos = 0, updates = 0, iguais = 0, erros = 0;
+      let novos = 0, updates = 0, iguais = 0, conflitos = 0, erros = 0;
 
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
@@ -244,12 +279,15 @@ export function useMaterialCatalogImport() {
         const preco_ref = precoStr ? parseFloat(precoStr) : null;
         const hh_ref = mapping.hh_ref !== undefined ? 
           (row[mapping.hh_ref]?.replace(',', '.').trim() ? parseFloat(row[mapping.hh_ref].replace(',', '.')) : null) : null;
-        const categoria = mapping.categoria !== undefined ? 
-          (row[mapping.categoria]?.trim() || null) : null;
+        const grupo = mapping.grupo !== undefined ? (row[mapping.grupo]?.trim() || null) : null;
+        const categoria = mapping.categoria !== undefined ? (row[mapping.categoria]?.trim() || null) : null;
+        const subcategoria = mapping.subcategoria !== undefined ? (row[mapping.subcategoria]?.trim() || null) : null;
+        const tags = mapping.tags !== undefined ? parseTags(row[mapping.tags]) : [];
 
         // Validation
         let status: ImportRowStatus = 'NOVO';
         let errorMessage: string | undefined;
+        let conflictFields: string[] | undefined;
 
         if (!codigo) {
           status = 'ERRO';
@@ -273,7 +311,20 @@ export function useMaterialCatalogImport() {
             const existingPreco = existing.preco_ref ?? 0;
             const newPreco = preco_ref ?? 0;
             
-            if (Math.abs(existingPreco - newPreco) > 0.001) {
+            // Check for conflicts (different descricao/unidade)
+            const conflicts: string[] = [];
+            if (descricao.toLowerCase() !== existing.descricao.toLowerCase()) {
+              conflicts.push('Descrição');
+            }
+            if (unidade.toLowerCase() !== existing.unidade.toLowerCase()) {
+              conflicts.push('Unidade');
+            }
+
+            if (conflicts.length > 0 && !canFullUpdate) {
+              status = 'CONFLITO';
+              conflictFields = conflicts;
+              conflitos++;
+            } else if (Math.abs(existingPreco - newPreco) > 0.001) {
               status = 'UPDATE_PRECO';
               updates++;
             } else {
@@ -288,15 +339,21 @@ export function useMaterialCatalogImport() {
               unidade,
               preco_ref,
               hh_ref,
+              grupo,
               categoria,
+              subcategoria,
+              tags,
               status,
               errorMessage,
+              conflictFields,
               existingId: existing.id,
               existingPreco: existing.preco_ref,
               existingDescricao: existing.descricao,
               existingUnidade: existing.unidade,
               existingHhRef: existing.hh_unit_ref,
+              existingGrupo: existing.grupo,
               existingCategoria: existing.categoria,
+              existingSubcategoria: existing.subcategoria,
             });
             continue;
           } else {
@@ -311,21 +368,152 @@ export function useMaterialCatalogImport() {
           unidade,
           preco_ref,
           hh_ref,
+          grupo,
           categoria,
+          subcategoria,
+          tags,
           status,
           errorMessage,
+          conflictFields,
         });
       }
 
       setPreview(previewRows);
-      setSummary({ total: data.length, novos, updates, iguais, erros });
+      setSummary({ total: data.length, novos, updates, iguais, conflitos, erros });
     } catch (error) {
       toast.error('Erro ao gerar prévia');
       console.error(error);
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [canFullUpdate]);
+
+  // Upsert group/category/subcategory
+  const upsertHierarchy = async (grupo: string | null, categoria: string | null, subcategoria: string | null): Promise<{
+    group_id: string | null;
+    category_id: string | null;
+    subcategory_id: string | null;
+  }> => {
+    let group_id: string | null = null;
+    let category_id: string | null = null;
+    let subcategory_id: string | null = null;
+
+    if (grupo) {
+      // Try to find or create group
+      const { data: existingGroup } = await supabase
+        .from('material_groups')
+        .select('id')
+        .ilike('nome', grupo)
+        .single();
+
+      if (existingGroup) {
+        group_id = existingGroup.id;
+      } else {
+        const { data: newGroup, error } = await supabase
+          .from('material_groups')
+          .insert({ nome: grupo })
+          .select('id')
+          .single();
+        if (!error && newGroup) {
+          group_id = newGroup.id;
+        }
+      }
+
+      if (group_id && categoria) {
+        // Try to find or create category
+        const { data: existingCategory } = await supabase
+          .from('material_categories')
+          .select('id')
+          .eq('group_id', group_id)
+          .ilike('nome', categoria)
+          .single();
+
+        if (existingCategory) {
+          category_id = existingCategory.id;
+        } else {
+          const { data: newCategory, error } = await supabase
+            .from('material_categories')
+            .insert({ group_id, nome: categoria })
+            .select('id')
+            .single();
+          if (!error && newCategory) {
+            category_id = newCategory.id;
+          }
+        }
+
+        if (category_id && subcategoria) {
+          // Try to find or create subcategory
+          const { data: existingSubcategory } = await supabase
+            .from('material_subcategories')
+            .select('id')
+            .eq('category_id', category_id)
+            .ilike('nome', subcategoria)
+            .single();
+
+          if (existingSubcategory) {
+            subcategory_id = existingSubcategory.id;
+          } else {
+            const { data: newSubcategory, error } = await supabase
+              .from('material_subcategories')
+              .insert({ category_id, nome: subcategoria })
+              .select('id')
+              .single();
+            if (!error && newSubcategory) {
+              subcategory_id = newSubcategory.id;
+            }
+          }
+        }
+      }
+    }
+
+    return { group_id, category_id, subcategory_id };
+  };
+
+  // Upsert tags
+  const upsertTags = async (tagNames: string[]): Promise<string[]> => {
+    if (tagNames.length === 0) return [];
+
+    const tagIds: string[] = [];
+
+    for (const nome of tagNames) {
+      const { data: existing } = await supabase
+        .from('material_tags')
+        .select('id')
+        .ilike('nome', nome)
+        .single();
+
+      if (existing) {
+        tagIds.push(existing.id);
+      } else {
+        const { data: newTag, error } = await supabase
+          .from('material_tags')
+          .insert({ nome })
+          .select('id')
+          .single();
+        if (!error && newTag) {
+          tagIds.push(newTag.id);
+        }
+      }
+    }
+
+    return tagIds;
+  };
+
+  // Set tags for a material
+  const setMaterialTags = async (materialId: string, tagIds: string[]) => {
+    // Delete existing
+    await supabase
+      .from('material_catalog_tags')
+      .delete()
+      .eq('material_id', materialId);
+
+    // Insert new
+    if (tagIds.length > 0) {
+      await supabase
+        .from('material_catalog_tags')
+        .insert(tagIds.map(tag_id => ({ material_id: materialId, tag_id })));
+    }
+  };
 
   // Apply import
   const applyImport = useCallback(async (fullUpdate: boolean = false): Promise<boolean> => {
@@ -341,6 +529,11 @@ export function useMaterialCatalogImport() {
 
     if (!summary || summary.erros > 0) {
       toast.error('Corrija os erros antes de aplicar');
+      return false;
+    }
+
+    if (summary.conflitos > 0 && !fullUpdate) {
+      toast.error('Existem conflitos. Super Admin pode optar por sobrescrever.');
       return false;
     }
 
@@ -367,6 +560,7 @@ export function useMaterialCatalogImport() {
             novos: summary.novos,
             updates: summary.updates,
             iguais: summary.iguais,
+            conflitos: summary.conflitos,
             erros: summary.erros,
           },
         })
@@ -380,43 +574,55 @@ export function useMaterialCatalogImport() {
 
       // Process new items
       const newItems = preview.filter(row => row.status === 'NOVO');
-      if (newItems.length > 0) {
-        const insertData = newItems.map(item => ({
-          codigo: item.codigo,
-          descricao: item.descricao,
-          unidade: item.unidade,
-          preco_ref: item.preco_ref ?? 0,
-          hh_unit_ref: fullUpdate && canFullUpdate ? (item.hh_ref ?? 0) : 0,
-          categoria: fullUpdate && canFullUpdate ? item.categoria : null,
-          ativo: true,
-        }));
+      for (const item of newItems) {
+        const hierarchy = await upsertHierarchy(item.grupo, item.categoria, item.subcategoria);
+        const tagIds = await upsertTags(item.tags);
 
-        const { error: insertError } = await supabase
+        const { data: newMaterial, error: insertError } = await supabase
           .from('material_catalog')
-          .insert(insertData);
+          .insert({
+            codigo: item.codigo,
+            descricao: item.descricao,
+            unidade: item.unidade,
+            preco_ref: item.preco_ref ?? 0,
+            hh_unit_ref: item.hh_ref ?? 0,
+            group_id: hierarchy.group_id,
+            category_id: hierarchy.category_id,
+            subcategory_id: hierarchy.subcategory_id,
+            ativo: true,
+          })
+          .select('id')
+          .single();
 
-        if (insertError) throw insertError;
-        successCount += newItems.length;
+        if (!insertError && newMaterial && tagIds.length > 0) {
+          await setMaterialTags(newMaterial.id, tagIds);
+        }
+
+        if (!insertError) successCount++;
       }
 
-      // Process updates
-      const updateItems = preview.filter(row => row.status === 'UPDATE_PRECO');
+      // Process updates (price only for regular users, full for super_admin)
+      const updateItems = preview.filter(row => row.status === 'UPDATE_PRECO' || (row.status === 'CONFLITO' && fullUpdate));
       for (const item of updateItems) {
         if (!item.existingId) continue;
 
-        // Record price history
-        await supabase
-          .from('material_catalog_price_history')
-          .insert({
-            catalog_id: item.existingId,
-            codigo: item.codigo,
-            old_price: item.existingPreco ?? 0,
-            new_price: item.preco_ref ?? 0,
-            changed_by: user?.id,
-            import_run_id: importRunId,
-          });
+        // Record price history if price changed
+        const oldPrice = item.existingPreco ?? 0;
+        const newPrice = item.preco_ref ?? 0;
+        if (Math.abs(oldPrice - newPrice) > 0.001) {
+          await supabase
+            .from('material_catalog_price_history')
+            .insert({
+              catalog_id: item.existingId,
+              codigo: item.codigo,
+              old_price: oldPrice,
+              new_price: newPrice,
+              changed_by: user?.id,
+              import_run_id: importRunId,
+            });
+        }
 
-        // Update catalog item
+        // Build update data
         const updateData: Record<string, any> = {
           preco_ref: item.preco_ref ?? 0,
         };
@@ -425,7 +631,16 @@ export function useMaterialCatalogImport() {
           updateData.descricao = item.descricao;
           updateData.unidade = item.unidade;
           updateData.hh_unit_ref = item.hh_ref ?? 0;
-          updateData.categoria = item.categoria;
+
+          // Update hierarchy
+          const hierarchy = await upsertHierarchy(item.grupo, item.categoria, item.subcategoria);
+          updateData.group_id = hierarchy.group_id;
+          updateData.category_id = hierarchy.category_id;
+          updateData.subcategory_id = hierarchy.subcategory_id;
+
+          // Update tags
+          const tagIds = await upsertTags(item.tags);
+          await setMaterialTags(item.existingId, tagIds);
         }
 
         await supabase
@@ -442,10 +657,14 @@ export function useMaterialCatalogImport() {
         .update({ linhas_sucesso: successCount })
         .eq('id', importRunId);
 
-      // Invalidate catalog query to refresh the list
+      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['material-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['material-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['material-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['material-subcategories'] });
+      queryClient.invalidateQueries({ queryKey: ['material-tags'] });
 
-      toast.success(`Importação concluída: ${summary.novos} novos, ${summary.updates} atualizados`);
+      toast.success(`Importação concluída: ${summary.novos} novos, ${summary.updates + (fullUpdate ? summary.conflitos : 0)} atualizados`);
       return true;
     } catch (error) {
       toast.error('Erro ao aplicar importação');
@@ -454,7 +673,7 @@ export function useMaterialCatalogImport() {
     } finally {
       setIsProcessing(false);
     }
-  }, [canImport, canFullUpdate, duplicates, summary, preview, user?.id]);
+  }, [canImport, canFullUpdate, duplicates, summary, preview, user?.id, queryClient]);
 
   // Reset state
   const reset = useCallback(() => {
@@ -477,9 +696,9 @@ export function useMaterialCatalogImport() {
   // Generate template file
   const downloadTemplate = useCallback(() => {
     const templateData = [
-      ['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'categoria'],
-      ['MAT-001', 'Cabo PP 3x2.5mm²', 'm', '12.50', '0.05', 'Cabos'],
-      ['MAT-002', 'Disjuntor 3P 100A', 'pç', '450.00', '0.25', 'Proteção'],
+      ['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'grupo', 'categoria', 'subcategoria', 'tags'],
+      ['MAT-001', 'Cabo PP 3x2.5mm²', 'm', '12.50', '0.05', 'Cabos', 'Cabos de Força', 'Baixa Tensão', 'elétrico;cobre'],
+      ['MAT-002', 'Disjuntor 3P 100A', 'pç', '450.00', '0.25', 'Proteção', 'Disjuntores', '', 'proteção;industrial'],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(templateData);
