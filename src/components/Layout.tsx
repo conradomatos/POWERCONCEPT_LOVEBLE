@@ -11,7 +11,7 @@ import {
   PanelLeft,
   Calculator,
 } from 'lucide-react';
-import logoCpsImg from '@/assets/logo-cps.png';
+
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -110,45 +110,42 @@ export default function Layout({ children }: LayoutProps) {
           {/* Header */}
           <header className="border-b border-border bg-card sticky top-0 z-10">
             <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex h-14 items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <SidebarTrigger className="-ml-1">
-                    <PanelLeft className="h-5 w-5" />
-                  </SidebarTrigger>
-                  
-                  {/* Logo - clickable to home */}
-                  <Link 
-                    to="/" 
-                    className="flex items-center gap-4 hover:opacity-80 transition-opacity"
-                  >
-                    <img src={logoCpsImg} alt="CPS" className="h-12 w-auto" />
-                    <h1 className="text-2xl font-medium tracking-[0.25em] uppercase text-foreground">
-                      CPS
-                    </h1>
-                  </Link>
-                  
-                  {/* Top Nav - 3 Areas */}
-                  <nav className="hidden md:flex items-center gap-1 ml-4">
-                    {topNavAreas.map((area) => {
-                      const Icon = area.icon;
-                      return (
-                        <Button
-                          key={area.id}
-                          variant={activeArea === area.id ? 'default' : 'ghost'}
-                          size="sm"
-                          className={cn(
-                            'gap-2 text-sm font-medium',
-                            activeArea === area.id && 'bg-primary text-primary-foreground'
-                          )}
-                          onClick={() => handleAreaClick(area.id)}
-                        >
-                          <Icon className="h-4 w-4" />
-                          {area.label}
-                        </Button>
-                      );
-                    })}
-                  </nav>
-                </div>
+              <div className="flex h-14 items-center gap-3">
+                <SidebarTrigger className="-ml-1">
+                  <PanelLeft className="h-5 w-5" />
+                </SidebarTrigger>
+                
+                {/* Top Nav - Areas */}
+                <nav className="hidden md:flex items-center gap-1">
+                  {topNavAreas.map((area) => {
+                    const Icon = area.icon;
+                    return (
+                      <Button
+                        key={area.id}
+                        variant={activeArea === area.id ? 'default' : 'ghost'}
+                        size="sm"
+                        className={cn(
+                          'gap-2 text-sm font-medium',
+                          activeArea === area.id && 'bg-primary text-primary-foreground'
+                        )}
+                        onClick={() => handleAreaClick(area.id)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {area.label}
+                      </Button>
+                    );
+                  })}
+                </nav>
+                
+                {/* Brand - Right side */}
+                <Link 
+                  to="/" 
+                  className="ml-auto hover:opacity-80 transition-opacity"
+                >
+                  <h1 className="text-lg font-medium tracking-[0.25em] uppercase text-foreground">
+                    CPS
+                  </h1>
+                </Link>
                 
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground hidden sm:block truncate max-w-[180px]">
@@ -181,8 +178,6 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             </div>
           </header>
-
-          {/* Mobile Nav - 3 Areas */}
           <nav className="md:hidden border-b border-border bg-card px-4 py-2 flex gap-1 overflow-x-auto">
             {topNavAreas.map((area) => {
               const Icon = area.icon;
