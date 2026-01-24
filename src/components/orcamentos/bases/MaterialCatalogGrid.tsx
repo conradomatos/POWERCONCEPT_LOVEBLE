@@ -2,12 +2,14 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Search, X, ChevronDown, Filter } from 'lucide-react';
+import { Trash2, Plus, Search, X, ChevronDown, Filter, Factory } from 'lucide-react';
 import { useMaterialCatalog, type CatalogItem, type CatalogFormData } from '@/hooks/orcamentos/useMaterialCatalog';
 import { useMaterialGroups } from '@/hooks/orcamentos/useMaterialGroups';
 import { useMaterialCategories } from '@/hooks/orcamentos/useMaterialCategories';
 import { useMaterialSubcategories } from '@/hooks/orcamentos/useMaterialSubcategories';
 import { useMaterialTags } from '@/hooks/orcamentos/useMaterialTags';
+import { useAllMaterialVariants } from '@/hooks/orcamentos/useMaterialVariants';
+import { MaterialVariantsDrawer } from './MaterialVariantsDrawer';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import {
@@ -30,25 +32,30 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface CellPosition {
   row: number;
   col: number;
 }
 
-const COLUMNS = ['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_unit_ref', 'group_id', 'category_id', 'subcategory_id', 'tags'] as const;
+const COLUMNS = ['codigo', 'descricao', 'unidade', 'hh_unit_ref', 'group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'] as const;
 type ColumnKey = typeof COLUMNS[number];
 
 const COLUMN_HEADERS: Record<ColumnKey, { label: string; width: string; align?: 'right' }> = {
   codigo: { label: 'Código', width: 'w-28' },
   descricao: { label: 'Descrição', width: 'min-w-[200px]' },
   unidade: { label: 'Un', width: 'w-16' },
-  preco_ref: { label: 'Preço Ref', width: 'w-28', align: 'right' },
   hh_unit_ref: { label: 'HH Ref', width: 'w-24', align: 'right' },
   group_id: { label: 'Grupo', width: 'w-32' },
   category_id: { label: 'Categoria', width: 'w-32' },
   subcategory_id: { label: 'Subcategoria', width: 'w-32' },
   tags: { label: 'Tags', width: 'w-40' },
+  fabricantes: { label: 'Fabricantes/Preços', width: 'w-40' },
 };
 
 interface TagInputProps {
@@ -145,6 +152,7 @@ export function MaterialCatalogGrid() {
   const { allCategories } = useMaterialCategories();
   const { allSubcategories } = useMaterialSubcategories();
   const { tags, upsertTag, addTagToMaterial, removeTagFromMaterial } = useMaterialTags();
+  const { variantsMap } = useAllMaterialVariants();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGroupId, setFilterGroupId] = useState<string>('');
@@ -157,11 +165,14 @@ export function MaterialCatalogGrid() {
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Variants drawer state
+  const [variantsDrawerOpen, setVariantsDrawerOpen] = useState(false);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
+
   const [newItem, setNewItem] = useState<CatalogFormData>({
     codigo: '',
     descricao: '',
     unidade: 'pç',
-    preco_ref: null,
     hh_unit_ref: null,
     group_id: null,
     category_id: null,
@@ -253,6 +264,7 @@ export function MaterialCatalogGrid() {
     if (col === 'category_id') return item.category?.nome || '';
     if (col === 'subcategory_id') return item.subcategory?.nome || '';
     if (col === 'tags') return item.tags?.map(t => t.nome).join(', ') || '';
+    if (col === 'fabricantes') return '';
     const value = item[col as keyof CatalogItem];
     if (value === null || value === undefined) return '';
     return String(value);
@@ -260,8 +272,8 @@ export function MaterialCatalogGrid() {
 
   const startEditing = (rowIndex: number, colIndex: number, item: CatalogItem) => {
     const col = COLUMNS[colIndex];
-    // Don't edit via text for dropdowns and tags
-    if (['group_id', 'category_id', 'subcategory_id', 'tags'].includes(col)) return;
+    // Don't edit via text for dropdowns, tags, and fabricantes
+    if (['group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'].includes(col)) return;
     setEditingCell({ row: rowIndex, col: colIndex });
     setEditValue(getCellValue(item, col));
   };
@@ -272,7 +284,7 @@ export function MaterialCatalogGrid() {
     const col = COLUMNS[editingCell.col];
     let value: any = editValue.trim();
 
-    if (col === 'preco_ref' || col === 'hh_unit_ref') {
+    if (col === 'hh_unit_ref') {
       value = value ? parseFloat(value.replace(',', '.')) : null;
       if (value !== null && isNaN(value)) value = null;
     }
@@ -305,9 +317,9 @@ export function MaterialCatalogGrid() {
       e.preventDefault();
       commitEdit(item);
       const nextCol = e.shiftKey ? colIndex - 1 : colIndex + 1;
-      // Skip dropdown columns
+      // Skip dropdown columns and fabricantes
       let targetCol = nextCol;
-      while (['group_id', 'category_id', 'subcategory_id', 'tags'].includes(COLUMNS[targetCol]) && targetCol >= 0 && targetCol < COLUMNS.length) {
+      while (['group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'].includes(COLUMNS[targetCol]) && targetCol >= 0 && targetCol < COLUMNS.length) {
         targetCol = e.shiftKey ? targetCol - 1 : targetCol + 1;
       }
       if (targetCol >= 0 && targetCol < COLUMNS.length) {
@@ -347,12 +359,12 @@ export function MaterialCatalogGrid() {
         if (targetColIndex >= COLUMNS.length) break;
 
         const col = COLUMNS[targetColIndex];
-        // Skip dropdown columns when pasting
-        if (['group_id', 'category_id', 'subcategory_id', 'tags'].includes(col)) continue;
+        // Skip dropdown columns and fabricantes when pasting
+        if (['group_id', 'category_id', 'subcategory_id', 'tags', 'fabricantes'].includes(col)) continue;
 
         let value: any = rows[r][c]?.trim() || '';
 
-        if (col === 'preco_ref' || col === 'hh_unit_ref') {
+        if (col === 'hh_unit_ref') {
           value = value ? parseFloat(value.replace(',', '.')) : null;
           if (value !== null && isNaN(value)) value = null;
         }
@@ -375,7 +387,6 @@ export function MaterialCatalogGrid() {
       codigo: '',
       descricao: '',
       unidade: 'pç',
-      preco_ref: null,
       hh_unit_ref: null,
       group_id: null,
       category_id: null,
@@ -496,6 +507,47 @@ export function MaterialCatalogGrid() {
       );
     }
 
+    // Fabricantes column - show badge with count and open drawer
+    if (col === 'fabricantes') {
+      const variants = variantsMap.get(item.id) || [];
+      const minPrice = variants.length > 0 ? Math.min(...variants.map(v => v.preco_ref)) : null;
+      
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => {
+                setSelectedCatalogItem(item);
+                setVariantsDrawerOpen(true);
+              }}
+            >
+              <Factory className="h-3 w-3" />
+              {variants.length > 0 ? (
+                <>
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                    {variants.length}
+                  </Badge>
+                  <span className="text-muted-foreground font-mono">
+                    {formatCurrency(minPrice!).replace('R$ ', '')}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">+</span>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {variants.length > 0 
+              ? `${variants.length} fabricante(s) - clique para gerenciar` 
+              : 'Clique para adicionar fabricante'}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
     // Text cells
     if (isEditing) {
       return (
@@ -516,7 +568,7 @@ export function MaterialCatalogGrid() {
 
     const value = item[col as keyof CatalogItem];
     let displayValue: string = '-';
-    if (col === 'preco_ref' || col === 'hh_unit_ref') {
+    if (col === 'hh_unit_ref') {
       displayValue = value !== null && value !== undefined ? formatCurrency(value as number).replace('R$ ', '') : '-';
     } else if (typeof value === 'string') {
       displayValue = value || '-';
@@ -777,16 +829,6 @@ export function MaterialCatalogGrid() {
                     type="number"
                     step="0.01"
                     placeholder="0,00"
-                    value={newItem.preco_ref ?? ''}
-                    onChange={(e) => setNewItem({ ...newItem, preco_ref: parseFloat(e.target.value) || null })}
-                    className="h-7 text-xs text-right"
-                  />
-                </td>
-                <td className="px-1 py-1">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
                     value={newItem.hh_unit_ref ?? ''}
                     onChange={(e) => setNewItem({ ...newItem, hh_unit_ref: parseFloat(e.target.value) || null })}
                     className="h-7 text-xs text-right"
@@ -845,6 +887,9 @@ export function MaterialCatalogGrid() {
                 <td className="px-1 py-1 text-xs text-muted-foreground">
                   -
                 </td>
+                <td className="px-1 py-1 text-xs text-muted-foreground">
+                  -
+                </td>
                 <td className="px-1 py-1">
                   <Button
                     variant="ghost"
@@ -863,8 +908,17 @@ export function MaterialCatalogGrid() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        💡 Dica: Clique em uma célula para editar. Use Tab/Enter para navegar. Suporte a colar do Excel.
+        💡 Dica: Clique em uma célula para editar. Use Tab/Enter para navegar. Clique em Fabricantes para gerenciar preços.
       </p>
+
+      {/* Variants Drawer */}
+      <MaterialVariantsDrawer
+        open={variantsDrawerOpen}
+        onOpenChange={setVariantsDrawerOpen}
+        catalogId={selectedCatalogItem?.id || null}
+        catalogCodigo={selectedCatalogItem?.codigo || ''}
+        catalogDescricao={selectedCatalogItem?.descricao || ''}
+      />
     </div>
   );
 }
