@@ -46,7 +46,6 @@ import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
 import CatalogoMateriais from "./pages/orcamentos/bases/CatalogoMateriais";
 import WbsTemplates from "./pages/orcamentos/bases/WbsTemplates";
 import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoesV2";
-import CatalogoMaoDeObraParametros from "./pages/orcamentos/bases/CatalogoMaoDeObraParametros";
 import CatalogoEquipamentos from "./pages/orcamentos/bases/CatalogoEquipamentos";
 import IncidenciasMO from "./pages/orcamentos/bases/IncidenciasMO";
 import NotFound from "./pages/NotFound";
@@ -92,7 +91,7 @@ const App = () => (
               <Route path="materiais" element={<CatalogoMateriais />} />
               <Route path="wbs-templates" element={<WbsTemplates />} />
               <Route path="mo-funcoes" element={<CatalogoMaoDeObraFuncoes />} />
-              <Route path="mo-parametros" element={<CatalogoMaoDeObraParametros />} />
+              <Route path="mo-parametros" element={<Navigate to="/orcamentos/bases/incidencias-mo" replace />} />
               <Route path="equipamentos" element={<CatalogoEquipamentos />} />
               <Route path="incidencias-mo" element={<IncidenciasMO />} />
             </Route>

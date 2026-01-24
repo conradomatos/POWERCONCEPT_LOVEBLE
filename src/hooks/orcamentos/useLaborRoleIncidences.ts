@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { LaborIncidenceCalcTipo } from './useLaborIncidenceCatalog';
 
 export interface LaborRoleIncidenceCost {
   id: string;
@@ -23,7 +24,7 @@ export interface LaborRoleIncidenceCost {
   // Item info
   item_codigo: string;
   item_descricao: string;
-  calc_tipo: 'RATEIO_MESES' | 'MENSAL';
+  calc_tipo: LaborIncidenceCalcTipo;
   // Group info
   group_id: string;
   group_codigo: string;
@@ -272,6 +273,73 @@ export function useLaborRoleIncidences(laborRoleId: string | null) {
     },
   });
 
+  // Apply template to a role
+  const applyTemplate = useMutation({
+    mutationFn: async (templateId: string) => {
+      if (!laborRoleId) throw new Error('No labor role selected');
+      
+      const { data: userData } = await supabase.auth.getUser();
+      
+      // Get template items
+      const { data: templateItems, error: templateError } = await supabase
+        .from('labor_incidence_template_items')
+        .select('*')
+        .eq('template_id', templateId);
+      
+      if (templateError) throw templateError;
+      if (!templateItems?.length) return 0;
+      
+      // Get existing incidences for this role
+      const { data: existing, error: existingError } = await supabase
+        .from('labor_role_incidence')
+        .select('incidence_item_id')
+        .eq('labor_role_id', laborRoleId);
+      
+      if (existingError) throw existingError;
+      
+      const existingIds = new Set(existing?.map(e => e.incidence_item_id) ?? []);
+      
+      // Insert only items that don't exist yet
+      const newItems = templateItems
+        .filter(item => !existingIds.has(item.incidence_item_id))
+        .map(item => ({
+          labor_role_id: laborRoleId,
+          incidence_item_id: item.incidence_item_id,
+          ativo: item.ativo_default,
+          qtd_override: item.qtd_override,
+          meses_override: item.meses_override,
+          qtd_mes_override: item.qtd_mes_override,
+          preco_unitario_override: item.preco_unitario_override,
+          valor_mensal_override: item.valor_mensal_override,
+          observacao: item.observacao,
+          created_by: userData.user?.id,
+          updated_by: userData.user?.id,
+        }));
+      
+      if (newItems.length > 0) {
+        const { error: insertError } = await supabase
+          .from('labor_role_incidence')
+          .insert(newItems);
+        
+        if (insertError) throw insertError;
+      }
+      
+      return newItems.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['labor-role-incidences', laborRoleId] });
+      queryClient.invalidateQueries({ queryKey: ['labor-role-incidence-totals', laborRoleId] });
+      if (count > 0) {
+        toast.success(`${count} itens do template aplicados`);
+      } else {
+        toast.info('Todos os itens do template já existem para esta função');
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao aplicar template');
+    },
+  });
+
   return {
     incidences: incidences ?? [],
     totals: totals ?? [],
@@ -283,5 +351,6 @@ export function useLaborRoleIncidences(laborRoleId: string | null) {
     updateOverride,
     resetOverrides,
     applyAllCatalogItems,
+    applyTemplate,
   };
 }

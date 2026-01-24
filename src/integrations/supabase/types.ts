@@ -2840,6 +2840,73 @@ export type Database = {
         }
         Relationships: []
       }
+      labor_incidence_item_prices: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          empresa_id: string | null
+          id: string
+          incidence_item_id: string
+          preco_unitario: number
+          regiao_id: string | null
+          updated_at: string
+          updated_by: string | null
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          incidence_item_id: string
+          preco_unitario: number
+          regiao_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          incidence_item_id?: string
+          preco_unitario?: number
+          regiao_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_incidence_item_prices_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_item_prices_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_item_prices_regiao_id_fkey"
+            columns: ["regiao_id"]
+            isOneToOne: false
+            referencedRelation: "budget_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labor_incidence_items: {
         Row: {
           ativo: boolean
@@ -2914,6 +2981,99 @@ export type Database = {
             referencedColumns: ["group_id"]
           },
         ]
+      }
+      labor_incidence_template_items: {
+        Row: {
+          ativo_default: boolean
+          id: string
+          incidence_item_id: string
+          meses_override: number | null
+          observacao: string | null
+          preco_unitario_override: number | null
+          qtd_mes_override: number | null
+          qtd_override: number | null
+          template_id: string
+          valor_mensal_override: number | null
+        }
+        Insert: {
+          ativo_default?: boolean
+          id?: string
+          incidence_item_id: string
+          meses_override?: number | null
+          observacao?: string | null
+          preco_unitario_override?: number | null
+          qtd_mes_override?: number | null
+          qtd_override?: number | null
+          template_id: string
+          valor_mensal_override?: number | null
+        }
+        Update: {
+          ativo_default?: boolean
+          id?: string
+          incidence_item_id?: string
+          meses_override?: number | null
+          observacao?: string | null
+          preco_unitario_override?: number | null
+          qtd_mes_override?: number | null
+          qtd_override?: number | null
+          template_id?: string
+          valor_mensal_override?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_incidence_template_items_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labor_incidence_templates: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          tipo_mo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          tipo_mo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          tipo_mo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       labor_param_catalog: {
         Row: {
@@ -4958,7 +5118,6 @@ export type Database = {
           calc_tipo:
             | Database["public"]["Enums"]["labor_incidence_calc_tipo"]
             | null
-          created_at: string | null
           custo_mensal_por_pessoa: number | null
           group_codigo: string | null
           group_id: string | null
@@ -4980,7 +5139,6 @@ export type Database = {
           preco_unitario: number | null
           qtd: number | null
           qtd_mes: number | null
-          updated_at: string | null
           valor_mensal: number | null
         }
         Relationships: [
@@ -5186,6 +5344,10 @@ export type Database = {
           produtividade_unidade: string
           produtividade_valor: number
         }[]
+      }
+      get_incidence_effective_price: {
+        Args: { p_empresa_id?: string; p_item_id: string; p_regiao_id?: string }
+        Returns: number
       }
       get_labor_role_incidence_totals: {
         Args: { p_labor_role_id: string }

@@ -27,6 +27,7 @@ import {
   Eye,
   Percent,
   ChevronDown,
+  Shield,
 } from 'lucide-react';
 
 import {
@@ -119,7 +120,7 @@ const basesGlobaisNavItems: NavItem[] = [
   { title: 'Materiais', url: '/orcamentos/bases/materiais', icon: Package },
   { title: 'Templates WBS', url: '/orcamentos/bases/wbs-templates', icon: Layers },
   { title: 'Funções MO', url: '/orcamentos/bases/mo-funcoes', icon: HardHat },
-  { title: 'Parâmetros MO', url: '/orcamentos/bases/mo-parametros', icon: Cog },
+  { title: 'Incidências MO', url: '/orcamentos/bases/incidencias-mo', icon: Shield },
   { title: 'Equipamentos', url: '/orcamentos/bases/equipamentos', icon: PencilRuler },
   { title: 'Indiretos', url: '/orcamentos/bases/indiretos', icon: Truck },
   { title: 'Impostos', url: '/orcamentos/bases/impostos', icon: Calculator },
