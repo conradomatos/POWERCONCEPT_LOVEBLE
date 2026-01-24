@@ -2,16 +2,20 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Package, FolderTree } from 'lucide-react';
+import { Upload, Package, FolderTree, DollarSign } from 'lucide-react';
 import { MaterialCatalogGrid } from '@/components/orcamentos/bases/MaterialCatalogGrid';
 import { MaterialImportModal } from '@/components/orcamentos/bases/MaterialImportModal';
 import { MaterialHierarchyManager } from '@/components/orcamentos/bases/MaterialHierarchyManager';
+import { PriceContextSelector } from '@/components/orcamentos/bases/PriceContextSelector';
 import { useMaterialCatalog } from '@/hooks/orcamentos/useMaterialCatalog';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function CatalogoMateriais() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('catalogo');
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [regiaoId, setRegiaoId] = useState<string | null>(null);
+  
   const { items } = useMaterialCatalog();
   const { hasRole, isSuperAdmin } = useAuth();
 
@@ -44,6 +48,20 @@ export default function CatalogoMateriais() {
         </div>
       </div>
 
+      {/* Price Context Selector */}
+      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <DollarSign className="h-4 w-4" />
+          <span>Contexto de Preços:</span>
+        </div>
+        <PriceContextSelector
+          empresaId={empresaId}
+          regiaoId={regiaoId}
+          onEmpresaChange={setEmpresaId}
+          onRegiaoChange={setRegiaoId}
+        />
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="catalogo" className="gap-2">
@@ -69,7 +87,10 @@ export default function CatalogoMateriais() {
               </div>
             </CardHeader>
             <CardContent>
-              <MaterialCatalogGrid />
+              <MaterialCatalogGrid 
+                empresaId={empresaId} 
+                regiaoId={regiaoId}
+              />
             </CardContent>
           </Card>
         </TabsContent>

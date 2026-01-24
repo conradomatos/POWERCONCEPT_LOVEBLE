@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Plus, Trash2, HardHat, Search, Filter, Upload, Download, X, 
-  AlertCircle, Check, RefreshCw, ChevronDown, Tags as TagsIcon 
+  AlertCircle, Check, RefreshCw, ChevronDown, Tags as TagsIcon, DollarSign 
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBudgetLaborCatalog, type BudgetLaborCatalogItem, type BudgetLaborCatalogFormData } from '@/hooks/orcamentos/useBudgetLaborCatalog';
 import { useBudgetLaborChargeSets } from '@/hooks/orcamentos/useBudgetLaborChargeSets';
 import { useBudgetLaborGroups, useBudgetLaborCategories, useBudgetLaborTags } from '@/hooks/orcamentos/useBudgetLaborTaxonomy';
 import { useBudgetLaborCatalogImport, type ImportRowStatus } from '@/hooks/orcamentos/useBudgetLaborCatalogImport';
+import { useEffectiveMOPrices, usePricebooks, useMOPriceItems } from '@/hooks/orcamentos/usePricebook';
+import { PriceContextSelector } from '@/components/orcamentos/bases/PriceContextSelector';
+import { PriceOriginBadge } from '@/components/orcamentos/bases/PriceOriginBadge';
 import { formatCurrency } from '@/lib/currency';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { cn } from '@/lib/utils';
@@ -22,7 +25,7 @@ import { cn } from '@/lib/utils';
 // Grid columns configuration
 const COLUMNS = [
   'codigo', 'nome', 'tipo_mo', 'regime', 'carga_horaria', 'salario_base', 
-  'beneficios', 'periculosidade', 'encargos', 'hh_custo', 'produtividade', 
+  'beneficios', 'periculosidade', 'encargos', 'hh_custo', 'preco_efetivo', 'produtividade', 
   'prod_tipo', 'prod_unidade', 'grupo', 'categoria', 'tags'
 ] as const;
 
@@ -37,6 +40,7 @@ const COLUMN_HEADERS: Record<string, { label: string; width: string; editable: b
   periculosidade: { label: 'Peric. %', width: 'w-20', editable: true },
   encargos: { label: 'Encargos', width: 'min-w-[140px]', editable: true },
   hh_custo: { label: 'HH Custo', width: 'w-28', editable: false },
+  preco_efetivo: { label: 'Preço Efetivo', width: 'w-36', editable: true },
   produtividade: { label: 'Produt.', width: 'w-24', editable: true },
   prod_tipo: { label: 'Tipo Prod.', width: 'w-28', editable: true },
   prod_unidade: { label: 'Un. Prod.', width: 'w-20', editable: true },
@@ -361,6 +365,26 @@ export default function CatalogoMaoDeObraFuncoesV2() {
   const { allCategories, upsertCategory } = useBudgetLaborCategories();
   const { tags, upsertTag } = useBudgetLaborTags();
 
+  // Price context
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [regiaoId, setRegiaoId] = useState<string | null>(null);
+  
+  // Pricebooks
+  const { pricebooks, globalPricebook, getOrCreatePricebook } = usePricebooks('MO');
+  const activePricebook = useMemo(() => {
+    // Find best matching pricebook for current context
+    return pricebooks.find(p => p.empresa_id === empresaId && p.regiao_id === regiaoId)
+      || pricebooks.find(p => p.empresa_id === empresaId && !p.regiao_id)
+      || pricebooks.find(p => !p.empresa_id && p.regiao_id === regiaoId)
+      || globalPricebook;
+  }, [pricebooks, empresaId, regiaoId, globalPricebook]);
+  
+  const { upsertPrice: upsertMOPrice } = useMOPriceItems(activePricebook?.id);
+
+  // Effective prices
+  const funcaoIds = useMemo(() => items.map(i => i.id), [items]);
+  const { data: effectivePrices = {} } = useEffectiveMOPrices(funcaoIds, empresaId, regiaoId);
+
   // Filters
   const [search, setSearch] = useState('');
   const [filterTipoMo, setFilterTipoMo] = useState<string>('all');
@@ -400,6 +424,27 @@ export default function CatalogoMaoDeObraFuncoesV2() {
     if (filterGroup !== 'all' && item.group_id !== filterGroup) return false;
     return true;
   });
+  
+  // Handle price update for context
+  const handlePriceUpdate = async (funcaoId: string, newPrice: number) => {
+    if (!activePricebook) {
+      // Create pricebook for this context
+      const pbId = await getOrCreatePricebook('MO', empresaId, regiaoId);
+      await upsertMOPrice.mutateAsync({
+        pricebook_id: pbId,
+        funcao_id: funcaoId,
+        hh_custo: newPrice,
+        fonte: 'manual',
+      });
+    } else {
+      await upsertMOPrice.mutateAsync({
+        pricebook_id: activePricebook.id,
+        funcao_id: funcaoId,
+        hh_custo: newPrice,
+        fonte: 'manual',
+      });
+    }
+  };
 
   // Cell editing handlers
   const handleCellClick = (rowIdx: number, colIdx: number, currentValue: string) => {
@@ -542,6 +587,53 @@ export default function CatalogoMaoDeObraFuncoesV2() {
         <span className="font-medium text-primary">
           {formatCurrency(item.hh_custo)}/h
         </span>
+      );
+    }
+
+    // Effective price column with context
+    if (col === 'preco_efetivo') {
+      const effectivePrice = effectivePrices[item.id];
+      
+      if (isEditing) {
+        return (
+          <Input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={async () => {
+              const price = parseFloat(editValue.replace(',', '.')) || 0;
+              await handlePriceUpdate(item.id, price);
+              setEditingCell(null);
+              setEditValue('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const price = parseFloat(editValue.replace(',', '.')) || 0;
+                handlePriceUpdate(item.id, price);
+                setEditingCell(null);
+                setEditValue('');
+              } else if (e.key === 'Escape') {
+                setEditingCell(null);
+                setEditValue('');
+              }
+            }}
+            className="h-7 text-xs text-right"
+            autoFocus
+          />
+        );
+      }
+
+      return (
+        <div className="flex items-center gap-1">
+          <span className="font-mono text-xs">
+            {effectivePrice ? formatCurrency(effectivePrice.hh_custo) : '—'}
+          </span>
+          <PriceOriginBadge 
+            origem={effectivePrice?.origem || null} 
+            pricebookNome={effectivePrice?.pricebook_nome}
+          />
+        </div>
       );
     }
 
@@ -731,6 +823,20 @@ export default function CatalogoMaoDeObraFuncoesV2() {
               Importar XLSX
             </Button>
           </div>
+        </div>
+
+        {/* Price Context Selector */}
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <DollarSign className="h-4 w-4" />
+            <span>Contexto de Preços:</span>
+          </div>
+          <PriceContextSelector
+            empresaId={empresaId}
+            regiaoId={regiaoId}
+            onEmpresaChange={setEmpresaId}
+            onRegiaoChange={setRegiaoId}
+          />
         </div>
 
         {/* Search and Filters */}

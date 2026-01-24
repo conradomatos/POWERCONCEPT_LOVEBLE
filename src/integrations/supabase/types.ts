@@ -492,6 +492,27 @@ export type Database = {
           },
         ]
       }
+      budget_fabricantes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       budget_generated_materials: {
         Row: {
           circuit_id: string
@@ -1035,6 +1056,33 @@ export type Database = {
           },
         ]
       }
+      budget_regions: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          nome: string
+          uf: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          nome: string
+          uf?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          uf?: string | null
+        }
+        Relationships: []
+      }
       budget_revisions: {
         Row: {
           approved_at: string | null
@@ -1048,6 +1096,8 @@ export type Database = {
           observacoes: string | null
           prazo_execucao_meses: number | null
           premissas: string | null
+          pricebook_materiais_id: string | null
+          pricebook_mo_id: string | null
           projeto_id: string | null
           revision_number: number
           sent_at: string | null
@@ -1066,6 +1116,8 @@ export type Database = {
           observacoes?: string | null
           prazo_execucao_meses?: number | null
           premissas?: string | null
+          pricebook_materiais_id?: string | null
+          pricebook_mo_id?: string | null
           projeto_id?: string | null
           revision_number?: number
           sent_at?: string | null
@@ -1084,6 +1136,8 @@ export type Database = {
           observacoes?: string | null
           prazo_execucao_meses?: number | null
           premissas?: string | null
+          pricebook_materiais_id?: string | null
+          pricebook_mo_id?: string | null
           projeto_id?: string | null
           revision_number?: number
           sent_at?: string | null
@@ -1096,6 +1150,20 @@ export type Database = {
             columns: ["budget_id"]
             isOneToOne: false
             referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_pricebook_materiais_id_fkey"
+            columns: ["pricebook_materiais_id"]
+            isOneToOne: false
+            referencedRelation: "pricebooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_revisions_pricebook_mo_id_fkey"
+            columns: ["pricebook_mo_id"]
+            isOneToOne: false
+            referencedRelation: "pricebooks"
             referencedColumns: ["id"]
           },
           {
@@ -2579,6 +2647,73 @@ export type Database = {
         }
         Relationships: []
       }
+      material_pricebook_items: {
+        Row: {
+          catalog_id: string
+          created_at: string
+          fabricante_id: string | null
+          fonte: string | null
+          id: string
+          moeda: string | null
+          preco: number
+          pricebook_id: string
+          updated_at: string
+          updated_by: string | null
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          catalog_id: string
+          created_at?: string
+          fabricante_id?: string | null
+          fonte?: string | null
+          id?: string
+          moeda?: string | null
+          preco?: number
+          pricebook_id: string
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          catalog_id?: string
+          created_at?: string
+          fabricante_id?: string | null
+          fonte?: string | null
+          id?: string
+          moeda?: string | null
+          preco?: number
+          pricebook_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_pricebook_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_pricebook_items_fabricante_id_fkey"
+            columns: ["fabricante_id"]
+            isOneToOne: false
+            referencedRelation: "budget_fabricantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_pricebook_items_pricebook_id_fkey"
+            columns: ["pricebook_id"]
+            isOneToOne: false
+            referencedRelation: "pricebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_subcategories: {
         Row: {
           category_id: string
@@ -2663,6 +2798,82 @@ export type Database = {
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "material_catalog_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mo_pricebook_items: {
+        Row: {
+          created_at: string
+          fonte: string | null
+          funcao_id: string
+          hh_custo: number
+          id: string
+          pricebook_id: string
+          produtividade_tipo:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade: string | null
+          produtividade_valor: number | null
+          updated_at: string
+          updated_by: string | null
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          created_at?: string
+          fonte?: string | null
+          funcao_id: string
+          hh_custo?: number
+          id?: string
+          pricebook_id: string
+          produtividade_tipo?:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade?: string | null
+          produtividade_valor?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          created_at?: string
+          fonte?: string | null
+          funcao_id?: string
+          hh_custo?: number
+          id?: string
+          pricebook_id?: string
+          produtividade_tipo?:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade?: string | null
+          produtividade_valor?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mo_pricebook_items_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mo_pricebook_items_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mo_pricebook_items_pricebook_id_fkey"
+            columns: ["pricebook_id"]
+            isOneToOne: false
+            referencedRelation: "pricebooks"
             referencedColumns: ["id"]
           },
         ]
@@ -3060,6 +3271,66 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
+      pricebooks: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          empresa_id: string | null
+          id: string
+          nome: string
+          prioridade: number
+          regiao_id: string | null
+          tipo: Database["public"]["Enums"]["pricebook_type"]
+          updated_at: string
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome: string
+          prioridade?: number
+          regiao_id?: string | null
+          tipo: Database["public"]["Enums"]["pricebook_type"]
+          updated_at?: string
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome?: string
+          prioridade?: number
+          regiao_id?: string | null
+          tipo?: Database["public"]["Enums"]["pricebook_type"]
+          updated_at?: string
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricebooks_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricebooks_regiao_id_fkey"
+            columns: ["regiao_id"]
+            isOneToOne: false
+            referencedRelation: "budget_regions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3830,6 +4101,37 @@ export type Database = {
           salario_base: number
         }[]
       }
+      get_effective_material_price: {
+        Args: {
+          p_catalog_id: string
+          p_empresa_id?: string
+          p_fabricante_id?: string
+          p_regiao_id?: string
+        }
+        Returns: {
+          fabricante_id: string
+          origem: string
+          preco: number
+          pricebook_id: string
+          pricebook_nome: string
+        }[]
+      }
+      get_effective_mo_price: {
+        Args: {
+          p_empresa_id?: string
+          p_funcao_id: string
+          p_regiao_id?: string
+        }
+        Returns: {
+          hh_custo: number
+          origem: string
+          pricebook_id: string
+          pricebook_nome: string
+          produtividade_tipo: Database["public"]["Enums"]["budget_productivity_type"]
+          produtividade_unidade: string
+          produtividade_valor: number
+        }[]
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -3902,6 +4204,7 @@ export type Database = {
         | "SEM_CATEGORIA"
         | "APONTAMENTO_SEM_CUSTO"
         | "OUTRO"
+      pricebook_type: "MATERIAIS" | "MO"
       revision_status: "DRAFT" | "SENT" | "APPROVED" | "REJECTED" | "CANCELED"
       status_projeto: "ATIVO" | "CONCLUIDO" | "SUSPENSO" | "CANCELADO"
       supply_type: "CONCEPT" | "CLIENTE" | "TERCEIRO" | "A_DEFINIR"
@@ -4078,6 +4381,7 @@ export const Constants = {
         "APONTAMENTO_SEM_CUSTO",
         "OUTRO",
       ],
+      pricebook_type: ["MATERIAIS", "MO"],
       revision_status: ["DRAFT", "SENT", "APPROVED", "REJECTED", "CANCELED"],
       status_projeto: ["ATIVO", "CONCLUIDO", "SUSPENSO", "CANCELADO"],
       supply_type: ["CONCEPT", "CLIENTE", "TERCEIRO", "A_DEFINIR"],
