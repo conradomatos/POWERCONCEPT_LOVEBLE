@@ -4,27 +4,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { 
   HardHat, 
   RotateCcw, 
   AlertCircle, 
-  Info, 
   Shirt, 
   Shield, 
   Utensils, 
   Heart,
   FileText,
   RefreshCw,
-  Search
+  Search,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useBudgetLaborCatalog } from '@/hooks/orcamentos/useBudgetLaborCatalog';
-import { useLaborIncidenceGroups, useLaborIncidenceItems } from '@/hooks/orcamentos/useLaborIncidenceCatalog';
+import { useLaborIncidenceGroups, useLaborIncidenceItems, useLaborIncidenceTemplates } from '@/hooks/orcamentos/useLaborIncidenceCatalog';
 import { useLaborRoleIncidences, LaborRoleIncidenceCost } from '@/hooks/orcamentos/useLaborRoleIncidences';
+import { PriceContextSelector } from '@/components/orcamentos/bases/PriceContextSelector';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +35,11 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   'C': <Shield className="h-4 w-4" />,
   'D': <Utensils className="h-4 w-4" />,
   'E': <Heart className="h-4 w-4" />,
+};
+
+const CALC_TIPO_LABELS: Record<string, string> = {
+  'RATEIO_MESES': 'Rateio',
+  'MENSAL': 'Mensal',
 };
 
 interface IncidenceItemRowProps {
@@ -59,28 +65,23 @@ function IncidenceItemRow({
   const isRateio = item.calc_tipo === 'RATEIO_MESES';
 
   return (
-    <tr className={cn(
-      "border-b transition-colors",
-      !item.ativo && "opacity-50 bg-muted/30"
-    )}>
+    <TableRow className={cn(!item.ativo && "opacity-50 bg-muted/30")}>
       {/* Checkbox */}
-      <td className="p-2 w-10">
+      <TableCell className="w-10 text-center">
         <Checkbox 
           checked={item.ativo}
           onCheckedChange={(checked) => onToggle(!!checked)}
           disabled={isUpdating}
         />
-      </td>
+      </TableCell>
       
       {/* Código */}
-      <td className="p-2 w-16">
-        <Badge variant="outline" className="font-mono text-xs">
-          {item.item_codigo}
-        </Badge>
-      </td>
+      <TableCell className="w-16 font-mono text-xs">
+        {item.item_codigo}
+      </TableCell>
       
       {/* Descrição */}
-      <td className="p-2">
+      <TableCell>
         <div className="flex items-center gap-2">
           <span className="text-sm">{item.item_descricao}</span>
           {item.obrigatorio && (
@@ -89,17 +90,17 @@ function IncidenceItemRow({
             </Badge>
           )}
         </div>
-      </td>
+      </TableCell>
       
       {/* Tipo */}
-      <td className="p-2 w-24">
-        <Badge variant="secondary" className="text-[10px]">
-          {isRateio ? 'Rateio' : 'Mensal'}
-        </Badge>
-      </td>
+      <TableCell className="w-20">
+        <span className="text-xs text-muted-foreground">
+          {CALC_TIPO_LABELS[item.calc_tipo] || item.calc_tipo}
+        </span>
+      </TableCell>
       
       {/* Qtd */}
-      <td className="p-2 w-20">
+      <TableCell className="w-20">
         {isRateio ? (
           <Input
             type="number"
@@ -107,7 +108,7 @@ function IncidenceItemRow({
             onChange={(e) => onUpdate({ qtd_override: e.target.value ? Number(e.target.value) : null })}
             disabled={!item.ativo || isUpdating}
             className={cn(
-              "h-8 text-sm w-16",
+              "h-7 text-xs w-16",
               item.has_qtd_override && "border-primary"
             )}
             placeholder={catalogItem?.qtd_default?.toString() ?? '1'}
@@ -119,16 +120,16 @@ function IncidenceItemRow({
             onChange={(e) => onUpdate({ qtd_mes_override: e.target.value ? Number(e.target.value) : null })}
             disabled={!item.ativo || isUpdating}
             className={cn(
-              "h-8 text-sm w-16",
+              "h-7 text-xs w-16",
               item.has_qtd_mes_override && "border-primary"
             )}
             placeholder={catalogItem?.qtd_mes_default?.toString() ?? '-'}
           />
         )}
-      </td>
+      </TableCell>
       
       {/* Preço Unit */}
-      <td className="p-2 w-24">
+      <TableCell className="w-24">
         {(isRateio || (!item.valor_mensal && item.calc_tipo === 'MENSAL')) && (
           <Input
             type="number"
@@ -137,16 +138,16 @@ function IncidenceItemRow({
             onChange={(e) => onUpdate({ preco_unitario_override: e.target.value ? Number(e.target.value) : null })}
             disabled={!item.ativo || isUpdating}
             className={cn(
-              "h-8 text-sm w-20",
+              "h-7 text-xs w-20",
               item.has_preco_override && "border-primary"
             )}
             placeholder={catalogItem?.preco_unitario_default?.toString() ?? '-'}
           />
         )}
-      </td>
+      </TableCell>
       
       {/* Meses/Vida útil (only for RATEIO) */}
-      <td className="p-2 w-20">
+      <TableCell className="w-20">
         {isRateio ? (
           <Input
             type="number"
@@ -154,7 +155,7 @@ function IncidenceItemRow({
             onChange={(e) => onUpdate({ meses_override: e.target.value ? Number(e.target.value) : null })}
             disabled={!item.ativo || isUpdating}
             className={cn(
-              "h-8 text-sm w-16",
+              "h-7 text-xs w-16",
               item.has_meses_override && "border-primary"
             )}
             placeholder={catalogItem?.meses_default?.toString() ?? '12'}
@@ -167,44 +168,44 @@ function IncidenceItemRow({
             onChange={(e) => onUpdate({ valor_mensal_override: e.target.value ? Number(e.target.value) : null })}
             disabled={!item.ativo || isUpdating}
             className={cn(
-              "h-8 text-sm w-20",
+              "h-7 text-xs w-20",
               item.has_valor_mensal_override && "border-primary"
             )}
             placeholder={catalogItem?.valor_mensal_default?.toString() ?? '-'}
           />
         )}
-      </td>
+      </TableCell>
       
       {/* Custo Mensal (calculated) */}
-      <td className="p-2 w-28 text-right">
+      <TableCell className="w-28 text-right">
         <span className={cn(
           "font-medium text-sm",
           item.ativo && item.custo_mensal_por_pessoa > 0 && "text-primary"
         )}>
           {formatCurrency(item.custo_mensal_por_pessoa)}
         </span>
-      </td>
+      </TableCell>
       
       {/* Actions */}
-      <td className="p-2 w-12">
+      <TableCell className="w-10">
         {hasAnyOverride && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={onReset}
                 disabled={isUpdating}
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3 w-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Resetar para padrão do catálogo</TooltipContent>
+            <TooltipContent>Resetar para padrão</TooltipContent>
           </Tooltip>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -212,11 +213,14 @@ export default function IncidenciasMO() {
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
   const [activeTab, setActiveTab] = useState('A');
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [regiaoId, setRegiaoId] = useState<string | null>(null);
   
-  // Fetch data
+  // Fetch data - using items from useBudgetLaborCatalog (fix bug #1)
   const { items: roles, isLoading: rolesLoading } = useBudgetLaborCatalog();
-  const { data: groups } = useLaborIncidenceGroups();
-  const { data: catalogItems } = useLaborIncidenceItems();
+  const { data: groups, isLoading: groupsLoading } = useLaborIncidenceGroups();
+  const { data: catalogItems, isLoading: catalogLoading } = useLaborIncidenceItems();
+  const { data: templates } = useLaborIncidenceTemplates();
   const { 
     incidences, 
     totals, 
@@ -224,7 +228,8 @@ export default function IncidenciasMO() {
     toggleItem, 
     updateOverride, 
     resetOverrides,
-    applyAllCatalogItems 
+    applyAllCatalogItems,
+    applyTemplate
   } = useLaborRoleIncidences(selectedRoleId);
   
   // Filter roles by search
@@ -256,87 +261,165 @@ export default function IncidenciasMO() {
     return map;
   }, [catalogItems]);
   
-  // Calculate totals
+  // Calculate totals by group
+  const totalsByGroup = useMemo(() => {
+    const totals: Record<string, number> = {};
+    groups?.forEach(g => {
+      totals[g.codigo] = incidencesByGroup[g.codigo]
+        ?.filter(i => i.ativo)
+        .reduce((sum, i) => sum + (i.custo_mensal_por_pessoa ?? 0), 0) ?? 0;
+    });
+    return totals;
+  }, [incidencesByGroup, groups]);
+  
+  // Calculate total geral
   const totalGeral = useMemo(() => {
-    return incidences
-      .filter(i => i.ativo)
-      .reduce((sum, i) => sum + (i.custo_mensal_por_pessoa ?? 0), 0);
-  }, [incidences]);
+    return Object.values(totalsByGroup).reduce((sum, v) => sum + v, 0);
+  }, [totalsByGroup]);
   
   const selectedRole = roles?.find(r => r.id === selectedRoleId);
   
-  // Handle applying all catalog items when a role is selected
-  const handleRoleSelect = async (roleId: string) => {
+  const handleRoleSelect = (roleId: string) => {
     setSelectedRoleId(roleId);
   };
 
   const handleApplyCatalog = () => {
-    if (selectedRoleId) {
+    if (selectedRoleId && catalogItems && catalogItems.length > 0) {
       applyAllCatalogItems.mutate();
     }
   };
 
+  const handleApplyTemplate = (templateId: string) => {
+    if (selectedRoleId) {
+      applyTemplate.mutate(templateId);
+    }
+  };
+
+  // Show empty states
+  if (groupsLoading) {
+    return (
+      <div className="container py-6 space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!groups || groups.length === 0) {
+    return (
+      <div className="container py-6 space-y-6">
+        <Card className="p-8 text-center text-muted-foreground">
+          <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Sem grupos de incidências cadastrados.</p>
+          <p className="text-sm">Entre em contato com o administrador do sistema.</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="container py-6 space-y-6">
+    <div className="container py-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <HardHat className="h-6 w-6 text-orange-500" />
-            Incidências por Função (EPIs, Benefícios, etc.)
+            Incidências por Função
           </h1>
-          <p className="text-muted-foreground">
-            Configure itens de incidência (A–E) por função de mão de obra. Custo mensal por pessoa.
+          <p className="text-muted-foreground text-sm">
+            EPIs, uniformes, alimentação e benefícios por função de MO
           </p>
         </div>
+        <Button variant="outline" size="sm" disabled>
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Importar XLSX
+        </Button>
       </div>
+
+      {/* Context Selector: Empresa + Região */}
+      <Card className="p-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <PriceContextSelector
+            empresaId={empresaId}
+            regiaoId={regiaoId}
+            onEmpresaChange={setEmpresaId}
+            onRegiaoChange={setRegiaoId}
+          />
+          {/* Total Geral Badge */}
+          {selectedRoleId && totalGeral > 0 && (
+            <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-lg">
+              <span className="text-sm font-medium">Total Incidências/pessoa/mês:</span>
+              <span className="text-lg font-bold text-primary">{formatCurrency(totalGeral)}</span>
+            </div>
+          )}
+        </div>
+      </Card>
       
       {/* Role Selector */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Selecione uma Função</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 items-end">
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por código ou nome..."
-                  value={roleSearch}
-                  onChange={(e) => setRoleSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <Select value={selectedRoleId ?? ''} onValueChange={handleRoleSelect}>
-              <SelectTrigger className="w-96">
-                <SelectValue placeholder="Selecione uma função de MO" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredRoles.map(role => (
+      <Card className="p-3">
+        <div className="flex gap-3 items-center flex-wrap">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar função..."
+              value={roleSearch}
+              onChange={(e) => setRoleSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <Select value={selectedRoleId ?? ''} onValueChange={handleRoleSelect}>
+            <SelectTrigger className="w-80 h-9">
+              <SelectValue placeholder="Selecione uma função de MO" />
+            </SelectTrigger>
+            <SelectContent>
+              {rolesLoading ? (
+                <SelectItem value="__loading__" disabled>Carregando...</SelectItem>
+              ) : filteredRoles.length === 0 ? (
+                <SelectItem value="__empty__" disabled>Nenhuma função encontrada</SelectItem>
+              ) : (
+                filteredRoles.map(role => (
                   <SelectItem key={role.id} value={role.id}>
                     <span className="font-mono text-xs mr-2">{role.codigo}</span>
                     {role.nome}
+                    <Badge variant="outline" className="ml-2 text-[10px]">{role.tipo_mo}</Badge>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedRoleId && (
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          
+          {selectedRoleId && (
+            <>
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={handleApplyCatalog}
-                disabled={applyAllCatalogItems.isPending}
+                disabled={applyAllCatalogItems.isPending || !catalogItems?.length}
               >
                 <RefreshCw className={cn(
                   "h-4 w-4 mr-2",
                   applyAllCatalogItems.isPending && "animate-spin"
                 )} />
-                Aplicar Catálogo
+                {!catalogItems?.length ? 'Catálogo vazio' : 'Aplicar Catálogo'}
               </Button>
-            )}
-          </div>
-        </CardContent>
+              
+              {templates && templates.length > 0 && (
+                <Select onValueChange={handleApplyTemplate}>
+                  <SelectTrigger className="w-44 h-9">
+                    <SelectValue placeholder="Aplicar Template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
+        </div>
       </Card>
       
       {/* Content */}
@@ -345,116 +428,94 @@ export default function IncidenciasMO() {
           <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>Selecione uma função para configurar as incidências.</p>
         </Card>
-      ) : incidencesLoading ? (
+      ) : incidencesLoading || catalogLoading ? (
         <Card className="p-6">
           <Skeleton className="h-8 w-48 mb-4" />
           <Skeleton className="h-64 w-full" />
         </Card>
       ) : (
         <>
-          {/* Summary Cards - using design tokens */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            {groups?.map(group => {
-              const groupTotal = incidencesByGroup[group.codigo]
-                ?.filter(i => i.ativo)
-                .reduce((sum, i) => sum + (i.custo_mensal_por_pessoa ?? 0), 0) ?? 0;
-              
-              return (
-                <Card 
-                  key={group.codigo}
-                  className={cn(
-                    "cursor-pointer transition-all",
-                    activeTab === group.codigo && "ring-2 ring-primary"
-                  )}
-                  onClick={() => setActiveTab(group.codigo)}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      {GROUP_ICONS[group.codigo]}
-                      <span className="font-medium text-sm">{group.codigo}</span>
-                    </div>
-                    <div className="text-lg font-bold text-primary">
-                      {formatCurrency(groupTotal)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {group.nome}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          {/* Summary Cards */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {groups.map(group => (
+              <Card 
+                key={group.codigo}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md",
+                  activeTab === group.codigo && "ring-2 ring-primary"
+                )}
+                onClick={() => setActiveTab(group.codigo)}
+              >
+                <CardContent className="p-2">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    {GROUP_ICONS[group.codigo]}
+                    <span className="font-medium text-xs">{group.codigo}</span>
+                  </div>
+                  <div className="text-base font-bold text-primary">
+                    {formatCurrency(totalsByGroup[group.codigo] ?? 0)}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground truncate">
+                    {group.nome}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
             {/* Total Card */}
             <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-sm">TOTAL</span>
+              <CardContent className="p-2">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="font-medium text-xs">TOTAL</span>
                 </div>
-                <div className="text-lg font-bold text-primary">
+                <div className="text-base font-bold text-primary">
                   {formatCurrency(totalGeral)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-[9px] text-muted-foreground">
                   /pessoa/mês
                 </div>
               </CardContent>
             </Card>
           </div>
           
-          {/* Tabs with Items */}
+          {/* Tabs with Items Table */}
           <Card>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <CardHeader className="pb-0">
+              <CardHeader className="pb-2 pt-3">
                 <TabsList className="grid grid-cols-5 w-fit">
-                  {groups?.map(group => (
-                    <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1">
+                  {groups.map(group => (
+                    <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1 text-xs">
                       {GROUP_ICONS[group.codigo]}
                       {group.codigo}
                     </TabsTrigger>
                   ))}
                 </TabsList>
               </CardHeader>
-              <CardContent className="pt-4">
-                {groups?.map(group => (
+              <CardContent className="pt-2 px-3 pb-3">
+                {groups.map(group => (
                   <TabsContent key={group.codigo} value={group.codigo} className="m-0">
                     <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="p-2 text-left w-10"></th>
-                            <th className="p-2 text-left text-xs font-medium">Código</th>
-                            <th className="p-2 text-left text-xs font-medium">Descrição</th>
-                            <th className="p-2 text-left text-xs font-medium">Tipo</th>
-                            <th className="p-2 text-left text-xs font-medium">
-                              <Tooltip>
-                                <TooltipTrigger className="flex items-center gap-1">
-                                  Qtd
-                                  <Info className="h-3 w-3" />
-                                </TooltipTrigger>
-                                <TooltipContent>Quantidade ou dias/mês</TooltipContent>
-                              </Tooltip>
-                            </th>
-                            <th className="p-2 text-left text-xs font-medium">R$ Unit</th>
-                            <th className="p-2 text-left text-xs font-medium">
-                              <Tooltip>
-                                <TooltipTrigger className="flex items-center gap-1">
-                                  Meses/R$ Mensal
-                                  <Info className="h-3 w-3" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  Rateio: vida útil em meses | Mensal: valor fixo mensal
-                                </TooltipContent>
-                              </Tooltip>
-                            </th>
-                            <th className="p-2 text-right text-xs font-medium">Custo/Mês</th>
-                            <th className="p-2 w-12"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-10 text-center text-xs">Ativo</TableHead>
+                            <TableHead className="text-xs">Código</TableHead>
+                            <TableHead className="text-xs">Descrição</TableHead>
+                            <TableHead className="text-xs">Tipo</TableHead>
+                            <TableHead className="text-xs">Qtd</TableHead>
+                            <TableHead className="text-xs">R$ Unit</TableHead>
+                            <TableHead className="text-xs">Meses / R$ Mensal</TableHead>
+                            <TableHead className="text-xs text-right">Custo/Mês</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {incidencesByGroup[group.codigo]?.length === 0 ? (
-                            <tr>
-                              <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                                Clique em "Aplicar Catálogo" para adicionar itens do catálogo global.
-                              </td>
-                            </tr>
+                            <TableRow>
+                              <TableCell colSpan={9} className="p-6 text-center text-muted-foreground text-sm">
+                                {catalogItems?.length === 0 
+                                  ? 'Catálogo de incidências vazio. Contate o administrador.'
+                                  : 'Clique em "Aplicar Catálogo" para adicionar itens.'}
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             incidencesByGroup[group.codigo]?.map(item => (
                               <IncidenceItemRow
@@ -472,47 +533,28 @@ export default function IncidenciasMO() {
                               />
                             ))
                           )}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    {/* Group Footer */}
-                    <div className="mt-4 flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm font-medium">{group.nome}</span>
-                      <span className="text-lg font-bold text-primary">
-                        Subtotal: {formatCurrency(
-                          incidencesByGroup[group.codigo]
-                            ?.filter(i => i.ativo)
-                            .reduce((sum, i) => sum + (i.custo_mensal_por_pessoa ?? 0), 0) ?? 0
+                        </TableBody>
+                        {/* Group Subtotal Footer */}
+                        {incidencesByGroup[group.codigo]?.length > 0 && (
+                          <TableFooter>
+                            <TableRow className="bg-muted/30">
+                              <TableCell colSpan={7} className="text-right font-medium text-sm">
+                                Custo Mensal por Pessoa [{group.codigo}]:
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-primary">
+                                {formatCurrency(totalsByGroup[group.codigo] ?? 0)}
+                              </TableCell>
+                              <TableCell></TableCell>
+                            </TableRow>
+                          </TableFooter>
                         )}
-                      </span>
+                      </Table>
                     </div>
                   </TabsContent>
                 ))}
               </CardContent>
             </Tabs>
           </Card>
-          
-          {/* Function Info */}
-          {selectedRole && (
-            <Card className="bg-muted/30">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Função selecionada:</span>
-                    <div className="font-medium">
-                      <Badge variant="outline" className="font-mono mr-2">{selectedRole.codigo}</Badge>
-                      {selectedRole.nome}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm text-muted-foreground">Total Incidências por Pessoa/Mês:</span>
-                    <div className="text-2xl font-bold text-primary">{formatCurrency(totalGeral)}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
     </div>
