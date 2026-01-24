@@ -365,6 +365,8 @@ export type Database = {
           linhas_erro: number
           linhas_sucesso: number
           nome_arquivo: string
+          resumo_json: Json | null
+          tipo: string | null
           tipo_arquivo: string
           total_linhas: number
           usuario_id: string | null
@@ -375,6 +377,8 @@ export type Database = {
           linhas_erro?: number
           linhas_sucesso?: number
           nome_arquivo: string
+          resumo_json?: Json | null
+          tipo?: string | null
           tipo_arquivo: string
           total_linhas?: number
           usuario_id?: string | null
@@ -385,6 +389,8 @@ export type Database = {
           linhas_erro?: number
           linhas_sucesso?: number
           nome_arquivo?: string
+          resumo_json?: Json | null
+          tipo?: string | null
           tipo_arquivo?: string
           total_linhas?: number
           usuario_id?: string | null
@@ -2011,6 +2017,54 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      material_catalog_price_history: {
+        Row: {
+          catalog_id: string
+          changed_at: string
+          changed_by: string | null
+          codigo: string
+          id: string
+          import_run_id: string | null
+          new_price: number | null
+          old_price: number | null
+        }
+        Insert: {
+          catalog_id: string
+          changed_at?: string
+          changed_by?: string | null
+          codigo: string
+          id?: string
+          import_run_id?: string | null
+          new_price?: number | null
+          old_price?: number | null
+        }
+        Update: {
+          catalog_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          codigo?: string
+          id?: string
+          import_run_id?: string | null
+          new_price?: number | null
+          old_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_catalog_price_history_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_catalog_price_history_import_run_id_fkey"
+            columns: ["import_run_id"]
+            isOneToOne: false
+            referencedRelation: "arquivos_importacao"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mobilization_catalog: {
         Row: {
