@@ -178,14 +178,14 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                         {field} {['codigo', 'descricao', 'unidade', 'preco_ref'].includes(field) && '*'}
                       </Label>
                       <Select
-                        value={String(columnMapping[field] ?? '')}
-                        onValueChange={(v) => handleMappingChange(field, v)}
+                        value={columnMapping[field] !== undefined && columnMapping[field] !== null ? String(columnMapping[field]) : '__unmapped__'}
+                        onValueChange={(v) => handleMappingChange(field, v === '__unmapped__' ? '' : v)}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Não mapeado</SelectItem>
+                          <SelectItem value="__unmapped__">Não mapeado</SelectItem>
                           {headers.map((header, idx) => (
                             <SelectItem key={idx} value={String(idx)}>
                               {header || `Coluna ${idx + 1}`}

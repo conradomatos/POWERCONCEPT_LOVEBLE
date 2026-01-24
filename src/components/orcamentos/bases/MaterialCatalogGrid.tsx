@@ -403,11 +403,11 @@ export function MaterialCatalogGrid() {
     if (col === 'group_id') {
       return (
         <Select
-          value={item.group_id || ''}
+          value={item.group_id || '__clear__'}
           onValueChange={async (value) => {
             await updateItem.mutateAsync({
               id: item.id,
-              group_id: value || null,
+              group_id: value === '__clear__' ? null : value,
               category_id: null,
               subcategory_id: null,
             });
@@ -417,7 +417,7 @@ export function MaterialCatalogGrid() {
             <SelectValue placeholder="-" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">-</SelectItem>
+            <SelectItem value="__clear__">-</SelectItem>
             {groups.map(g => (
               <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
             ))}
@@ -432,11 +432,11 @@ export function MaterialCatalogGrid() {
         : [];
       return (
         <Select
-          value={item.category_id || ''}
+          value={item.category_id || '__clear__'}
           onValueChange={async (value) => {
             await updateItem.mutateAsync({
               id: item.id,
-              category_id: value || null,
+              category_id: value === '__clear__' ? null : value,
               subcategory_id: null,
             });
           }}
@@ -446,7 +446,7 @@ export function MaterialCatalogGrid() {
             <SelectValue placeholder="-" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">-</SelectItem>
+            <SelectItem value="__clear__">-</SelectItem>
             {categoriesForItem.map(c => (
               <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
             ))}
@@ -461,11 +461,11 @@ export function MaterialCatalogGrid() {
         : [];
       return (
         <Select
-          value={item.subcategory_id || ''}
+          value={item.subcategory_id || '__clear__'}
           onValueChange={async (value) => {
             await updateItem.mutateAsync({
               id: item.id,
-              subcategory_id: value || null,
+              subcategory_id: value === '__clear__' ? null : value,
             });
           }}
           disabled={!item.category_id}
@@ -474,7 +474,7 @@ export function MaterialCatalogGrid() {
             <SelectValue placeholder="-" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">-</SelectItem>
+            <SelectItem value="__clear__">-</SelectItem>
             {subcategoriesForItem.map(s => (
               <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
             ))}
@@ -585,12 +585,12 @@ export function MaterialCatalogGrid() {
         <div className="flex flex-wrap gap-3 p-4 bg-muted/30 rounded-lg border">
           <div className="w-40">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Grupo</label>
-            <Select value={filterGroupId} onValueChange={setFilterGroupId}>
+            <Select value={filterGroupId || '__all__'} onValueChange={(v) => setFilterGroupId(v === '__all__' ? '' : v)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="__all__">Todos</SelectItem>
                 {groups.map(g => (
                   <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
                 ))}
@@ -600,12 +600,12 @@ export function MaterialCatalogGrid() {
 
           <div className="w-40">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Categoria</label>
-            <Select value={filterCategoryId} onValueChange={setFilterCategoryId} disabled={!filterGroupId}>
+            <Select value={filterCategoryId || '__all__'} onValueChange={(v) => setFilterCategoryId(v === '__all__' ? '' : v)} disabled={!filterGroupId}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="__all__">Todas</SelectItem>
                 {filteredCategoriesForFilter.map(c => (
                   <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                 ))}
@@ -615,12 +615,12 @@ export function MaterialCatalogGrid() {
 
           <div className="w-40">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Subcategoria</label>
-            <Select value={filterSubcategoryId} onValueChange={setFilterSubcategoryId} disabled={!filterCategoryId}>
+            <Select value={filterSubcategoryId || '__all__'} onValueChange={(v) => setFilterSubcategoryId(v === '__all__' ? '' : v)} disabled={!filterCategoryId}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="__all__">Todas</SelectItem>
                 {filteredSubcategoriesForFilter.map(s => (
                   <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                 ))}
@@ -794,14 +794,14 @@ export function MaterialCatalogGrid() {
                 </td>
                 <td className="px-1 py-1">
                   <Select
-                    value={newItem.group_id || ''}
-                    onValueChange={(value) => setNewItem({ ...newItem, group_id: value || null, category_id: null, subcategory_id: null })}
+                    value={newItem.group_id || '__clear__'}
+                    onValueChange={(value) => setNewItem({ ...newItem, group_id: value === '__clear__' ? null : value, category_id: null, subcategory_id: null })}
                   >
                     <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-</SelectItem>
+                      <SelectItem value="__clear__">-</SelectItem>
                       {groups.map(g => (
                         <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
                       ))}
@@ -810,15 +810,15 @@ export function MaterialCatalogGrid() {
                 </td>
                 <td className="px-1 py-1">
                   <Select
-                    value={newItem.category_id || ''}
-                    onValueChange={(value) => setNewItem({ ...newItem, category_id: value || null, subcategory_id: null })}
+                    value={newItem.category_id || '__clear__'}
+                    onValueChange={(value) => setNewItem({ ...newItem, category_id: value === '__clear__' ? null : value, subcategory_id: null })}
                     disabled={!newItem.group_id}
                   >
                     <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-</SelectItem>
+                      <SelectItem value="__clear__">-</SelectItem>
                       {categoriesForNewItem.map(c => (
                         <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                       ))}
@@ -827,15 +827,15 @@ export function MaterialCatalogGrid() {
                 </td>
                 <td className="px-1 py-1">
                   <Select
-                    value={newItem.subcategory_id || ''}
-                    onValueChange={(value) => setNewItem({ ...newItem, subcategory_id: value || null })}
+                    value={newItem.subcategory_id || '__clear__'}
+                    onValueChange={(value) => setNewItem({ ...newItem, subcategory_id: value === '__clear__' ? null : value })}
                     disabled={!newItem.category_id}
                   >
                     <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-</SelectItem>
+                      <SelectItem value="__clear__">-</SelectItem>
                       {subcategoriesForNewItem.map(s => (
                         <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                       ))}
