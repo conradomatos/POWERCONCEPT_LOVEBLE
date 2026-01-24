@@ -119,9 +119,13 @@ export default function Layout({ children }: LayoutProps) {
                   {/* Logo - clickable to home */}
                   <Link 
                     to="/" 
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                   >
-                    <img src={logoCpsImg} alt="CPS" className="h-8 w-auto" />
+                    <img src={logoCpsImg} alt="CPS" className="h-10 w-auto" />
+                    <div className="hidden sm:flex flex-col leading-none">
+                      <span className="text-lg font-bold tracking-wide text-foreground">CPS</span>
+                      <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Concept Process Systems</span>
+                    </div>
                   </Link>
                   
                   {/* Top Nav - 3 Areas */}
