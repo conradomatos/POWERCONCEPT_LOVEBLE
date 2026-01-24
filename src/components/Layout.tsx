@@ -122,10 +122,7 @@ export default function Layout({ children }: LayoutProps) {
                     className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                   >
                     <img src={logoCpsImg} alt="CPS" className="h-10 w-auto" />
-                    <div className="hidden sm:flex flex-col leading-none">
-                      <span className="text-lg font-bold tracking-wide text-foreground">CPS</span>
-                      <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Concept Process Systems</span>
-                    </div>
+                    <span className="hidden sm:block text-[10px] text-muted-foreground tracking-widest uppercase">Concept Process Systems</span>
                   </Link>
                   
                   {/* Top Nav - 3 Areas */}
