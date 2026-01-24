@@ -492,6 +492,85 @@ export type Database = {
           },
         ]
       }
+      budget_equipment_items: {
+        Row: {
+          catalog_id: string | null
+          codigo_snapshot: string | null
+          created_at: string | null
+          created_by: string | null
+          descricao_snapshot: string
+          id: string
+          meses: number | null
+          observacao: string | null
+          preco_mensal_override: number | null
+          preco_mensal_ref_snapshot: number | null
+          qtd: number | null
+          revision_id: string
+          total: number | null
+          unidade_snapshot: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          catalog_id?: string | null
+          codigo_snapshot?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao_snapshot: string
+          id?: string
+          meses?: number | null
+          observacao?: string | null
+          preco_mensal_override?: number | null
+          preco_mensal_ref_snapshot?: number | null
+          qtd?: number | null
+          revision_id: string
+          total?: number | null
+          unidade_snapshot?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          catalog_id?: string | null
+          codigo_snapshot?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao_snapshot?: string
+          id?: string
+          meses?: number | null
+          observacao?: string | null
+          preco_mensal_override?: number | null
+          preco_mensal_ref_snapshot?: number | null
+          qtd?: number | null
+          revision_id?: string
+          total?: number | null
+          unidade_snapshot?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_equipment_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_equipment_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_equipment_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_fabricantes: {
         Row: {
           ativo: boolean
@@ -1937,6 +2016,244 @@ export type Database = {
           },
         ]
       }
+      equipment_catalog: {
+        Row: {
+          ativo: boolean | null
+          category_id: string | null
+          codigo: string
+          created_at: string | null
+          created_by: string | null
+          descricao: string
+          group_id: string | null
+          id: string
+          observacao: string | null
+          preco_mensal_ref: number | null
+          subcategory_id: string | null
+          unidade: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          category_id?: string | null
+          codigo: string
+          created_at?: string | null
+          created_by?: string | null
+          descricao: string
+          group_id?: string | null
+          id?: string
+          observacao?: string | null
+          preco_mensal_ref?: number | null
+          subcategory_id?: string | null
+          unidade?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          category_id?: string | null
+          codigo?: string
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string
+          group_id?: string | null
+          id?: string
+          observacao?: string | null
+          preco_mensal_ref?: number | null
+          subcategory_id?: string | null
+          unidade?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_catalog_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_catalog_tags: {
+        Row: {
+          equipment_id: string
+          tag_id: string
+        }
+        Insert: {
+          equipment_id: string
+          tag_id: string
+        }
+        Update: {
+          equipment_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_catalog_tags_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_tags_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "vw_equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_categories: {
+        Row: {
+          created_at: string | null
+          group_id: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_groups: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      equipment_import_runs: {
+        Row: {
+          created_count: number | null
+          error_count: number | null
+          filename: string | null
+          id: string
+          imported_at: string | null
+          imported_by: string | null
+          total_rows: number | null
+          updated_count: number | null
+        }
+        Insert: {
+          created_count?: number | null
+          error_count?: number | null
+          filename?: string | null
+          id?: string
+          imported_at?: string | null
+          imported_by?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Update: {
+          created_count?: number | null
+          error_count?: number | null
+          filename?: string | null
+          id?: string
+          imported_at?: string | null
+          imported_by?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Relationships: []
+      }
+      equipment_price_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          equipment_id: string
+          id: string
+          preco_anterior: number | null
+          preco_novo: number | null
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          equipment_id: string
+          id?: string
+          preco_anterior?: number | null
+          preco_novo?: number | null
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          equipment_id?: string
+          id?: string
+          preco_anterior?: number | null
+          preco_novo?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_price_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_price_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "vw_equipment_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_rentals: {
         Row: {
           catalog_id: string | null
@@ -2006,6 +2323,56 @@ export type Database = {
           descricao?: string
           id?: string
           valor_mensal_ref?: number
+        }
+        Relationships: []
+      }
+      equipment_subcategories: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
         }
         Relationships: []
       }
@@ -4002,6 +4369,52 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_equipment_catalog: {
+        Row: {
+          ativo: boolean | null
+          category_id: string | null
+          category_nome: string | null
+          codigo: string | null
+          created_at: string | null
+          created_by: string | null
+          descricao: string | null
+          group_id: string | null
+          group_nome: string | null
+          hierarquia_path: string | null
+          id: string | null
+          observacao: string | null
+          preco_mensal_ref: number | null
+          subcategory_id: string | null
+          subcategory_nome: string | null
+          tags: string[] | null
+          unidade: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_catalog_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_rentabilidade_projeto: {
         Row: {
           a_pagar: number | null
@@ -4140,6 +4553,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_catalog_manager: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       obter_custo_vigente: {
         Args: {
@@ -4178,7 +4592,12 @@ export type Database = {
         | "APROVADO"
         | "REPROVADO"
         | "NAO_LANCADO"
-      app_role: "admin" | "rh" | "financeiro" | "super_admin"
+      app_role:
+        | "admin"
+        | "rh"
+        | "financeiro"
+        | "super_admin"
+        | "catalog_manager"
       aprovacao_status:
         | "RASCUNHO"
         | "PENDENTE_APROVACAO"
@@ -4353,7 +4772,7 @@ export const Constants = {
         "REPROVADO",
         "NAO_LANCADO",
       ],
-      app_role: ["admin", "rh", "financeiro", "super_admin"],
+      app_role: ["admin", "rh", "financeiro", "super_admin", "catalog_manager"],
       aprovacao_status: [
         "RASCUNHO",
         "PENDENTE_APROVACAO",

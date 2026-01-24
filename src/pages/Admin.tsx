@@ -144,6 +144,7 @@ export default function Admin() {
       'admin': 'ADMIN',
       'rh': 'RH',
       'financeiro': 'FINANCEIRO',
+      'catalog_manager': 'GESTOR CATÁLOGO',
     };
     return labels[role] || String(role).toUpperCase();
   };
