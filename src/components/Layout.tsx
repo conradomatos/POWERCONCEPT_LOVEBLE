@@ -11,7 +11,7 @@ import {
   PanelLeft,
   Calculator,
 } from 'lucide-react';
-
+import logoCps from '@/assets/logo-cps.png';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -140,8 +140,9 @@ export default function Layout({ children }: LayoutProps) {
                 {/* Brand - Right side */}
                 <Link 
                   to="/" 
-                  className="ml-auto hover:opacity-80 transition-opacity"
+                  className="ml-auto flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
+                  <img src={logoCps} alt="CPS" className="h-8 w-auto" />
                   <h1 className="text-lg font-medium tracking-[0.25em] uppercase text-foreground">
                     CPS
                   </h1>
