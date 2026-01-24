@@ -604,6 +604,358 @@ export type Database = {
           },
         ]
       }
+      budget_labor_catalog_tags: {
+        Row: {
+          role_id: string
+          tag_id: string
+        }
+        Insert: {
+          role_id: string
+          tag_id: string
+        }
+        Update: {
+          role_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_catalog_tags_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_catalog_tags_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_catalog_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_labor_categories: {
+        Row: {
+          created_at: string | null
+          group_id: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_labor_charge_sets: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          encargos_sociais_pct: number | null
+          fgts_pct: number | null
+          id: string
+          inss_pct: number | null
+          nome: string
+          outros_beneficios_pct: number | null
+          outros_impostos_pct: number | null
+          plano_saude_pct: number | null
+          provisao_13o_pct: number | null
+          provisao_ferias_pct: number | null
+          provisao_rescisao_pct: number | null
+          total_encargos_pct: number | null
+          updated_at: string | null
+          vale_refeicao_pct: number | null
+          vale_transporte_pct: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          encargos_sociais_pct?: number | null
+          fgts_pct?: number | null
+          id?: string
+          inss_pct?: number | null
+          nome: string
+          outros_beneficios_pct?: number | null
+          outros_impostos_pct?: number | null
+          plano_saude_pct?: number | null
+          provisao_13o_pct?: number | null
+          provisao_ferias_pct?: number | null
+          provisao_rescisao_pct?: number | null
+          total_encargos_pct?: number | null
+          updated_at?: string | null
+          vale_refeicao_pct?: number | null
+          vale_transporte_pct?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          encargos_sociais_pct?: number | null
+          fgts_pct?: number | null
+          id?: string
+          inss_pct?: number | null
+          nome?: string
+          outros_beneficios_pct?: number | null
+          outros_impostos_pct?: number | null
+          plano_saude_pct?: number | null
+          provisao_13o_pct?: number | null
+          provisao_ferias_pct?: number | null
+          provisao_rescisao_pct?: number | null
+          total_encargos_pct?: number | null
+          updated_at?: string | null
+          vale_refeicao_pct?: number | null
+          vale_transporte_pct?: number | null
+        }
+        Relationships: []
+      }
+      budget_labor_groups: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      budget_labor_import_runs: {
+        Row: {
+          created_count: number | null
+          error_count: number | null
+          filename: string | null
+          id: string
+          imported_at: string | null
+          imported_by: string | null
+          total_rows: number | null
+          updated_count: number | null
+        }
+        Insert: {
+          created_count?: number | null
+          error_count?: number | null
+          filename?: string | null
+          id?: string
+          imported_at?: string | null
+          imported_by?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Update: {
+          created_count?: number | null
+          error_count?: number | null
+          filename?: string | null
+          id?: string
+          imported_at?: string | null
+          imported_by?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Relationships: []
+      }
+      budget_labor_roles_catalog: {
+        Row: {
+          ativo: boolean | null
+          beneficios_mensal: number | null
+          carga_horaria_mensal: number | null
+          category_id: string | null
+          charge_set_id: string | null
+          codigo: string
+          created_at: string | null
+          group_id: string | null
+          hh_custo: number | null
+          id: string
+          insalubridade_pct: number | null
+          nome: string
+          observacao: string | null
+          periculosidade_pct: number | null
+          produtividade_tipo:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade: string | null
+          produtividade_valor: number | null
+          regime: Database["public"]["Enums"]["budget_labor_regime"]
+          salario_base: number
+          tipo_mo: Database["public"]["Enums"]["budget_labor_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          beneficios_mensal?: number | null
+          carga_horaria_mensal?: number | null
+          category_id?: string | null
+          charge_set_id?: string | null
+          codigo: string
+          created_at?: string | null
+          group_id?: string | null
+          hh_custo?: number | null
+          id?: string
+          insalubridade_pct?: number | null
+          nome: string
+          observacao?: string | null
+          periculosidade_pct?: number | null
+          produtividade_tipo?:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade?: string | null
+          produtividade_valor?: number | null
+          regime?: Database["public"]["Enums"]["budget_labor_regime"]
+          salario_base?: number
+          tipo_mo?: Database["public"]["Enums"]["budget_labor_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          beneficios_mensal?: number | null
+          carga_horaria_mensal?: number | null
+          category_id?: string | null
+          charge_set_id?: string | null
+          codigo?: string
+          created_at?: string | null
+          group_id?: string | null
+          hh_custo?: number | null
+          id?: string
+          insalubridade_pct?: number | null
+          nome?: string
+          observacao?: string | null
+          periculosidade_pct?: number | null
+          produtividade_tipo?:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade?: string | null
+          produtividade_valor?: number | null
+          regime?: Database["public"]["Enums"]["budget_labor_regime"]
+          salario_base?: number
+          tipo_mo?: Database["public"]["Enums"]["budget_labor_type"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_roles_catalog_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_catalog_charge_set_id_fkey"
+            columns: ["charge_set_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_charge_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_catalog_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_labor_roles_history: {
+        Row: {
+          change_type: string
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          import_run_id: string | null
+          new_values: Json | null
+          old_values: Json | null
+          role_id: string
+        }
+        Insert: {
+          change_type: string
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          import_run_id?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          role_id: string
+        }
+        Update: {
+          change_type?: string
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          import_run_id?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_roles_history_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_history_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_labor_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       budget_material_items: {
         Row: {
           catalog_id: string | null
@@ -3228,6 +3580,60 @@ export type Database = {
           },
         ]
       }
+      vw_budget_labor_roles_catalog: {
+        Row: {
+          ativo: boolean | null
+          beneficios_mensal: number | null
+          carga_horaria_mensal: number | null
+          category_id: string | null
+          category_nome: string | null
+          charge_set_id: string | null
+          charge_set_nome: string | null
+          codigo: string | null
+          created_at: string | null
+          group_id: string | null
+          group_nome: string | null
+          hh_custo: number | null
+          id: string | null
+          insalubridade_pct: number | null
+          nome: string | null
+          observacao: string | null
+          periculosidade_pct: number | null
+          produtividade_tipo:
+            | Database["public"]["Enums"]["budget_productivity_type"]
+            | null
+          produtividade_unidade: string | null
+          produtividade_valor: number | null
+          regime: Database["public"]["Enums"]["budget_labor_regime"] | null
+          salario_base: number | null
+          tipo_mo: Database["public"]["Enums"]["budget_labor_type"] | null
+          total_encargos_pct: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_roles_catalog_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_catalog_charge_set_id_fkey"
+            columns: ["charge_set_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_charge_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_catalog_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_budget_materials: {
         Row: {
           catalog_id: string | null
@@ -3379,6 +3785,17 @@ export type Database = {
       }
     }
     Functions: {
+      calculate_budget_labor_hh_custo: {
+        Args: {
+          p_beneficios_mensal: number
+          p_carga_horaria_mensal: number
+          p_insalubridade_pct: number
+          p_periculosidade_pct: number
+          p_salario_base: number
+          p_total_encargos_pct: number
+        }
+        Returns: number
+      }
       can_approve_projects: { Args: { _user_id: string }; Returns: boolean }
       generate_next_budget_number: { Args: never; Returns: string }
       generate_next_os: { Args: never; Returns: string }
@@ -3465,6 +3882,9 @@ export type Database = {
         | "PENDENTE_APROVACAO"
         | "APROVADO"
         | "REPROVADO"
+      budget_labor_regime: "CLT" | "PL"
+      budget_labor_type: "MOD" | "MOI"
+      budget_productivity_type: "HH_POR_UN" | "UN_POR_HH"
       custo_status: "OK" | "SEM_CUSTO"
       employee_status: "ativo" | "afastado" | "desligado"
       empresa_status: "ativo" | "inativo"
@@ -3637,6 +4057,9 @@ export const Constants = {
         "APROVADO",
         "REPROVADO",
       ],
+      budget_labor_regime: ["CLT", "PL"],
+      budget_labor_type: ["MOD", "MOI"],
+      budget_productivity_type: ["HH_POR_UN", "UN_POR_HH"],
       custo_status: ["OK", "SEM_CUSTO"],
       employee_status: ["ativo", "afastado", "desligado"],
       empresa_status: ["ativo", "inativo"],
