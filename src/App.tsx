@@ -44,7 +44,7 @@ import BasesGlobais from "./pages/orcamentos/BasesGlobais";
 import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
 import CatalogoMateriais from "./pages/orcamentos/bases/CatalogoMateriais";
 import WbsTemplates from "./pages/orcamentos/bases/WbsTemplates";
-import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoes";
+import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoesV2";
 import CatalogoMaoDeObraParametros from "./pages/orcamentos/bases/CatalogoMaoDeObraParametros";
 import NotFound from "./pages/NotFound";
 
