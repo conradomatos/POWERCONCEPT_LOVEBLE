@@ -7,7 +7,8 @@ import {
   Cog, 
   Truck, 
   Calculator, 
-  Percent 
+  Percent,
+  Shield 
 } from 'lucide-react';
 
 const bases = [
@@ -42,6 +43,14 @@ const bases = [
     href: '/orcamentos/bases/mo-parametros',
     color: 'text-slate-500',
     bgColor: 'bg-slate-50 dark:bg-slate-950',
+  },
+  {
+    title: 'Incidências por Função',
+    description: 'EPIs, uniformes, benefícios e custos por função',
+    icon: Shield,
+    href: '/orcamentos/bases/incidencias-mo',
+    color: 'text-amber-500',
+    bgColor: 'bg-amber-50 dark:bg-amber-950',
   },
   {
     title: 'Catálogo de Equipamentos',
