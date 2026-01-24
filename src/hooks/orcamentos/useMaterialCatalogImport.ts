@@ -16,7 +16,12 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   categoria: ['categoria', 'category', 'categoria_nome'],
   subcategoria: ['subcategoria', 'subcategory', 'sub_categoria', 'sub'],
   tags: ['tags', 'etiquetas', 'labels'],
+  hierarquia_path: ['hierarquia_path', 'hierarquia', 'caminho', 'path', 'hierarchy'],
 };
+
+// Tag validation constants
+const MAX_TAGS_PER_ITEM = 20;
+const MAX_TAG_LENGTH = 40;
 
 export type ImportRowStatus = 'NOVO' | 'UPDATE_PRECO' | 'IGUAL' | 'CONFLITO' | 'ERRO';
 
@@ -63,6 +68,7 @@ export interface ColumnMapping {
   categoria?: number;
   subcategoria?: number;
   tags?: number;
+  hierarquia_path?: number;
 }
 
 export interface DuplicateInfo {
@@ -201,13 +207,59 @@ export function useMaterialCatalogImport() {
     }
   }, [parseFile, detectColumnMapping]);
 
-  // Parse tags from string (separated by ; or ,)
-  const parseTags = (value: string | undefined): string[] => {
-    if (!value) return [];
-    return value
-      .split(/[;,]/)
+  // Parse tags from string (separated by ;)
+  // Deduplicate case-insensitive, limit to MAX_TAGS_PER_ITEM
+  const parseTags = (value: string | undefined): { tags: string[]; error?: string } => {
+    if (!value) return { tags: [] };
+    
+    const rawTags = value
+      .split(';')
       .map(t => t.trim())
       .filter(t => t.length > 0);
+    
+    // Validate tag length
+    const longTags = rawTags.filter(t => t.length > MAX_TAG_LENGTH);
+    if (longTags.length > 0) {
+      return { 
+        tags: [], 
+        error: `Tag(s) excede ${MAX_TAG_LENGTH} caracteres: "${longTags[0].substring(0, 20)}..."` 
+      };
+    }
+    
+    // Deduplicate case-insensitive
+    const seen = new Map<string, string>();
+    for (const tag of rawTags) {
+      const key = tag.toLowerCase();
+      if (!seen.has(key)) {
+        seen.set(key, tag);
+      }
+    }
+    const deduped = Array.from(seen.values());
+    
+    // Limit to MAX_TAGS_PER_ITEM
+    if (deduped.length > MAX_TAGS_PER_ITEM) {
+      return { 
+        tags: [], 
+        error: `Máximo ${MAX_TAGS_PER_ITEM} tags por item (${deduped.length} encontradas)` 
+      };
+    }
+    
+    return { tags: deduped };
+  };
+
+  // Parse hierarchy path (format: "Grupo / Categoria / Subcategoria")
+  const parseHierarchyPath = (value: string | undefined): { grupo: string | null; categoria: string | null; subcategoria: string | null } => {
+    if (!value || !value.trim()) {
+      return { grupo: null, categoria: null, subcategoria: null };
+    }
+    
+    const parts = value.split('/').map(p => p.trim()).filter(p => p.length > 0);
+    
+    return {
+      grupo: parts[0] || null,
+      categoria: parts[1] || null,
+      subcategoria: parts[2] || null,
+    };
   };
 
   // Generate preview with validation
@@ -279,17 +331,45 @@ export function useMaterialCatalogImport() {
         const preco_ref = precoStr ? parseFloat(precoStr) : null;
         const hh_ref = mapping.hh_ref !== undefined ? 
           (row[mapping.hh_ref]?.replace(',', '.').trim() ? parseFloat(row[mapping.hh_ref].replace(',', '.')) : null) : null;
-        const grupo = mapping.grupo !== undefined ? (row[mapping.grupo]?.trim() || null) : null;
-        const categoria = mapping.categoria !== undefined ? (row[mapping.categoria]?.trim() || null) : null;
-        const subcategoria = mapping.subcategoria !== undefined ? (row[mapping.subcategoria]?.trim() || null) : null;
-        const tags = mapping.tags !== undefined ? parseTags(row[mapping.tags]) : [];
+        
+        // Parse hierarchy path if present (takes priority over separate columns)
+        const hierarquiaPathValue = mapping.hierarquia_path !== undefined ? (row[mapping.hierarquia_path]?.trim() || '') : '';
+        const hasHierarchyPath = hierarquiaPathValue.length > 0;
+        
+        let grupo: string | null;
+        let categoria: string | null;
+        let subcategoria: string | null;
+        
+        if (hasHierarchyPath) {
+          const parsed = parseHierarchyPath(hierarquiaPathValue);
+          grupo = parsed.grupo;
+          categoria = parsed.categoria;
+          subcategoria = parsed.subcategoria;
+        } else {
+          grupo = mapping.grupo !== undefined ? (row[mapping.grupo]?.trim() || null) : null;
+          categoria = mapping.categoria !== undefined ? (row[mapping.categoria]?.trim() || null) : null;
+          subcategoria = mapping.subcategoria !== undefined ? (row[mapping.subcategoria]?.trim() || null) : null;
+        }
+        
+        // Parse tags with validation
+        const tagsResult = mapping.tags !== undefined ? parseTags(row[mapping.tags]) : { tags: [] };
+        const tags = tagsResult.tags;
 
         // Validation
         let status: ImportRowStatus = 'NOVO';
         let errorMessage: string | undefined;
         let conflictFields: string[] | undefined;
 
-        if (!codigo) {
+        // Check hierarchy path permission (only super_admin can use it)
+        if (hasHierarchyPath && !canFullUpdate) {
+          status = 'ERRO';
+          errorMessage = 'Somente Super Admin pode importar hierarquia por caminho';
+          erros++;
+        } else if (tagsResult.error) {
+          status = 'ERRO';
+          errorMessage = tagsResult.error;
+          erros++;
+        } else if (!codigo) {
           status = 'ERRO';
           errorMessage = 'Código vazio';
           erros++;
@@ -696,12 +776,29 @@ export function useMaterialCatalogImport() {
   // Generate template file
   const downloadTemplate = useCallback(() => {
     const templateData = [
-      ['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'grupo', 'categoria', 'subcategoria', 'tags'],
-      ['MAT-001', 'Cabo PP 3x2.5mm²', 'm', '12.50', '0.05', 'Cabos', 'Cabos de Força', 'Baixa Tensão', 'elétrico;cobre'],
-      ['MAT-002', 'Disjuntor 3P 100A', 'pç', '450.00', '0.25', 'Proteção', 'Disjuntores', '', 'proteção;industrial'],
+      ['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'grupo', 'categoria', 'subcategoria', 'tags', 'hierarquia_path'],
+      ['MAT-001', 'Cabo PP 3x2.5mm²', 'm', '12.50', '0.05', 'Cabos', 'Cabos de Força', 'Baixa Tensão', 'elétrico;cobre', ''],
+      ['MAT-002', 'Disjuntor 3P 100A', 'pç', '450.00', '0.25', '', '', '', 'proteção;industrial', 'Proteção / Disjuntores'],
+      ['MAT-003', 'Cabo F.O. 12 fibras', 'm', '35.00', '0.10', '', '', '', 'óptico;telecomunicação', 'Cabos / Cabos de F.O.'],
+      ['MAT-004', 'Cabo XLPE 3,6/6kV', 'm', '120.00', '0.15', '', '', '', 'elétrico;média tensão', 'Cabos / Cabos de Média Tensão / 3,6/6kV Classe 2 90ºC EPR'],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(templateData);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 }, // codigo
+      { wch: 30 }, // descricao
+      { wch: 8 },  // unidade
+      { wch: 12 }, // preco_ref
+      { wch: 8 },  // hh_ref
+      { wch: 15 }, // grupo
+      { wch: 20 }, // categoria
+      { wch: 20 }, // subcategoria
+      { wch: 25 }, // tags
+      { wch: 50 }, // hierarquia_path
+    ];
+    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Materiais');
     XLSX.writeFile(wb, 'template_catalogo_materiais.xlsx');
