@@ -44,10 +44,10 @@ const bases = [
     bgColor: 'bg-slate-50 dark:bg-slate-950',
   },
   {
-    title: 'Catálogo de Indiretos',
-    description: 'Mobilização, canteiro, equipamentos e engenharia',
+    title: 'Catálogo de Equipamentos',
+    description: 'Equipamentos para locação com preços de referência',
     icon: Truck,
-    href: '/orcamentos/bases/indiretos',
+    href: '/orcamentos/bases/equipamentos',
     color: 'text-green-500',
     bgColor: 'bg-green-50 dark:bg-green-950',
   },
