@@ -893,6 +893,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "budget_labor_catalog_tags_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
+          },
+          {
             foreignKeyName: "budget_labor_catalog_tags_tag_id_fkey"
             columns: ["tag_id"]
             isOneToOne: false
@@ -1124,6 +1131,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
+          },
+          {
             foreignKeyName: "budget_labor_items_revision_id_fkey"
             columns: ["revision_id"]
             isOneToOne: false
@@ -1280,6 +1294,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_budget_labor_roles_catalog"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_roles_history_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
           },
         ]
       }
@@ -2899,6 +2920,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "labor_incidence_item_prices_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["item_id"]
+          },
+          {
             foreignKeyName: "labor_incidence_item_prices_regiao_id_fkey"
             columns: ["regiao_id"]
             isOneToOne: false
@@ -2977,8 +3005,99 @@ export type Database = {
             foreignKeyName: "labor_incidence_items_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["group_id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
             referencedRelation: "vw_labor_role_incidence_costs"
             referencedColumns: ["group_id"]
+          },
+        ]
+      }
+      labor_incidence_role_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          incidence_item_id: string
+          is_applicable: boolean | null
+          is_mandatory: boolean | null
+          override_months_factor: number | null
+          override_notes: string | null
+          override_qty: number | null
+          override_unit_price: number | null
+          role_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incidence_item_id: string
+          is_applicable?: boolean | null
+          is_mandatory?: boolean | null
+          override_months_factor?: number | null
+          override_notes?: string | null
+          override_qty?: number | null
+          override_unit_price?: number | null
+          role_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incidence_item_id?: string
+          is_applicable?: boolean | null
+          is_mandatory?: boolean | null
+          override_months_factor?: number | null
+          override_notes?: string | null
+          override_qty?: number | null
+          override_unit_price?: number | null
+          role_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labor_incidence_role_rules_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "labor_incidence_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_role_rules_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["item_id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_role_rules_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_role_rules_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_role_rules_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
           },
         ]
       }
@@ -3026,6 +3145,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "labor_incidence_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_incidence_template_items_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["item_id"]
           },
           {
             foreignKeyName: "labor_incidence_template_items_template_id_fkey"
@@ -3264,6 +3390,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "labor_role_incidence_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["item_id"]
+          },
+          {
             foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
             columns: ["labor_role_id"]
             isOneToOne: false
@@ -3276,6 +3409,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_budget_labor_roles_catalog"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
           },
         ]
       }
@@ -3881,6 +4021,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_budget_labor_roles_catalog"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mo_pricebook_items_funcao_id_fkey"
+            columns: ["funcao_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
           },
           {
             foreignKeyName: "mo_pricebook_items_pricebook_id_fkey"
@@ -4876,6 +5023,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
+          },
+          {
             foreignKeyName: "budget_labor_items_revision_id_fkey"
             columns: ["revision_id"]
             isOneToOne: false
@@ -5112,6 +5266,43 @@ export type Database = {
           },
         ]
       }
+      vw_labor_incidence_by_role: {
+        Row: {
+          calc_tipo:
+            | Database["public"]["Enums"]["labor_incidence_calc_tipo"]
+            | null
+          custo_mensal_pessoa_final: number | null
+          group_codigo: string | null
+          group_id: string | null
+          group_nome: string | null
+          group_ordem: number | null
+          is_applicable_final: boolean | null
+          is_mandatory_final: boolean | null
+          item_codigo: string | null
+          item_descricao: string | null
+          item_id: string | null
+          meses_default: number | null
+          months_factor_final: number | null
+          override_is_applicable: boolean | null
+          override_is_mandatory: boolean | null
+          override_months_factor: number | null
+          override_notes: string | null
+          override_qty: number | null
+          override_unit_price: number | null
+          preco_unitario_default: number | null
+          qtd_default: number | null
+          qtd_mes_default: number | null
+          qtd_mes_final: number | null
+          qty_final: number | null
+          role_codigo: string | null
+          role_id: string | null
+          role_nome: string | null
+          rule_id: string | null
+          unit_price_final: number | null
+          valor_mensal_default: number | null
+        }
+        Relationships: []
+      }
       vw_labor_role_incidence_costs: {
         Row: {
           ativo: boolean | null
@@ -5150,6 +5341,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "labor_role_incidence_incidence_item_id_fkey"
+            columns: ["incidence_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["item_id"]
+          },
+          {
             foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
             columns: ["labor_role_id"]
             isOneToOne: false
@@ -5162,6 +5360,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_budget_labor_roles_catalog"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labor_role_incidence_labor_role_id_fkey"
+            columns: ["labor_role_id"]
+            isOneToOne: false
+            referencedRelation: "vw_labor_incidence_by_role"
+            referencedColumns: ["role_id"]
           },
         ]
       }
