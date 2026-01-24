@@ -171,14 +171,16 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
             {columnMapping && headers.length > 0 && (
               <div className="space-y-4">
                 <h3 className="font-medium">Mapeamento de Colunas (Auto-detectado)</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {(['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'categoria'] as const).map(field => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {(['codigo', 'descricao', 'unidade', 'preco_ref', 'hh_ref', 'grupo', 'categoria', 'subcategoria', 'tags', 'hierarquia_path'] as const).map(field => (
                     <div key={field} className="space-y-1">
                       <Label className="text-xs uppercase text-muted-foreground">
-                        {field} {['codigo', 'descricao', 'unidade', 'preco_ref'].includes(field) && '*'}
+                        {field === 'hierarquia_path' ? 'Caminho Hierarquia' : field}
+                        {' '}
+                        {['codigo', 'descricao', 'unidade', 'preco_ref'].includes(field) && <span className="text-destructive">*</span>}
                       </Label>
                       <Select
-                        value={columnMapping[field] !== undefined && columnMapping[field] !== null ? String(columnMapping[field]) : '__unmapped__'}
+                        value={columnMapping[field as keyof typeof columnMapping] !== undefined && columnMapping[field as keyof typeof columnMapping] !== null ? String(columnMapping[field as keyof typeof columnMapping]) : '__unmapped__'}
                         onValueChange={(v) => handleMappingChange(field, v === '__unmapped__' ? '' : v)}
                       >
                         <SelectTrigger className="h-8">
@@ -196,6 +198,9 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                     </div>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  💡 <strong>hierarquia_path</strong>: formato "Grupo / Categoria / Subcategoria" (apenas Super Admin). Quando preenchido, ignora colunas separadas.
+                </p>
               </div>
             )}
 
@@ -291,7 +296,9 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                           <TableHead>Descrição</TableHead>
                           <TableHead className="w-16">Un</TableHead>
                           <TableHead className="w-32 text-right">Preço</TableHead>
-                          <TableHead className="w-24">Mensagem</TableHead>
+                          <TableHead className="w-40">Hierarquia</TableHead>
+                          <TableHead className="w-40">Tags</TableHead>
+                          <TableHead className="w-36">Mensagem</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -314,6 +321,22 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                                 </div>
                               ) : (
                                 formatCurrency(row.preco_ref ?? 0)
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {row.grupo && (
+                                <span className="text-muted-foreground">
+                                  {row.grupo}
+                                  {row.categoria && ` / ${row.categoria}`}
+                                  {row.subcategoria && ` / ${row.subcategoria}`}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {row.tags.length > 0 && (
+                                <span className="text-muted-foreground">
+                                  {row.tags.join('; ')}
+                                </span>
                               )}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
