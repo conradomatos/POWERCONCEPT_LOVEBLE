@@ -80,6 +80,9 @@ const App = () => (
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
+            {/* Redirects for common wrong routes */}
+            <Route path="/orcamentos/ba/*" element={<Navigate to="/orcamentos/bases" replace />} />
+            <Route path="/orcamentos/base/*" element={<Navigate to="/orcamentos/bases" replace />} />
             {/* Global bases routes - with contextual sidebar */}
             <Route path="/orcamentos/bases" element={<BasesGlobaisLayout />}>
               <Route index element={<BasesGlobais />} />

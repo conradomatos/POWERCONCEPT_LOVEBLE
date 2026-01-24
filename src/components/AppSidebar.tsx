@@ -118,6 +118,7 @@ const basesGlobaisNavItems: NavItem[] = [
   { title: 'Templates WBS', url: '/orcamentos/bases/wbs-templates', icon: Layers },
   { title: 'Funções MO', url: '/orcamentos/bases/mo-funcoes', icon: HardHat },
   { title: 'Parâmetros MO', url: '/orcamentos/bases/mo-parametros', icon: Cog },
+  { title: 'Equipamentos', url: '/orcamentos/bases/equipamentos', icon: PencilRuler },
   { title: 'Indiretos', url: '/orcamentos/bases/indiretos', icon: Truck },
   { title: 'Impostos', url: '/orcamentos/bases/impostos', icon: Calculator },
   { title: 'Markup', url: '/orcamentos/bases/markup', icon: Percent },
