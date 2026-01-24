@@ -19,6 +19,8 @@ export interface BudgetLaborCatalogItem {
   insalubridade_pct: number;
   charge_set_id: string | null;
   hh_custo: number;
+  // NEW: Reference hourly value (suggested default)
+  valor_ref_hh: number | null;
   produtividade_valor: number | null;
   produtividade_tipo: BudgetProductivityType;
   produtividade_unidade: string | null;
@@ -48,6 +50,8 @@ export interface BudgetLaborCatalogFormData {
   periculosidade_pct?: number;
   insalubridade_pct?: number;
   charge_set_id?: string | null;
+  // NEW: Reference hourly value (suggested default)
+  valor_ref_hh?: number | null;
   produtividade_valor?: number | null;
   produtividade_tipo?: BudgetProductivityType;
   produtividade_unidade?: string | null;
@@ -114,6 +118,8 @@ export function useBudgetLaborCatalog() {
           periculosidade_pct: formData.periculosidade_pct ?? 0,
           insalubridade_pct: formData.insalubridade_pct ?? 0,
           charge_set_id: formData.charge_set_id || null,
+          // NEW: valor_ref_hh (null if not provided)
+          valor_ref_hh: formData.valor_ref_hh,
           produtividade_valor: formData.produtividade_valor,
           produtividade_tipo: formData.produtividade_tipo || 'HH_POR_UN',
           produtividade_unidade: formData.produtividade_unidade,
