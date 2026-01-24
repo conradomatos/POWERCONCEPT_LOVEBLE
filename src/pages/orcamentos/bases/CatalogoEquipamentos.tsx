@@ -53,7 +53,12 @@ import {
   XCircle,
   Equal,
   Copy,
+  Send,
+  Inbox,
 } from 'lucide-react';
+import { useEquipmentCatalogRequests } from '@/hooks/orcamentos/useEquipmentCatalogRequests';
+import { EquipmentRequestModal } from '@/components/orcamentos/bases/EquipmentRequestModal';
+import { EquipmentRequestsList } from '@/components/orcamentos/bases/EquipmentRequestsList';
 import { 
   useEquipmentCatalogNew, 
   useEquipmentGroups, 
@@ -72,6 +77,7 @@ export default function CatalogoEquipamentos() {
   const { categories } = useEquipmentCategories();
   const { subcategories } = useEquipmentSubcategories();
   const importHook = useEquipmentCatalogImport();
+  const { pendingCount, isCatalogManager } = useEquipmentCatalogRequests();
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,6 +89,8 @@ export default function CatalogoEquipamentos() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [hierarchyDialogOpen, setHierarchyDialogOpen] = useState(false);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestsListOpen, setRequestsListOpen] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -311,22 +319,46 @@ export default function CatalogoEquipamentos() {
           </p>
         </div>
         
-        {canEdit && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setHierarchyDialogOpen(true)}>
-              <FolderTree className="h-4 w-4 mr-2" />
-              Hierarquia
-            </Button>
-            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Importar
-            </Button>
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Equipamento
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          {/* Master/Catalog Manager actions */}
+          {canEdit && (
+            <>
+              {isCatalogManager && pendingCount > 0 && (
+                <Button variant="outline" onClick={() => setRequestsListOpen(true)}>
+                  <Inbox className="h-4 w-4 mr-2" />
+                  Solicitações
+                  <Badge className="ml-2 bg-primary text-primary-foreground">{pendingCount}</Badge>
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setHierarchyDialogOpen(true)}>
+                <FolderTree className="h-4 w-4 mr-2" />
+                Hierarquia
+              </Button>
+              <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar
+              </Button>
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Equipamento
+              </Button>
+            </>
+          )}
+          
+          {/* Non-master user actions */}
+          {!canEdit && (
+            <>
+              <Button variant="outline" onClick={() => setRequestsListOpen(true)}>
+                <Inbox className="h-4 w-4 mr-2" />
+                Minhas Solicitações
+              </Button>
+              <Button onClick={() => setRequestModalOpen(true)}>
+                <Send className="h-4 w-4 mr-2" />
+                Solicitar Inclusão
+              </Button>
+            </>
+          )}
+        </div>
       </div>
       
       {/* Filters */}
@@ -850,6 +882,18 @@ export default function CatalogoEquipamentos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Request Modal for non-master users */}
+      <EquipmentRequestModal 
+        open={requestModalOpen} 
+        onOpenChange={setRequestModalOpen} 
+      />
+      
+      {/* Requests List for viewing/managing requests */}
+      <EquipmentRequestsList 
+        open={requestsListOpen} 
+        onOpenChange={setRequestsListOpen} 
+      />
     </div>
   );
 }

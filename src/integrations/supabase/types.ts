@@ -2089,6 +2089,72 @@ export type Database = {
           },
         ]
       }
+      equipment_catalog_requests: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          created_catalog_id: string | null
+          descricao: string
+          id: string
+          observacao: string | null
+          preco_mensal_ref: number | null
+          requested_at: string
+          requested_by: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          unidade: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          created_catalog_id?: string | null
+          descricao: string
+          id?: string
+          observacao?: string | null
+          preco_mensal_ref?: number | null
+          requested_at?: string
+          requested_by?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          unidade?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          created_catalog_id?: string | null
+          descricao?: string
+          id?: string
+          observacao?: string | null
+          preco_mensal_ref?: number | null
+          requested_at?: string
+          requested_by?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          unidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_catalog_requests_created_catalog_id_fkey"
+            columns: ["created_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_catalog_requests_created_catalog_id_fkey"
+            columns: ["created_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_equipment_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_catalog_tags: {
         Row: {
           equipment_id: string
