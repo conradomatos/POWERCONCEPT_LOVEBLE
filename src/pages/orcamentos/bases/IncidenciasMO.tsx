@@ -20,7 +20,9 @@ import {
   FileText,
   RefreshCw,
   Search,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Eye,
+  Users
 } from 'lucide-react';
 import { useBudgetLaborCatalog } from '@/hooks/orcamentos/useBudgetLaborCatalog';
 import { useLaborIncidenceGroups, useLaborIncidenceItems, useLaborIncidenceTemplates } from '@/hooks/orcamentos/useLaborIncidenceCatalog';
@@ -37,11 +39,130 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   'E': <Heart className="h-4 w-4" />,
 };
 
+const GROUP_COLUMN_HEADERS: Record<string, { qtyLabel: string; priceLabel: string; monthsLabel: string | null }> = {
+  'A': { qtyLabel: 'Qtd', priceLabel: 'Preço por Bateria', monthsLabel: 'Rotatividade (meses)' },
+  'B': { qtyLabel: 'Qtd Fornecida', priceLabel: 'Preço Unitário', monthsLabel: 'Vida Útil (meses)' },
+  'C': { qtyLabel: 'Qtd Fornecida', priceLabel: 'Preço Unitário', monthsLabel: 'Vida Útil (meses)' },
+  'D': { qtyLabel: 'Qtd Fornecida/Mês', priceLabel: 'Preço Unitário', monthsLabel: null },
+  'E': { qtyLabel: 'Qtd', priceLabel: 'Preço Unitário', monthsLabel: 'Vida Útil (meses)' },
+};
+
 const CALC_TIPO_LABELS: Record<string, string> = {
   'RATEIO_MESES': 'Rateio',
   'MENSAL': 'Mensal',
 };
 
+type ViewMode = 'catalog' | 'roles';
+
+// Calculate monthly cost from catalog item
+function calculateMonthlyCost(item: any): number {
+  if (!item.obrigatorio_default) return 0;
+  
+  if (item.calc_tipo === 'RATEIO_MESES') {
+    if (item.preco_unitario_default && item.meses_default) {
+      return Math.round(((item.qtd_default ?? 1) * item.preco_unitario_default) / item.meses_default * 100) / 100;
+    }
+  } else if (item.calc_tipo === 'MENSAL') {
+    if (item.valor_mensal_default) {
+      return item.valor_mensal_default;
+    }
+    if (item.qtd_mes_default && item.preco_unitario_default) {
+      return Math.round(item.qtd_mes_default * item.preco_unitario_default * 100) / 100;
+    }
+  }
+  return 0;
+}
+
+// Get observation text for display
+function getObservation(item: any): string {
+  if (!item.obrigatorio_default) return 'Não aplicável';
+  if (item.obrigatorio_default && !item.preco_unitario_default && !item.valor_mensal_default) return 'Dados incompletos';
+  return item.observacao_default ?? '';
+}
+
+// Catalog Item Row for the global view
+interface CatalogItemRowProps {
+  item: any;
+  groupCode: string;
+}
+
+function CatalogItemRow({ item, groupCode }: CatalogItemRowProps) {
+  const headers = GROUP_COLUMN_HEADERS[groupCode];
+  const monthlyCost = calculateMonthlyCost(item);
+  const observation = getObservation(item);
+  const isApplicable = item.obrigatorio_default;
+  const isRateio = item.calc_tipo === 'RATEIO_MESES';
+  
+  return (
+    <TableRow className={cn(!isApplicable && "opacity-50 bg-muted/30")}>
+      {/* Código */}
+      <TableCell className="w-16 font-mono text-xs font-medium">
+        {item.codigo}
+      </TableCell>
+      
+      {/* Descrição */}
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{item.descricao}</span>
+          {isApplicable && (
+            <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-primary">
+              Obrigatório
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      
+      {/* Quantidade */}
+      <TableCell className="w-20 text-center">
+        {isRateio ? (
+          <span className="text-sm">{item.qtd_default ?? '-'}</span>
+        ) : (
+          <span className="text-sm">{item.qtd_mes_default ?? '-'}</span>
+        )}
+      </TableCell>
+      
+      {/* Preço Unitário */}
+      <TableCell className="w-28 text-right">
+        <span className="text-sm">
+          {item.preco_unitario_default ? formatCurrency(item.preco_unitario_default) : '-'}
+        </span>
+      </TableCell>
+      
+      {/* Meses/Vida útil (only for RATEIO groups) */}
+      {headers.monthsLabel && (
+        <TableCell className="w-24 text-center">
+          {isRateio ? (
+            <span className="text-sm">{item.meses_default ?? '-'}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Custo Mensal por Pessoa */}
+      <TableCell className="w-32 text-right">
+        <span className={cn(
+          "font-semibold text-sm",
+          isApplicable && monthlyCost > 0 && "text-primary"
+        )}>
+          {formatCurrency(monthlyCost)}
+        </span>
+      </TableCell>
+      
+      {/* Observações */}
+      <TableCell className="w-32">
+        <span className={cn(
+          "text-xs",
+          !isApplicable && "text-muted-foreground italic"
+        )}>
+          {observation}
+        </span>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// Role incidence row (existing functionality)
 interface IncidenceItemRowProps {
   item: LaborRoleIncidenceCost;
   catalogItem?: any;
@@ -210,13 +331,14 @@ function IncidenceItemRow({
 }
 
 export default function IncidenciasMO() {
+  const [viewMode, setViewMode] = useState<ViewMode>('catalog');
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
   const [activeTab, setActiveTab] = useState('A');
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [regiaoId, setRegiaoId] = useState<string | null>(null);
   
-  // Fetch data - using items from useBudgetLaborCatalog (fix bug #1)
+  // Fetch data
   const { items: roles, isLoading: rolesLoading } = useBudgetLaborCatalog();
   const { data: groups, isLoading: groupsLoading } = useLaborIncidenceGroups();
   const { data: catalogItems, isLoading: catalogLoading } = useLaborIncidenceItems();
@@ -242,7 +364,35 @@ export default function IncidenciasMO() {
     );
   }, [roles, roleSearch]);
   
-  // Group incidences by group code
+  // Group catalog items by group code
+  const catalogByGroup = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    groups?.forEach(g => { grouped[g.codigo] = []; });
+    catalogItems?.forEach(item => {
+      // item.group_codigo comes from the hook mapping
+      if (item.group_codigo && grouped[item.group_codigo]) {
+        grouped[item.group_codigo].push(item);
+      }
+    });
+    return grouped;
+  }, [catalogItems, groups]);
+  
+  // Calculate catalog totals by group
+  const catalogTotalsByGroup = useMemo(() => {
+    const totals: Record<string, number> = {};
+    groups?.forEach(g => {
+      totals[g.codigo] = catalogByGroup[g.codigo]
+        ?.reduce((sum, item) => sum + calculateMonthlyCost(item), 0) ?? 0;
+    });
+    return totals;
+  }, [catalogByGroup, groups]);
+  
+  // Calculate catalog total geral
+  const catalogTotalGeral = useMemo(() => {
+    return Object.values(catalogTotalsByGroup).reduce((sum, v) => sum + v, 0);
+  }, [catalogTotalsByGroup]);
+  
+  // Group incidences by group code (for role view)
   const incidencesByGroup = useMemo(() => {
     const grouped: Record<string, LaborRoleIncidenceCost[]> = {};
     groups?.forEach(g => { grouped[g.codigo] = []; });
@@ -261,8 +411,8 @@ export default function IncidenciasMO() {
     return map;
   }, [catalogItems]);
   
-  // Calculate totals by group
-  const totalsByGroup = useMemo(() => {
+  // Calculate role totals by group
+  const roleTotalsByGroup = useMemo(() => {
     const totals: Record<string, number> = {};
     groups?.forEach(g => {
       totals[g.codigo] = incidencesByGroup[g.codigo]
@@ -272,10 +422,10 @@ export default function IncidenciasMO() {
     return totals;
   }, [incidencesByGroup, groups]);
   
-  // Calculate total geral
-  const totalGeral = useMemo(() => {
-    return Object.values(totalsByGroup).reduce((sum, v) => sum + v, 0);
-  }, [totalsByGroup]);
+  // Calculate role total geral
+  const roleTotalGeral = useMemo(() => {
+    return Object.values(roleTotalsByGroup).reduce((sum, v) => sum + v, 0);
+  }, [roleTotalsByGroup]);
   
   const selectedRole = roles?.find(r => r.id === selectedRoleId);
   
@@ -317,6 +467,10 @@ export default function IncidenciasMO() {
     );
   }
 
+  // Get active totals and items based on view mode
+  const activeTotalsByGroup = viewMode === 'catalog' ? catalogTotalsByGroup : roleTotalsByGroup;
+  const activeTotalGeral = viewMode === 'catalog' ? catalogTotalGeral : roleTotalGeral;
+
   return (
     <div className="container py-6 space-y-4">
       {/* Header */}
@@ -324,111 +478,128 @@ export default function IncidenciasMO() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <HardHat className="h-6 w-6 text-orange-500" />
-            Incidências por Função
+            Incidências de Mão de Obra Indireta
           </h1>
           <p className="text-muted-foreground text-sm">
-            EPIs, uniformes, alimentação e benefícios por função de MO
+            Detalhamento de custos: EPIs, uniformes, alimentação e benefícios
           </p>
         </div>
-        <Button variant="outline" size="sm" disabled>
-          <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Importar XLSX
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="bg-muted rounded-lg p-1 flex">
+            <Button
+              variant={viewMode === 'catalog' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('catalog')}
+              className="gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              Catálogo Padrão
+            </Button>
+            <Button
+              variant={viewMode === 'roles' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('roles')}
+              className="gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Por Função
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Context Selector: Empresa + Região */}
-      <Card className="p-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <PriceContextSelector
-            empresaId={empresaId}
-            regiaoId={regiaoId}
-            onEmpresaChange={setEmpresaId}
-            onRegiaoChange={setRegiaoId}
-          />
-          {/* Total Geral Badge */}
-          {selectedRoleId && totalGeral > 0 && (
-            <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-lg">
-              <span className="text-sm font-medium">Total Incidências/pessoa/mês:</span>
-              <span className="text-lg font-bold text-primary">{formatCurrency(totalGeral)}</span>
-            </div>
-          )}
-        </div>
-      </Card>
-      
-      {/* Role Selector */}
-      <Card className="p-3">
-        <div className="flex gap-3 items-center flex-wrap">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar função..."
-              value={roleSearch}
-              onChange={(e) => setRoleSearch(e.target.value)}
-              className="pl-9 h-9"
+      {/* Context Selector for role view */}
+      {viewMode === 'roles' && (
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <PriceContextSelector
+              empresaId={empresaId}
+              regiaoId={regiaoId}
+              onEmpresaChange={setEmpresaId}
+              onRegiaoChange={setRegiaoId}
             />
+            {selectedRoleId && roleTotalGeral > 0 && (
+              <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-lg">
+                <span className="text-sm font-medium">Total Incidências/pessoa/mês:</span>
+                <span className="text-lg font-bold text-primary">{formatCurrency(roleTotalGeral)}</span>
+              </div>
+            )}
           </div>
-          <Select value={selectedRoleId ?? ''} onValueChange={handleRoleSelect}>
-            <SelectTrigger className="w-80 h-9">
-              <SelectValue placeholder="Selecione uma função de MO" />
-            </SelectTrigger>
-            <SelectContent>
-              {rolesLoading ? (
-                <SelectItem value="__loading__" disabled>Carregando...</SelectItem>
-              ) : filteredRoles.length === 0 ? (
-                <SelectItem value="__empty__" disabled>Nenhuma função encontrada</SelectItem>
-              ) : (
-                filteredRoles.map(role => (
-                  <SelectItem key={role.id} value={role.id}>
-                    <span className="font-mono text-xs mr-2">{role.codigo}</span>
-                    {role.nome}
-                    <Badge variant="outline" className="ml-2 text-[10px]">{role.tipo_mo}</Badge>
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-          
-          {selectedRoleId && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleApplyCatalog}
-                disabled={applyAllCatalogItems.isPending || !catalogItems?.length}
-              >
-                <RefreshCw className={cn(
-                  "h-4 w-4 mr-2",
-                  applyAllCatalogItems.isPending && "animate-spin"
-                )} />
-                {!catalogItems?.length ? 'Catálogo vazio' : 'Aplicar Catálogo'}
-              </Button>
-              
-              {templates && templates.length > 0 && (
-                <Select onValueChange={handleApplyTemplate}>
-                  <SelectTrigger className="w-44 h-9">
-                    <SelectValue placeholder="Aplicar Template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </>
-          )}
-        </div>
-      </Card>
-      
-      {/* Content */}
-      {!selectedRoleId ? (
-        <Card className="p-8 text-center text-muted-foreground">
-          <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>Selecione uma função para configurar as incidências.</p>
         </Card>
-      ) : incidencesLoading || catalogLoading ? (
+      )}
+      
+      {/* Role Selector (only in role mode) */}
+      {viewMode === 'roles' && (
+        <Card className="p-3">
+          <div className="flex gap-3 items-center flex-wrap">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar função..."
+                value={roleSearch}
+                onChange={(e) => setRoleSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            <Select value={selectedRoleId ?? ''} onValueChange={handleRoleSelect}>
+              <SelectTrigger className="w-80 h-9">
+                <SelectValue placeholder="Selecione uma função de MO" />
+              </SelectTrigger>
+              <SelectContent>
+                {rolesLoading ? (
+                  <SelectItem value="__loading__" disabled>Carregando...</SelectItem>
+                ) : filteredRoles.length === 0 ? (
+                  <SelectItem value="__empty__" disabled>Nenhuma função encontrada</SelectItem>
+                ) : (
+                  filteredRoles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <span className="font-mono text-xs mr-2">{role.codigo}</span>
+                      {role.nome}
+                      <Badge variant="outline" className="ml-2 text-[10px]">{role.tipo_mo}</Badge>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            
+            {selectedRoleId && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleApplyCatalog}
+                  disabled={applyAllCatalogItems.isPending || !catalogItems?.length}
+                >
+                  <RefreshCw className={cn(
+                    "h-4 w-4 mr-2",
+                    applyAllCatalogItems.isPending && "animate-spin"
+                  )} />
+                  {!catalogItems?.length ? 'Catálogo vazio' : 'Aplicar Catálogo'}
+                </Button>
+                
+                {templates && templates.length > 0 && (
+                  <Select onValueChange={handleApplyTemplate}>
+                    <SelectTrigger className="w-44 h-9">
+                      <SelectValue placeholder="Aplicar Template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map(t => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Loading state */}
+      {catalogLoading ? (
         <Card className="p-6">
           <Skeleton className="h-8 w-48 mb-4" />
           <Skeleton className="h-64 w-full" />
@@ -449,10 +620,10 @@ export default function IncidenciasMO() {
                 <CardContent className="p-2">
                   <div className="flex items-center gap-1 mb-0.5">
                     {GROUP_ICONS[group.codigo]}
-                    <span className="font-medium text-xs">{group.codigo}</span>
+                    <span className="font-medium text-xs">[{group.codigo}]</span>
                   </div>
                   <div className="text-base font-bold text-primary">
-                    {formatCurrency(totalsByGroup[group.codigo] ?? 0)}
+                    {formatCurrency(activeTotalsByGroup[group.codigo] ?? 0)}
                   </div>
                   <div className="text-[9px] text-muted-foreground truncate">
                     {group.nome}
@@ -467,7 +638,7 @@ export default function IncidenciasMO() {
                   <span className="font-medium text-xs">TOTAL</span>
                 </div>
                 <div className="text-base font-bold text-primary">
-                  {formatCurrency(totalGeral)}
+                  {formatCurrency(activeTotalGeral)}
                 </div>
                 <div className="text-[9px] text-muted-foreground">
                   /pessoa/mês
@@ -476,84 +647,197 @@ export default function IncidenciasMO() {
             </Card>
           </div>
           
-          {/* Tabs with Items Table */}
-          <Card>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <CardHeader className="pb-2 pt-3">
-                <TabsList className="grid grid-cols-5 w-fit">
+          {/* Catalog View Content */}
+          {viewMode === 'catalog' && (
+            <Card>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <CardHeader className="pb-2 pt-3">
+                  <TabsList className="grid grid-cols-5 w-fit">
+                    {groups.map(group => (
+                      <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1 text-xs">
+                        {GROUP_ICONS[group.codigo]}
+                        {group.codigo}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </CardHeader>
+                <CardContent className="pt-2 px-3 pb-3">
+                  {groups.map(group => {
+                    const headers = GROUP_COLUMN_HEADERS[group.codigo];
+                    return (
+                      <TabsContent key={group.codigo} value={group.codigo} className="m-0">
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/50">
+                                <TableHead className="text-xs">Código</TableHead>
+                                <TableHead className="text-xs">Descrição</TableHead>
+                                <TableHead className="text-xs text-center">{headers.qtyLabel}</TableHead>
+                                <TableHead className="text-xs text-right">{headers.priceLabel}</TableHead>
+                                {headers.monthsLabel && (
+                                  <TableHead className="text-xs text-center">{headers.monthsLabel}</TableHead>
+                                )}
+                                <TableHead className="text-xs text-right">Custo Mensal/Pessoa</TableHead>
+                                <TableHead className="text-xs">Observações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {catalogByGroup[group.codigo]?.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={headers.monthsLabel ? 7 : 6} className="p-6 text-center text-muted-foreground text-sm">
+                                    Nenhum item cadastrado para este grupo.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                catalogByGroup[group.codigo]?.map(item => (
+                                  <CatalogItemRow
+                                    key={item.id}
+                                    item={item}
+                                    groupCode={group.codigo}
+                                  />
+                                ))
+                              )}
+                            </TableBody>
+                            {/* Group Subtotal Footer */}
+                            {catalogByGroup[group.codigo]?.length > 0 && (
+                              <TableFooter>
+                                <TableRow className="bg-primary/5">
+                                  <TableCell colSpan={headers.monthsLabel ? 5 : 4} className="text-right font-semibold text-sm">
+                                    Custo Mensal por Pessoa [{group.codigo}]:
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold text-lg text-primary">
+                                    {formatCurrency(catalogTotalsByGroup[group.codigo] ?? 0)}
+                                  </TableCell>
+                                  <TableCell></TableCell>
+                                </TableRow>
+                              </TableFooter>
+                            )}
+                          </Table>
+                        </div>
+                      </TabsContent>
+                    );
+                  })}
+                </CardContent>
+              </Tabs>
+            </Card>
+          )}
+
+          {/* Role View Content */}
+          {viewMode === 'roles' && !selectedRoleId && (
+            <Card className="p-8 text-center text-muted-foreground">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Selecione uma função para configurar as incidências.</p>
+            </Card>
+          )}
+
+          {viewMode === 'roles' && selectedRoleId && incidencesLoading && (
+            <Card className="p-6">
+              <Skeleton className="h-8 w-48 mb-4" />
+              <Skeleton className="h-64 w-full" />
+            </Card>
+          )}
+
+          {viewMode === 'roles' && selectedRoleId && !incidencesLoading && (
+            <Card>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <CardHeader className="pb-2 pt-3">
+                  <TabsList className="grid grid-cols-5 w-fit">
+                    {groups.map(group => (
+                      <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1 text-xs">
+                        {GROUP_ICONS[group.codigo]}
+                        {group.codigo}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </CardHeader>
+                <CardContent className="pt-2 px-3 pb-3">
                   {groups.map(group => (
-                    <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1 text-xs">
-                      {GROUP_ICONS[group.codigo]}
-                      {group.codigo}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </CardHeader>
-              <CardContent className="pt-2 px-3 pb-3">
-                {groups.map(group => (
-                  <TabsContent key={group.codigo} value={group.codigo} className="m-0">
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead className="w-10 text-center text-xs">Ativo</TableHead>
-                            <TableHead className="text-xs">Código</TableHead>
-                            <TableHead className="text-xs">Descrição</TableHead>
-                            <TableHead className="text-xs">Tipo</TableHead>
-                            <TableHead className="text-xs">Qtd</TableHead>
-                            <TableHead className="text-xs">R$ Unit</TableHead>
-                            <TableHead className="text-xs">Meses / R$ Mensal</TableHead>
-                            <TableHead className="text-xs text-right">Custo/Mês</TableHead>
-                            <TableHead className="w-10"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {incidencesByGroup[group.codigo]?.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={9} className="p-6 text-center text-muted-foreground text-sm">
-                                {catalogItems?.length === 0 
-                                  ? 'Catálogo de incidências vazio. Contate o administrador.'
-                                  : 'Clique em "Aplicar Catálogo" para adicionar itens.'}
-                              </TableCell>
+                    <TabsContent key={group.codigo} value={group.codigo} className="m-0">
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="w-10 text-center text-xs">Ativo</TableHead>
+                              <TableHead className="text-xs">Código</TableHead>
+                              <TableHead className="text-xs">Descrição</TableHead>
+                              <TableHead className="text-xs">Tipo</TableHead>
+                              <TableHead className="text-xs">Qtd</TableHead>
+                              <TableHead className="text-xs">R$ Unit</TableHead>
+                              <TableHead className="text-xs">Meses / R$ Mensal</TableHead>
+                              <TableHead className="text-xs text-right">Custo/Mês</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
-                          ) : (
-                            incidencesByGroup[group.codigo]?.map(item => (
-                              <IncidenceItemRow
-                                key={item.id}
-                                item={item}
-                                catalogItem={catalogItemsMap[item.incidence_item_id]}
-                                onToggle={(ativo) => toggleItem.mutate({ itemId: item.incidence_item_id, ativo })}
-                                onUpdate={(updates) => updateOverride.mutate({ 
-                                  incidenceId: item.id, 
-                                  itemId: item.incidence_item_id,
-                                  updates 
-                                })}
-                                onReset={() => resetOverrides.mutate(item.id)}
-                                isUpdating={toggleItem.isPending || updateOverride.isPending}
-                              />
-                            ))
+                          </TableHeader>
+                          <TableBody>
+                            {incidencesByGroup[group.codigo]?.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={9} className="p-6 text-center text-muted-foreground text-sm">
+                                  {catalogItems?.length === 0 
+                                    ? 'Catálogo de incidências vazio. Contate o administrador.'
+                                    : 'Clique em "Aplicar Catálogo" para adicionar itens.'}
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              incidencesByGroup[group.codigo]?.map(item => (
+                                <IncidenceItemRow
+                                  key={item.id}
+                                  item={item}
+                                  catalogItem={catalogItemsMap[item.incidence_item_id]}
+                                  onToggle={(ativo) => toggleItem.mutate({ itemId: item.incidence_item_id, ativo })}
+                                  onUpdate={(updates) => updateOverride.mutate({ 
+                                    incidenceId: item.id, 
+                                    itemId: item.incidence_item_id,
+                                    updates 
+                                  })}
+                                  onReset={() => resetOverrides.mutate(item.id)}
+                                  isUpdating={toggleItem.isPending || updateOverride.isPending}
+                                />
+                              ))
+                            )}
+                          </TableBody>
+                          {/* Group Subtotal Footer */}
+                          {incidencesByGroup[group.codigo]?.length > 0 && (
+                            <TableFooter>
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={7} className="text-right font-medium text-sm">
+                                  Custo Mensal por Pessoa [{group.codigo}]:
+                                </TableCell>
+                                <TableCell className="text-right font-bold text-primary">
+                                  {formatCurrency(roleTotalsByGroup[group.codigo] ?? 0)}
+                                </TableCell>
+                                <TableCell></TableCell>
+                              </TableRow>
+                            </TableFooter>
                           )}
-                        </TableBody>
-                        {/* Group Subtotal Footer */}
-                        {incidencesByGroup[group.codigo]?.length > 0 && (
-                          <TableFooter>
-                            <TableRow className="bg-muted/30">
-                              <TableCell colSpan={7} className="text-right font-medium text-sm">
-                                Custo Mensal por Pessoa [{group.codigo}]:
-                              </TableCell>
-                              <TableCell className="text-right font-bold text-primary">
-                                {formatCurrency(totalsByGroup[group.codigo] ?? 0)}
-                              </TableCell>
-                              <TableCell></TableCell>
-                            </TableRow>
-                          </TableFooter>
-                        )}
-                      </Table>
-                    </div>
-                  </TabsContent>
-                ))}
-              </CardContent>
-            </Tabs>
+                        </Table>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </CardContent>
+              </Tabs>
+            </Card>
+          )}
+
+          {/* Total Geral Card */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Total Geral por Pessoa/Mês</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Soma de todos os grupos (A + B + C + D + E)
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-primary">
+                    {formatCurrency(activeTotalGeral)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {viewMode === 'catalog' ? 'Valores do catálogo padrão' : 'Valores da função selecionada'}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </>
       )}
