@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -58,6 +59,7 @@ export interface DuplicateInfo {
 
 export function useMaterialCatalogImport() {
   const { user, hasRole, isSuperAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [preview, setPreview] = useState<ImportPreviewRow[]>([]);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
@@ -439,6 +441,9 @@ export function useMaterialCatalogImport() {
         .from('arquivos_importacao')
         .update({ linhas_sucesso: successCount })
         .eq('id', importRunId);
+
+      // Invalidate catalog query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['material-catalog'] });
 
       toast.success(`Importação concluída: ${summary.novos} novos, ${summary.updates} atualizados`);
       return true;

@@ -109,9 +109,9 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
   const getStatusBadge = (status: ImportPreviewRow['status']) => {
     switch (status) {
       case 'NOVO':
-        return <Badge className="bg-green-500 text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Novo</Badge>;
+        return <Badge className="bg-primary text-primary-foreground"><CheckCircle2 className="h-3 w-3 mr-1" />Novo</Badge>;
       case 'UPDATE_PRECO':
-        return <Badge className="bg-blue-500 text-white"><RefreshCw className="h-3 w-3 mr-1" />Atualizar</Badge>;
+        return <Badge className="bg-accent text-accent-foreground"><RefreshCw className="h-3 w-3 mr-1" />Atualizar</Badge>;
       case 'IGUAL':
         return <Badge variant="secondary"><Minus className="h-3 w-3 mr-1" />Igual</Badge>;
       case 'ERRO':
@@ -250,12 +250,12 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                   <p className="text-2xl font-bold">{summary.total}</p>
                   <p className="text-xs text-muted-foreground">Total</p>
                 </div>
-                <div className="bg-green-500/10 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-green-600">{summary.novos}</p>
+                <div className="bg-primary/10 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-primary">{summary.novos}</p>
                   <p className="text-xs text-muted-foreground">Novos</p>
                 </div>
-                <div className="bg-blue-500/10 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-blue-600">{summary.updates}</p>
+                <div className="bg-accent/10 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-accent-foreground">{summary.updates}</p>
                   <p className="text-xs text-muted-foreground">Atualizações</p>
                 </div>
                 <div className="bg-muted rounded-lg p-3 text-center">
@@ -308,7 +308,7 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                                   <span className="text-muted-foreground line-through text-xs">
                                     {formatCurrency(row.existingPreco ?? 0)}
                                   </span>
-                                  <span className="text-blue-600 font-medium">
+                                  <span className="text-primary font-medium">
                                     {formatCurrency(row.preco_ref ?? 0)}
                                   </span>
                                 </div>
