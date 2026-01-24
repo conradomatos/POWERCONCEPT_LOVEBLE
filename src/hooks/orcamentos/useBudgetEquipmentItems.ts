@@ -52,7 +52,7 @@ export function useBudgetEquipmentItems(revisionId: string | undefined) {
     enabled: !!revisionId,
   });
 
-  // Add from catalog with snapshot
+  // Add single item from catalog with snapshot
   const addFromCatalog = useMutation({
     mutationFn: async (catalogItem: EquipmentCatalogItem) => {
       if (!revisionId) throw new Error('Revisão não selecionada');
@@ -83,6 +83,45 @@ export function useBudgetEquipmentItems(revisionId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budget-equipment-items', revisionId] });
       toast.success('Equipamento adicionado do catálogo');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao adicionar: ${error.message}`);
+    },
+  });
+
+  // Add multiple items from catalog with snapshots
+  const addBatchFromCatalog = useMutation({
+    mutationFn: async (catalogItems: EquipmentCatalogItem[]) => {
+      if (!revisionId) throw new Error('Revisão não selecionada');
+      if (catalogItems.length === 0) throw new Error('Nenhum item selecionado');
+      
+      const { data: userData } = await supabase.auth.getUser();
+      
+      const insertData = catalogItems.map(catalogItem => ({
+        revision_id: revisionId,
+        catalog_id: catalogItem.id,
+        codigo_snapshot: catalogItem.codigo,
+        descricao_snapshot: catalogItem.descricao,
+        unidade_snapshot: catalogItem.unidade,
+        preco_mensal_ref_snapshot: catalogItem.preco_mensal_ref,
+        preco_mensal_override: null,
+        qtd: 1,
+        meses: 1,
+        created_by: userData.user?.id,
+        updated_by: userData.user?.id,
+      }));
+
+      const { data, error } = await supabase
+        .from('budget_equipment_items')
+        .insert(insertData)
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['budget-equipment-items', revisionId] });
+      toast.success(`${data?.length || 0} equipamento(s) adicionado(s) do catálogo`);
     },
     onError: (error: Error) => {
       toast.error(`Erro ao adicionar: ${error.message}`);
@@ -212,6 +251,7 @@ export function useBudgetEquipmentItems(revisionId: string | undefined) {
     total,
     isLoading,
     addFromCatalog,
+    addBatchFromCatalog,
     addManual,
     updateItem,
     resetToReference,
