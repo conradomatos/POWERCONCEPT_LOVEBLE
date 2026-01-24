@@ -11,7 +11,7 @@ import {
   PanelLeft,
   Calculator,
 } from 'lucide-react';
-import logoConceptImg from '@/assets/logo-concept.png';
+import logoCpsImg from '@/assets/logo-cps.png';
 import { cn } from '@/lib/utils';
 import {
   SidebarProvider,
@@ -121,7 +121,7 @@ export default function Layout({ children }: LayoutProps) {
                     to="/" 
                     className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                   >
-                    <img src={logoConceptImg} alt="PwC" className="h-8 w-auto" />
+                    <img src={logoCpsImg} alt="CPS" className="h-8 w-auto" />
                   </Link>
                   
                   {/* Top Nav - 3 Areas */}
