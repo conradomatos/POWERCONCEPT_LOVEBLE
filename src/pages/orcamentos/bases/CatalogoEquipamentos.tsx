@@ -55,7 +55,10 @@ import {
   Copy,
   Send,
   Inbox,
+  Info,
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 import { useEquipmentCatalogRequests } from '@/hooks/orcamentos/useEquipmentCatalogRequests';
 import { EquipmentRequestModal } from '@/components/orcamentos/bases/EquipmentRequestModal';
 import { EquipmentRequestsList } from '@/components/orcamentos/bases/EquipmentRequestsList';
@@ -96,13 +99,61 @@ export default function CatalogoEquipamentos() {
   const [formData, setFormData] = useState({
     codigo: '',
     descricao: '',
-    unidade: 'mês',
+    unidade: 'dia',
     preco_mensal_ref: 0,
     group_id: '',
     category_id: '',
     subcategory_id: '',
     observacao: '',
   });
+  
+  // Form validation errors
+  const [formErrors, setFormErrors] = useState<{
+    codigo?: string;
+    descricao?: string;
+    group_id?: string;
+    category_id?: string;
+  }>({});
+  
+  // Validation constants
+  const UNIDADE_OPTIONS = ['hora', 'dia', 'mês', 'ano'] as const;
+  
+  // Validate codigo format: 3-20 chars, A-Z0-9 and hyphen, no start/end hyphen, no double hyphen
+  const validateCodigo = (codigo: string): string | undefined => {
+    if (!codigo) return 'Código é obrigatório';
+    if (codigo.length < 3) return 'Mínimo 3 caracteres';
+    if (codigo.length > 20) return 'Máximo 20 caracteres';
+    if (!/^[A-Z0-9-]+$/.test(codigo)) return 'Apenas A-Z, 0-9 e hífen permitidos';
+    if (codigo.startsWith('-') || codigo.endsWith('-')) return 'Não pode começar/terminar com hífen';
+    if (codigo.includes('--')) return 'Não pode conter hífen duplo (--)';
+    return undefined;
+  };
+  
+  // Validate descricao: 10-160 chars
+  const validateDescricao = (descricao: string): string | undefined => {
+    if (!descricao) return 'Descrição é obrigatória';
+    if (descricao.length < 10) return `Mínimo 10 caracteres (atual: ${descricao.length})`;
+    if (descricao.length > 160) return `Máximo 160 caracteres (atual: ${descricao.length})`;
+    return undefined;
+  };
+  
+  // Real-time validation on codigo change
+  const handleCodigoChange = (value: string) => {
+    const upperValue = value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    setFormData({ ...formData, codigo: upperValue });
+    const error = validateCodigo(upperValue);
+    setFormErrors(prev => ({ ...prev, codigo: error }));
+  };
+  
+  // Real-time validation on descricao change
+  const handleDescricaoChange = (value: string) => {
+    setFormData({ ...formData, descricao: value });
+    const error = validateDescricao(value);
+    setFormErrors(prev => ({ ...prev, descricao: error }));
+  };
+  
+  // Check if hierarchy exists
+  const hasHierarchy = groups.length > 0;
   
   // Inline editing
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
@@ -148,35 +199,61 @@ export default function CatalogoEquipamentos() {
     return subcategories.filter(s => s.category_id === formData.category_id);
   }, [subcategories, formData.category_id]);
   
-  // Handle create
+  // Handle create with full validation
   const handleCreate = async () => {
-    if (!formData.codigo || !formData.descricao) {
-      toast.error('Código e descrição são obrigatórios');
+    // Validate all fields
+    const codigoError = validateCodigo(formData.codigo);
+    const descricaoError = validateDescricao(formData.descricao);
+    const groupError = !formData.group_id ? 'Grupo é obrigatório' : undefined;
+    const categoryError = !formData.category_id ? 'Categoria é obrigatória' : undefined;
+    
+    const errors = {
+      codigo: codigoError,
+      descricao: descricaoError,
+      group_id: groupError,
+      category_id: categoryError,
+    };
+    
+    setFormErrors(errors);
+    
+    // Check if any errors exist
+    if (codigoError || descricaoError || groupError || categoryError) {
+      toast.error('Corrija os erros no formulário');
       return;
     }
     
-    await createItem.mutateAsync({
-      codigo: formData.codigo,
-      descricao: formData.descricao,
-      unidade: formData.unidade || 'mês',
-      preco_mensal_ref: formData.preco_mensal_ref,
-      group_id: formData.group_id || null,
-      category_id: formData.category_id || null,
-      subcategory_id: formData.subcategory_id || null,
-      observacao: formData.observacao || null,
-    });
-    
-    setCreateDialogOpen(false);
+    try {
+      await createItem.mutateAsync({
+        codigo: formData.codigo,
+        descricao: formData.descricao,
+        unidade: formData.unidade || 'dia',
+        preco_mensal_ref: formData.preco_mensal_ref,
+        group_id: formData.group_id || null,
+        category_id: formData.category_id || null,
+        subcategory_id: formData.subcategory_id || null,
+        observacao: formData.observacao || null,
+      });
+      
+      setCreateDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      // Error handled by mutation onError
+    }
+  };
+  
+  // Reset form to initial state
+  const resetForm = () => {
     setFormData({
       codigo: '',
       descricao: '',
-      unidade: 'mês',
+      unidade: 'dia',
       preco_mensal_ref: 0,
       group_id: '',
       category_id: '',
       subcategory_id: '',
       observacao: '',
     });
+    setFormErrors({});
   };
   
   // Inline editing handlers
@@ -581,116 +658,220 @@ export default function CatalogoEquipamentos() {
       </Card>
       
       {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <Dialog open={createDialogOpen} onOpenChange={(open) => { 
+        if (!open) resetForm();
+        setCreateDialogOpen(open); 
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Novo Equipamento</DialogTitle>
           </DialogHeader>
+          
+          {/* Warning if no hierarchy exists */}
+          {!hasHierarchy && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Cadastre a hierarquia (Grupo/Categoria) antes de criar equipamentos.
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto ml-1"
+                  onClick={() => {
+                    setCreateDialogOpen(false);
+                    setHierarchyDialogOpen(true);
+                  }}
+                >
+                  Gerenciar Hierarquia
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-4">
+            {/* Código and Unidade row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Código *</Label>
+                <Label className="flex items-center gap-1">
+                  Código <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   value={formData.codigo}
-                  onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                  onChange={(e) => handleCodigoChange(e.target.value)}
                   placeholder="EQ-001"
+                  className={cn(formErrors.codigo && "border-destructive")}
+                  maxLength={20}
                 />
+                {formErrors.codigo ? (
+                  <p className="text-xs text-destructive">{formErrors.codigo}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">3-20 caracteres: A-Z, 0-9, hífen</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label>Unidade</Label>
-                <Input
-                  value={formData.unidade}
-                  onChange={(e) => setFormData({ ...formData, unidade: e.target.value })}
-                  placeholder="mês"
-                />
+                <Label className="flex items-center gap-1">
+                  Unidade <span className="text-destructive">*</span>
+                </Label>
+                <Select 
+                  value={formData.unidade} 
+                  onValueChange={(v) => setFormData({ ...formData, unidade: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIDADE_OPTIONS.map(u => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             
+            {/* Descrição */}
             <div className="space-y-2">
-              <Label>Descrição *</Label>
-              <Input
+              <Label className="flex items-center gap-1">
+                Descrição <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
                 value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Descrição do equipamento"
+                onChange={(e) => handleDescricaoChange(e.target.value)}
+                placeholder="Tipo + capacidade + tensão + observação curta. Ex: Gerador trifásico 40kVA 220/127V (não silenciado)"
+                className={cn("min-h-[60px]", formErrors.descricao && "border-destructive")}
+                maxLength={160}
               />
+              {formErrors.descricao ? (
+                <p className="text-xs text-destructive">{formErrors.descricao}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {formData.descricao.length}/160 caracteres (mínimo 10)
+                </p>
+              )}
             </div>
             
+            {/* Preço */}
             <div className="space-y-2">
-              <Label>Preço Mensal de Referência</Label>
+              <Label>Preço Referência</Label>
               <Input
                 type="number"
                 step="0.01"
-                value={formData.preco_mensal_ref}
+                min="0"
+                value={formData.preco_mensal_ref || ''}
                 onChange={(e) => setFormData({ ...formData, preco_mensal_ref: parseFloat(e.target.value) || 0 })}
+                placeholder="0,00"
               />
             </div>
             
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-2">
-                <Label>Grupo</Label>
-                <Select 
-                  value={formData.group_id} 
-                  onValueChange={(v) => setFormData({ ...formData, group_id: v, category_id: '', subcategory_id: '' })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map(g => (
-                      <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Hierarchy section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Hierarquia</Label>
+                {canEdit && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-auto p-1 text-xs"
+                    onClick={() => {
+                      setCreateDialogOpen(false);
+                      setHierarchyDialogOpen(true);
+                    }}
+                  >
+                    <FolderTree className="h-3 w-3 mr-1" />
+                    Gerenciar
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select 
-                  value={formData.category_id} 
-                  onValueChange={(v) => setFormData({ ...formData, category_id: v, subcategory_id: '' })}
-                  disabled={!formData.group_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formCategories.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    Grupo <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.group_id} 
+                    onValueChange={(v) => {
+                      setFormData({ ...formData, group_id: v, category_id: '', subcategory_id: '' });
+                      setFormErrors(prev => ({ ...prev, group_id: undefined }));
+                    }}
+                  >
+                    <SelectTrigger className={cn(formErrors.group_id && "border-destructive")}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map(g => (
+                        <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    Categoria <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.category_id} 
+                    onValueChange={(v) => {
+                      setFormData({ ...formData, category_id: v, subcategory_id: '' });
+                      setFormErrors(prev => ({ ...prev, category_id: undefined }));
+                    }}
+                    disabled={!formData.group_id}
+                  >
+                    <SelectTrigger className={cn(formErrors.category_id && "border-destructive")}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formCategories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Subcategoria</Label>
+                  <Select 
+                    value={formData.subcategory_id} 
+                    onValueChange={(v) => setFormData({ ...formData, subcategory_id: v })}
+                    disabled={!formData.category_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="(opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formSubcategories.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Subcategoria</Label>
-                <Select 
-                  value={formData.subcategory_id} 
-                  onValueChange={(v) => setFormData({ ...formData, subcategory_id: v })}
-                  disabled={!formData.category_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formSubcategories.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {(formErrors.group_id || formErrors.category_id) && (
+                <p className="text-xs text-destructive">Grupo e Categoria são obrigatórios</p>
+              )}
             </div>
             
+            {/* Notas internas (former Observação) */}
             <div className="space-y-2">
-              <Label>Observação</Label>
-              <Input
+              <Label className="flex items-center gap-1">
+                Notas internas
+                <Info className="h-3 w-3 text-muted-foreground" />
+              </Label>
+              <Textarea
                 value={formData.observacao}
                 onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-                placeholder="Observações adicionais"
+                placeholder="Informações internas sobre o equipamento (não visível em propostas)"
+                className="min-h-[40px]"
               />
             </div>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreate} disabled={createItem.isPending}>
-              {createItem.isPending ? 'Salvando...' : 'Criar'}
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreate} 
+              disabled={createItem.isPending || !hasHierarchy}
+            >
+              {createItem.isPending ? 'Salvando...' : 'Criar Equipamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
