@@ -18,6 +18,8 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   periculosidade_pct: ['periculosidade_pct', 'periculosidade', '%_periculosidade'],
   insalubridade_pct: ['insalubridade_pct', 'insalubridade', '%_insalubridade'],
   charge_set: ['charge_set', 'encargos', 'encargos_set', 'conjunto_encargos'],
+  // NEW: valor_ref_hh with aliases
+  valor_ref_hh: ['valor_ref_hh', 'hh_ref', 'valor_hh', 'preco_hh', 'custo_hh', 'ref_hh', 'referencia_hh'],
   produtividade_valor: ['produtividade_valor', 'produtividade', 'productivity'],
   produtividade_tipo: ['produtividade_tipo', 'tipo_produtividade'],
   produtividade_unidade: ['produtividade_unidade', 'unidade_produtividade', 'unidade_prod'],
@@ -267,6 +269,13 @@ export function useBudgetLaborCatalogImport() {
         const beneficios = parseFloat(String(row.rawData[mapping.beneficios_mensal] || '0').replace(',', '.')) || 0;
         const periculosidade = parseFloat(String(row.rawData[mapping.periculosidade_pct] || '0').replace(',', '.')) || 0;
         const insalubridade = parseFloat(String(row.rawData[mapping.insalubridade_pct] || '0').replace(',', '.')) || 0;
+        
+        // NEW: Parse valor_ref_hh (optional, null if not provided or empty)
+        const valorRefHhRaw = row.rawData[mapping.valor_ref_hh];
+        const valorRefHh = valorRefHhRaw != null && String(valorRefHhRaw).trim() !== ''
+          ? parseFloat(String(valorRefHhRaw).replace(',', '.'))
+          : null;
+        
         const prodValor = row.rawData[mapping.produtividade_valor] 
           ? parseFloat(String(row.rawData[mapping.produtividade_valor]).replace(',', '.')) 
           : null;
@@ -310,6 +319,8 @@ export function useBudgetLaborCatalogImport() {
           periculosidade_pct: periculosidade,
           insalubridade_pct: insalubridade,
           charge_set_id: chargeSetId,
+          // NEW: valor_ref_hh (null if not provided in import)
+          valor_ref_hh: valorRefHh,
           produtividade_valor: prodValor,
           produtividade_tipo: prodTipoValue,
           produtividade_unidade: prodUnidade,
@@ -433,6 +444,8 @@ export function useBudgetLaborCatalogImport() {
         periculosidade_pct: 30,
         insalubridade_pct: 0,
         encargos: 'CLT Padrão',
+        // NEW: valor_ref_hh - optional reference hourly value
+        valor_ref_hh: 45.50,
         produtividade_valor: 0.5,
         produtividade_tipo: 'HH_POR_UN',
         produtividade_unidade: 'ponto',

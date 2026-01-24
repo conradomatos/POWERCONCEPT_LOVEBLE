@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 // Grid columns configuration
 const COLUMNS = [
   'codigo', 'nome', 'tipo_mo', 'regime', 'carga_horaria', 'salario_base', 
-  'beneficios', 'periculosidade', 'encargos', 'hh_custo', 'preco_efetivo', 'produtividade', 
+  'beneficios', 'periculosidade', 'encargos', 'hh_custo', 'valor_ref_hh', 'preco_efetivo', 'produtividade', 
   'prod_tipo', 'prod_unidade', 'grupo', 'categoria', 'tags'
 ] as const;
 
@@ -40,6 +40,7 @@ const COLUMN_HEADERS: Record<string, { label: string; width: string; editable: b
   periculosidade: { label: 'Peric. %', width: 'w-20', editable: true },
   encargos: { label: 'Encargos', width: 'min-w-[140px]', editable: true },
   hh_custo: { label: 'HH Custo', width: 'w-28', editable: false },
+  valor_ref_hh: { label: 'Ref. R$/h', width: 'w-28', editable: true },
   preco_efetivo: { label: 'Preço Efetivo', width: 'w-36', editable: true },
   produtividade: { label: 'Produt.', width: 'w-24', editable: true },
   prod_tipo: { label: 'Tipo Prod.', width: 'w-28', editable: true },
@@ -492,6 +493,11 @@ export default function CatalogoMaoDeObraFuncoesV2() {
       case 'encargos':
         if (editValue !== item.charge_set_id) updateData.charge_set_id = editValue || null;
         break;
+      case 'valor_ref_hh':
+        // NEW: valor_ref_hh - null if empty, otherwise parsed value
+        const refHh = editValue.trim() !== '' ? parseFloat(editValue.replace(',', '.')) : null;
+        if (refHh !== item.valor_ref_hh) updateData.valor_ref_hh = refHh;
+        break;
       case 'produtividade':
         const prod = editValue ? parseFloat(editValue.replace(',', '.')) : null;
         if (prod !== item.produtividade_valor) updateData.produtividade_valor = prod;
@@ -567,6 +573,7 @@ export default function CatalogoMaoDeObraFuncoesV2() {
       case 'periculosidade': return String(item.periculosidade_pct);
       case 'encargos': return item.charge_set_id || '';
       case 'hh_custo': return String(item.hh_custo);
+      case 'valor_ref_hh': return item.valor_ref_hh != null ? String(item.valor_ref_hh) : '';
       case 'produtividade': return item.produtividade_valor ? String(item.produtividade_valor) : '';
       case 'prod_tipo': return item.produtividade_tipo;
       case 'prod_unidade': return item.produtividade_unidade || '';
@@ -587,6 +594,46 @@ export default function CatalogoMaoDeObraFuncoesV2() {
         <span className="font-medium text-primary">
           {formatCurrency(item.hh_custo)}/h
         </span>
+      );
+    }
+
+    // NEW: valor_ref_hh column - reference hourly value (optional default)
+    if (col === 'valor_ref_hh') {
+      if (isEditing) {
+        return (
+          <Input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => handleCellBlur(item)}
+            onKeyDown={(e) => handleKeyDown(e, item, rowIdx)}
+            className="h-7 text-xs text-right"
+            placeholder="R$/h"
+            autoFocus
+          />
+        );
+      }
+      
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "font-mono text-xs cursor-pointer px-1 py-0.5 rounded",
+              item.valor_ref_hh != null 
+                ? "text-emerald-700 bg-emerald-50" 
+                : "text-muted-foreground"
+            )}>
+              {item.valor_ref_hh != null ? `${formatCurrency(item.valor_ref_hh)}/h` : '—'}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">
+              {item.valor_ref_hh != null 
+                ? "Padrão sugerido (referência para orçamentos)" 
+                : "Sem valor de referência definido"}
+            </p>
+          </TooltipContent>
+        </Tooltip>
       );
     }
 

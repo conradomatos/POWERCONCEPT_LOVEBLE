@@ -890,6 +890,88 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_labor_items: {
+        Row: {
+          carga_horaria_snapshot: number
+          catalog_id: string | null
+          codigo_snapshot: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          nome_snapshot: string
+          observacao: string | null
+          qtd_hh: number
+          regime_snapshot: Database["public"]["Enums"]["budget_labor_regime"]
+          revision_id: string
+          tipo_mo_snapshot: Database["public"]["Enums"]["budget_labor_type"]
+          total: number | null
+          updated_at: string | null
+          updated_by: string | null
+          valor_hh_override: number | null
+          valor_ref_hh_snapshot: number | null
+        }
+        Insert: {
+          carga_horaria_snapshot?: number
+          catalog_id?: string | null
+          codigo_snapshot: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          nome_snapshot: string
+          observacao?: string | null
+          qtd_hh?: number
+          regime_snapshot?: Database["public"]["Enums"]["budget_labor_regime"]
+          revision_id: string
+          tipo_mo_snapshot?: Database["public"]["Enums"]["budget_labor_type"]
+          total?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_hh_override?: number | null
+          valor_ref_hh_snapshot?: number | null
+        }
+        Update: {
+          carga_horaria_snapshot?: number
+          catalog_id?: string | null
+          codigo_snapshot?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          nome_snapshot?: string
+          observacao?: string | null
+          qtd_hh?: number
+          regime_snapshot?: Database["public"]["Enums"]["budget_labor_regime"]
+          revision_id?: string
+          tipo_mo_snapshot?: Database["public"]["Enums"]["budget_labor_type"]
+          total?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_hh_override?: number | null
+          valor_ref_hh_snapshot?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_labor_roles_catalog: {
         Row: {
           ativo: boolean | null
@@ -915,6 +997,7 @@ export type Database = {
           salario_base: number
           tipo_mo: Database["public"]["Enums"]["budget_labor_type"]
           updated_at: string | null
+          valor_ref_hh: number | null
         }
         Insert: {
           ativo?: boolean | null
@@ -940,6 +1023,7 @@ export type Database = {
           salario_base?: number
           tipo_mo?: Database["public"]["Enums"]["budget_labor_type"]
           updated_at?: string | null
+          valor_ref_hh?: number | null
         }
         Update: {
           ativo?: boolean | null
@@ -965,6 +1049,7 @@ export type Database = {
           salario_base?: number
           tipo_mo?: Database["public"]["Enums"]["budget_labor_type"]
           updated_at?: string | null
+          valor_ref_hh?: number | null
         }
         Relationships: [
           {
@@ -4254,6 +4339,56 @@ export type Database = {
           },
         ]
       }
+      vw_budget_labor_items: {
+        Row: {
+          carga_horaria_snapshot: number | null
+          catalog_id: string | null
+          catalog_nome_atual: string | null
+          catalog_valor_ref_hh_atual: number | null
+          codigo_snapshot: string | null
+          created_at: string | null
+          has_override: boolean | null
+          id: string | null
+          nome_snapshot: string | null
+          observacao: string | null
+          qtd_hh: number | null
+          regime_snapshot:
+            | Database["public"]["Enums"]["budget_labor_regime"]
+            | null
+          revision_id: string | null
+          tipo_mo_snapshot:
+            | Database["public"]["Enums"]["budget_labor_type"]
+            | null
+          total: number | null
+          updated_at: string | null
+          valor_hh_efetivo: number | null
+          valor_hh_override: number | null
+          valor_ref_hh_snapshot: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_items_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "vw_budget_labor_roles_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_labor_items_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "budget_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_budget_labor_roles: {
         Row: {
           ativo: boolean | null
@@ -4313,6 +4448,7 @@ export type Database = {
           tipo_mo: Database["public"]["Enums"]["budget_labor_type"] | null
           total_encargos_pct: number | null
           updated_at: string | null
+          valor_ref_hh: number | null
         }
         Relationships: [
           {
