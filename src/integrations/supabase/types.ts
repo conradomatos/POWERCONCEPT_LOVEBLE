@@ -1983,40 +1983,71 @@ export type Database = {
         Row: {
           ativo: boolean
           categoria: string | null
+          category_id: string | null
           codigo: string
           created_at: string
           descricao: string
+          group_id: string | null
           hh_unit_ref: number | null
           id: string
           preco_ref: number | null
+          subcategory_id: string | null
           unidade: string
           updated_at: string
         }
         Insert: {
           ativo?: boolean
           categoria?: string | null
+          category_id?: string | null
           codigo: string
           created_at?: string
           descricao: string
+          group_id?: string | null
           hh_unit_ref?: number | null
           id?: string
           preco_ref?: number | null
+          subcategory_id?: string | null
           unidade: string
           updated_at?: string
         }
         Update: {
           ativo?: boolean
           categoria?: string | null
+          category_id?: string | null
           codigo?: string
           created_at?: string
           descricao?: string
+          group_id?: string | null
           hh_unit_ref?: number | null
           id?: string
           preco_ref?: number | null
+          subcategory_id?: string | null
           unidade?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "material_catalog_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "material_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_catalog_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "material_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_catalog_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "material_subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       material_catalog_price_history: {
         Row: {
@@ -2065,6 +2096,139 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      material_catalog_tags: {
+        Row: {
+          material_id: string
+          tag_id: string
+        }
+        Insert: {
+          material_id: string
+          tag_id: string
+        }
+        Update: {
+          material_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_catalog_tags_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_catalog_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "material_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_categories: {
+        Row: {
+          created_at: string | null
+          group_id: string
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id: string
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_categories_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "material_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_groups: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      material_subcategories: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "material_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
       }
       mobilization_catalog: {
         Row: {
