@@ -232,8 +232,8 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
                   <p className="font-medium mb-2">Códigos duplicados encontrados no arquivo:</p>
                   <ul className="text-sm space-y-1">
                     {duplicates.slice(0, 5).map(dup => (
-                      <li key={dup.codigo}>
-                        <code className="bg-destructive/20 px-1 rounded">{dup.codigo}</code>
+                      <li key={dup.key}>
+                        <code className="bg-destructive/20 px-1 rounded">{dup.key}</code>
                         {' '}nas linhas: {dup.lines.join(', ')}
                       </li>
                     ))}
