@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, Package, History } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Upload, Package, FolderTree } from 'lucide-react';
 import { MaterialCatalogGrid } from '@/components/orcamentos/bases/MaterialCatalogGrid';
 import { MaterialImportModal } from '@/components/orcamentos/bases/MaterialImportModal';
+import { MaterialHierarchyManager } from '@/components/orcamentos/bases/MaterialHierarchyManager';
 import { useMaterialCatalog } from '@/hooks/orcamentos/useMaterialCatalog';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function CatalogoMateriais() {
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('catalogo');
   const { items } = useMaterialCatalog();
   const { hasRole, isSuperAdmin } = useAuth();
 
@@ -32,7 +35,7 @@ export default function CatalogoMateriais() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canImport && (
+          {canImport && activeTab === 'catalogo' && (
             <Button onClick={() => setImportModalOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Importar
@@ -41,21 +44,40 @@ export default function CatalogoMateriais() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Materiais Cadastrados</CardTitle>
-              <CardDescription>
-                {items.length} materiais disponíveis para uso em orçamentos
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <MaterialCatalogGrid />
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="catalogo" className="gap-2">
+            <Package className="h-4 w-4" />
+            Catálogo
+          </TabsTrigger>
+          <TabsTrigger value="hierarquia" className="gap-2">
+            <FolderTree className="h-4 w-4" />
+            Gerenciar Hierarquia
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="catalogo" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Materiais Cadastrados</CardTitle>
+                  <CardDescription>
+                    {items.length} materiais disponíveis para uso em orçamentos
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <MaterialCatalogGrid />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="hierarquia" className="mt-4">
+          <MaterialHierarchyManager />
+        </TabsContent>
+      </Tabs>
 
       <MaterialImportModal
         open={importModalOpen}
