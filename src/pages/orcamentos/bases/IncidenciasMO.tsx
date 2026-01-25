@@ -21,13 +21,17 @@ import {
   Search,
   Eye,
   Users,
-  Tent
+  Tent,
+  Plus,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { useBudgetLaborCatalog } from '@/hooks/orcamentos/useBudgetLaborCatalog';
-import { useLaborIncidenceGroups, useLaborIncidenceItems } from '@/hooks/orcamentos/useLaborIncidenceCatalog';
+import { useLaborIncidenceGroups, useLaborIncidenceItems, useLaborIncidenceCatalog, type LaborIncidenceGroup, type LaborIncidenceItemInsert } from '@/hooks/orcamentos/useLaborIncidenceCatalog';
 import { useLaborIncidenceByRole, useLaborIncidenceRoleRules, LaborIncidenceByRole } from '@/hooks/orcamentos/useLaborIncidenceRoleRules';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
+import { AddIncidenceItemDialog } from '@/components/orcamentos/bases/AddIncidenceItemDialog';
 
 const GROUP_ICONS: Record<string, React.ReactNode> = {
   'A': <FileText className="h-4 w-4" />,
@@ -332,11 +336,14 @@ export default function IncidenciasMO() {
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [roleSearch, setRoleSearch] = useState('');
   const [activeTab, setActiveTab] = useState('A');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<LaborIncidenceGroup | null>(null);
   
   // Fetch data
   const { items: roles, isLoading: rolesLoading } = useBudgetLaborCatalog();
   const { data: groups, isLoading: groupsLoading } = useLaborIncidenceGroups();
   const { data: catalogItems, isLoading: catalogLoading } = useLaborIncidenceItems();
+  const { createItem } = useLaborIncidenceCatalog();
   
   // Role-specific data using new view
   const { data: roleIncidences, isLoading: roleIncidencesLoading } = useLaborIncidenceByRole(selectedRoleId);
@@ -422,6 +429,22 @@ export default function IncidenciasMO() {
       seedCampoDefaults.mutate();
     }
   };
+
+  const handleOpenAddDialog = (group: LaborIncidenceGroup) => {
+    setSelectedGroup(group);
+    setAddDialogOpen(true);
+  };
+
+  const handleCreateItem = async (data: LaborIncidenceItemInsert) => {
+    await createItem.mutateAsync(data);
+    setAddDialogOpen(false);
+    setSelectedGroup(null);
+  };
+
+  // Get all existing codes for validation
+  const existingCodes = useMemo(() => {
+    return catalogItems?.map(item => item.codigo) ?? [];
+  }, [catalogItems]);
 
   // Show empty states
   if (groupsLoading) {
@@ -600,7 +623,7 @@ export default function IncidenciasMO() {
           {viewMode === 'catalog' && (
             <Card>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <CardHeader className="pb-2 pt-3">
+                <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between">
                   <TabsList className="grid grid-cols-5 w-fit">
                     {groups.map(group => (
                       <TabsTrigger key={group.codigo} value={group.codigo} className="gap-1 text-xs">
@@ -609,6 +632,17 @@ export default function IncidenciasMO() {
                       </TabsTrigger>
                     ))}
                   </TabsList>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const currentGroup = groups.find(g => g.codigo === activeTab);
+                      if (currentGroup) handleOpenAddDialog(currentGroup);
+                    }}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Novo Item [{activeTab}]
+                  </Button>
                 </CardHeader>
                 <CardContent className="pt-2 px-3 pb-3">
                   {groups.map(group => {
@@ -634,17 +668,44 @@ export default function IncidenciasMO() {
                               {catalogByGroup[group.codigo]?.length === 0 ? (
                                 <TableRow>
                                   <TableCell colSpan={headers.monthsLabel ? 7 : 6} className="p-6 text-center text-muted-foreground text-sm">
-                                    Nenhum item cadastrado para este grupo.
+                                    <div className="flex flex-col items-center gap-2">
+                                      <span>Nenhum item cadastrado para este grupo.</span>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleOpenAddDialog(group)}
+                                        className="gap-2"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Adicionar primeiro item
+                                      </Button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ) : (
-                                catalogByGroup[group.codigo]?.map(item => (
-                                  <CatalogItemRow
-                                    key={item.id}
-                                    item={item}
-                                    groupCode={group.codigo}
-                                  />
-                                ))
+                                <>
+                                  {catalogByGroup[group.codigo]?.map(item => (
+                                    <CatalogItemRow
+                                      key={item.id}
+                                      item={item}
+                                      groupCode={group.codigo}
+                                    />
+                                  ))}
+                                  {/* Add Item Row */}
+                                  <TableRow className="hover:bg-muted/30">
+                                    <TableCell colSpan={headers.monthsLabel ? 7 : 6} className="py-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => handleOpenAddDialog(group)}
+                                        className="gap-2 text-muted-foreground hover:text-foreground w-full justify-start"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Adicionar novo item ao grupo [{group.codigo}]
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                </>
                               )}
                             </TableBody>
                             {catalogByGroup[group.codigo]?.length > 0 && (
@@ -796,6 +857,16 @@ export default function IncidenciasMO() {
           </Card>
         </>
       )}
+
+      {/* Add Item Dialog */}
+      <AddIncidenceItemDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        group={selectedGroup}
+        existingCodes={existingCodes}
+        onSubmit={handleCreateItem}
+        isSubmitting={createItem.isPending}
+      />
     </div>
   );
 }
