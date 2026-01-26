@@ -47,6 +47,7 @@ export function useBudgetSummary(revisionId: string | undefined) {
       // 1. Fetch all cost data
       const [
         materialsRes,
+        laborItemsRes,
         laborAllocRes,
         mobilizationRes,
         siteMaintenanceRes,
@@ -56,19 +57,26 @@ export function useBudgetSummary(revisionId: string | undefined) {
         taxRulesRes,
       ] = await Promise.all([
         supabase.from('budget_material_items').select('preco_total, hh_total').eq('revision_id', revisionId),
+        supabase.from('vw_budget_labor_items').select('total, catalog_id').eq('revision_id', revisionId),
         supabase.from('labor_hh_allocations').select('custo_total').eq('revision_id', revisionId),
         supabase.from('mobilization_items').select('total').eq('revision_id', revisionId),
         supabase.from('site_maintenance_items').select('total').eq('revision_id', revisionId),
         supabase.from('equipment_rentals').select('total').eq('revision_id', revisionId),
         supabase.from('engineering_items').select('total').eq('revision_id', revisionId),
-        supabase.from('markup_rules').select('markup_pct').eq('revision_id', revisionId).single(),
+        supabase.from('markup_rules').select('markup_pct').eq('revision_id', revisionId).maybeSingle(),
         supabase.from('tax_rules').select('*').eq('revision_id', revisionId),
       ]);
 
       // 2. Calculate totals
       const total_materiais = (materialsRes.data || []).reduce((sum, i) => sum + (Number(i.preco_total) || 0), 0);
       const total_hh_materiais = (materialsRes.data || []).reduce((sum, i) => sum + (Number(i.hh_total) || 0), 0);
-      const total_mo = (laborAllocRes.data || []).reduce((sum, i) => sum + (Number(i.custo_total) || 0), 0);
+      
+      // MO: Use labor_items (snapshot-based) OR labor_hh_allocations (histogram-based)
+      // Prefer labor_items if present, fallback to allocations
+      const laborItemsTotal = (laborItemsRes.data || []).reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+      const laborAllocTotal = (laborAllocRes.data || []).reduce((sum, i) => sum + (Number(i.custo_total) || 0), 0);
+      const total_mo = laborItemsTotal > 0 ? laborItemsTotal : laborAllocTotal;
+      
       const total_mobilizacao = (mobilizationRes.data || []).reduce((sum, i) => sum + (Number(i.total) || 0), 0);
       const total_canteiro = (siteMaintenanceRes.data || []).reduce((sum, i) => sum + (Number(i.total) || 0), 0);
       const total_equipamentos = (equipmentRes.data || []).reduce((sum, i) => sum + (Number(i.total) || 0), 0);
