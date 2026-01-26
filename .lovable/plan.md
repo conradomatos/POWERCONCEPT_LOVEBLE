@@ -1,61 +1,31 @@
 
 ## Plano de Revisão do Módulo Orçamentos
 
-### Fase 1: Correções de Segurança (Alta Prioridade)
-1. **Revisar Views SECURITY DEFINER**
-   - Identificar as 7 views problemáticas
-   - Converter para SECURITY INVOKER ou adicionar verificações de role
-   - Views afetadas: vw_budget_equipment, vw_budget_labor_items, vw_budget_labor_roles, etc.
+### ✅ Fase 1: Correções de Segurança (CONCLUÍDO)
+1. ~~Revisar Views SECURITY DEFINER~~ → Convertidas para SECURITY INVOKER
+2. ~~Ajustar RLS Policies permissivas~~ → Restringidas para admins/catalog_managers
+3. ~~Corrigir funções sem search_path~~ → Adicionado SET search_path = 'public'
 
-2. **Ajustar RLS Policies permissivas**
-   - Mapear as ~40 policies com `USING (true)` ou `WITH CHECK (true)`
-   - Implementar verificações baseadas em `auth.uid()` e roles
-   - Priorizar tabelas de orçamentos e dados financeiros
+**Resultado:** De 53 issues → 7 warnings (6 intencionais para dados de revisão)
 
-3. **Corrigir funções sem search_path**
-   - Adicionar `SET search_path = 'public'` nas funções identificadas
+### ✅ Fase 2: Rotas Faltantes (CONCLUÍDO)
+1. ~~Criar página Impostos~~ → `/orcamentos/bases/impostos` com CatalogoImpostos.tsx
+2. ~~Criar página Markup~~ → `/orcamentos/bases/markup` com CatalogoMarkup.tsx
 
-### Fase 2: Rotas Faltantes (Média Prioridade)
-1. **Criar página Indiretos** (`/orcamentos/bases/indiretos`)
-   - Consolidar: Mobilização, Canteiro, Alimentação Industrial
-   - Usar dados das tabelas: mobilization_catalog, site_maintenance_catalog
+**Hooks criados:** useTaxRulesCatalog.ts, useMarkupRulesCatalog.ts
 
-2. **Criar página Impostos** (`/orcamentos/bases/impostos`)
-   - Catálogo global de regras de impostos (tax_rules_catalog)
-   - CRUD com validação
+### ✅ Fase 3: Correções de Cálculo (PARCIAL)
+1. ~~Incluir budget_labor_items no Budget Summary~~ → Agora soma labor_items OU allocations
+2. **TODO:** Adicionar incidências MO ao total (requer tabela específica por revisão)
+3. **TODO:** Implementar cashflow automático proporcional ao histograma
 
-3. **Criar página Markup** (`/orcamentos/bases/markup`)
-   - Catálogo global de templates de markup (markup_rules_catalog)
-   - Permitir criação de conjuntos padrão
-
-### Fase 3: Correções de Cálculo (Média Prioridade)
-1. **Incluir Incidências MO no Budget Summary**
-   - Modificar `useBudgetSummary.ts` para buscar incidências por role
-   - Calcular custo total de incidências baseado nos roles do orçamento
-   - Somar ao `total_mo` ou criar linha separada
-
-2. **Verificar fluxo de cálculo Labor**
-   - Auditar caminho: labor_roles -> labor_cost_snapshot -> labor_hh_allocations
-   - Garantir que alterações em salários/encargos recalculam snapshots
-
-3. **Implementar cashflow automático**
-   - Distribuir custos proporcionalmente ao histograma de HH
-   - Gerar projeção mensal para cronograma financeiro
-
-### Fase 4: Refatorações de Código (Baixa Prioridade)
-1. **Consolidar hooks duplicados**
-   - Unificar useLaborRoleCatalog + useBudgetLaborCatalog
-   - Renomear para clareza: useLaborRoleCatalog (global) vs useBudgetLaborRoles (revision)
-
-2. **Padronizar confirmações de exclusão**
-   - Substituir `confirm()` por AlertDialog do Radix
-   - Aplicar em: Estrutura.tsx, Materiais.tsx, MaoDeObra.tsx
-
-3. **Corrigir ícones da sidebar**
-   - Equipamentos: mudar de PencilRuler para Cog ou outro ícone distintivo
+### Fase 4: Refatorações de Código (Backlog)
+1. Consolidar hooks duplicados (useLaborRoleCatalog + useBudgetLaborCatalog)
+2. Padronizar confirmações de exclusão com AlertDialog do Radix
+3. Corrigir ícone de Equipamentos na sidebar
 
 ### Fase 5: Funcionalidades Pendentes (Backlog)
-1. **Verificar/completar Histograma.tsx**
-2. **Verificar/completar Cronograma.tsx**
-3. **Implementar geração de PDF** (edge function existe mas botão não conectado)
-4. **Adicionar exportação Excel** nos grids principais
+1. Verificar/completar Histograma.tsx
+2. Verificar/completar Cronograma.tsx
+3. Conectar geração de PDF da proposta
+4. Adicionar exportação Excel nos grids

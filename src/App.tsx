@@ -48,6 +48,8 @@ import WbsTemplates from "./pages/orcamentos/bases/WbsTemplates";
 import CatalogoMaoDeObraFuncoes from "./pages/orcamentos/bases/CatalogoMaoDeObraFuncoesV2";
 import CatalogoEquipamentos from "./pages/orcamentos/bases/CatalogoEquipamentos";
 import IncidenciasMO from "./pages/orcamentos/bases/IncidenciasMO";
+import CatalogoImpostos from "./pages/orcamentos/bases/CatalogoImpostos";
+import CatalogoMarkup from "./pages/orcamentos/bases/CatalogoMarkup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -94,6 +96,8 @@ const App = () => (
               <Route path="mo-parametros" element={<Navigate to="/orcamentos/bases/incidencias-mo" replace />} />
               <Route path="equipamentos" element={<CatalogoEquipamentos />} />
               <Route path="incidencias-mo" element={<IncidenciasMO />} />
+              <Route path="impostos" element={<CatalogoImpostos />} />
+              <Route path="markup" element={<CatalogoMarkup />} />
             </Route>
             {/* Budget detail routes */}
             <Route path="/orcamentos/:id" element={<OrcamentoDetail />}>
