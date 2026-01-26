@@ -5486,6 +5486,7 @@ export type Database = {
         Returns: number
       }
       can_approve_projects: { Args: { _user_id: string }; Returns: boolean }
+      can_manage_catalogs: { Args: { user_id: string }; Returns: boolean }
       generate_next_budget_number: { Args: never; Returns: string }
       generate_next_os: { Args: never; Returns: string }
       get_alocacao_por_data: {
