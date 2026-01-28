@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
@@ -59,21 +59,28 @@ export default function Collaborators() {
   }, [user, hasAnyRole]);
 
   // Get unique equipes for filter
-  const uniqueEquipes = [...new Set(collaborators.map(c => (c as any).equipe).filter(Boolean))].sort();
+  const uniqueEquipes = useMemo(() => 
+    [...new Set(collaborators.map(c => c.equipe).filter(Boolean))].sort() as string[],
+    [collaborators]
+  );
 
-  const filteredCollaborators = collaborators.filter((c) => {
-    const matchesSearch =
-      c.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.cpf.includes(search.replace(/\D/g, '')) ||
-      c.department?.toLowerCase().includes(search.toLowerCase()) ||
-      c.position?.toLowerCase().includes(search.toLowerCase()) ||
-      (c as any).equipe?.toLowerCase().includes(search.toLowerCase());
+  const filteredCollaborators = useMemo(() => {
+    const searchLower = search.toLowerCase().trim();
+    
+    return collaborators.filter((c) => {
+      const matchesSearch = searchLower === '' || 
+        c.full_name.toLowerCase().includes(searchLower) ||
+        c.cpf.includes(search.replace(/\D/g, '')) ||
+        (c.department?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.position?.toLowerCase().includes(searchLower) ?? false) ||
+        (c.equipe?.toLowerCase().includes(searchLower) ?? false);
 
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesEquipe = equipeFilter === 'all' || (c as any).equipe === equipeFilter;
+      const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+      const matchesEquipe = equipeFilter === 'all' || c.equipe === equipeFilter;
 
-    return matchesSearch && matchesStatus && matchesEquipe;
-  });
+      return matchesSearch && matchesStatus && matchesEquipe;
+    });
+  }, [collaborators, search, statusFilter, equipeFilter]);
 
   const handleEdit = (collaborator: Collaborator) => {
     setSelectedCollaborator(collaborator);
@@ -212,7 +219,7 @@ export default function Collaborators() {
                         <TableCell>{formatCPF(collaborator.cpf)}</TableCell>
                         <TableCell>{collaborator.position || '-'}</TableCell>
                         <TableCell>{collaborator.department || '-'}</TableCell>
-                        <TableCell>{(collaborator as any).equipe || '-'}</TableCell>
+                        <TableCell>{collaborator.equipe || '-'}</TableCell>
                         <TableCell>{getStatusBadge(collaborator.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -323,7 +330,7 @@ export default function Collaborators() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Equipe</p>
-                  <p className="font-medium">{(viewCollaborator as any).equipe || '-'}</p>
+                  <p className="font-medium">{viewCollaborator.equipe || '-'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Email</p>
