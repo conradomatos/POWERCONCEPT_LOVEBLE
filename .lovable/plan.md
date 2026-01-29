@@ -1,160 +1,223 @@
 
+## Plano: Corrigir Criação de Usuários e Atribuição de Roles
 
-## Plano: Pré-Seleção Automática do Colaborador por Usuário Logado
+### Diagnóstico do Problema
 
-### Problema
-Atualmente na tela de Apontamento Diário, o usuário precisa selecionar manualmente o colaborador. Seria muito mais rápido se o sistema pré-selecionasse automaticamente o colaborador correspondente ao usuário logado.
+| Etapa | O que acontece | Por que falha |
+|-------|---------------|---------------|
+| 1. Admin clica "Criar Usuário" | `supabase.auth.signUp()` é chamado | ✅ Funciona |
+| 2. Usuário é criado | Novo user_id é gerado, profile é criado | ✅ Funciona |
+| 3. **Login automático ocorre** | `auth.uid()` passa a ser o novo usuário | ⚠️ Efeito colateral |
+| 4. Inserção de roles | `INSERT INTO user_roles` é bloqueado por RLS | ❌ FALHA |
+| 5. Listagem na tela Admin | Filtra `users.filter(u => u.roles.length > 0)` | ❌ Não aparece |
 
-### Análise do Estado Atual
+### Solução
 
-**Tabelas envolvidas:**
-| Tabela | Campos relevantes | Status |
-|--------|-------------------|--------|
-| `auth.users` | `id`, `email` | Gerenciada pelo Supabase Auth |
-| `profiles` | `user_id`, `email`, `full_name` | Sincronizada com auth.users |
-| `collaborators` | `id`, `email`, `cpf`, `full_name` | Cadastro de colaboradores |
+Criar uma **Edge Function** que usa a **Service Role Key** para:
+1. Criar o usuário via Admin API (não faz login automático)
+2. Inserir os roles diretamente (bypassa RLS)
+3. Vincular ao colaborador
 
-**Situação atual dos dados:**
-- Usuário `conradodematos@gmail.com` logado (profile)
-- Colaborador "CONRADO MATOS" tem email `conrado@conceptengenharia.com.br`
-- Os emails são **diferentes**, então não há match automático possível
+Isso é necessário porque operações administrativas precisam de privilégios elevados que o cliente não pode ter.
 
-### Solução Proposta
+### Arquivos a Criar/Modificar
 
-#### Fase 1: Adicionar campo `user_id` na tabela `collaborators`
-
-Criar uma coluna `user_id` que faz referência direta ao usuário do sistema, permitindo o vínculo explícito.
-
-**Migração SQL:**
-```sql
-ALTER TABLE public.collaborators
-ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
-
-CREATE INDEX idx_collaborators_user_id ON public.collaborators(user_id);
-
-COMMENT ON COLUMN public.collaborators.user_id IS 'Vínculo com usuário do sistema para auto-seleção';
-```
-
-#### Fase 2: Modificar `ApontamentoDiario.tsx`
-
-Adicionar lógica para buscar o colaborador vinculado ao usuário logado:
-
-```typescript
-// Novo useEffect para auto-selecionar colaborador
-useEffect(() => {
-  // Só pré-seleciona se:
-  // 1. Não veio colaborador por URL
-  // 2. Usuário está logado
-  // 3. Lista de colaboradores carregou
-  // 4. Ainda não há seleção
-  if (!colaboradorIdParam && user && colaboradores && !selectedColaborador) {
-    const meuColaborador = colaboradores.find(c => c.user_id === user.id);
-    if (meuColaborador) {
-      setSelectedColaborador(meuColaborador.id);
-    }
-  }
-}, [colaboradorIdParam, user, colaboradores, selectedColaborador]);
-```
-
-#### Fase 3: Interface de Vinculação (Tela de Colaboradores)
-
-Adicionar opção para vincular usuário ao colaborador na tela `/collaborators`:
-
-- Novo campo "Usuário do Sistema" no formulário de edição
-- Dropdown mostrando usuários disponíveis (que ainda não estão vinculados)
-- Permitir desvincular (setar como null)
-
-### Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| **Migração SQL** | Adicionar coluna `user_id` em `collaborators` |
-| `src/pages/ApontamentoDiario.tsx` | Lógica de auto-seleção por `user_id` |
-| `src/pages/Collaborators.tsx` | Buscar `user_id` na query |
-| `src/components/CollaboratorForm.tsx` | Adicionar campo para vincular usuário |
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/create-user/index.ts` | **CRIAR** - Edge function para criação segura |
+| `src/components/admin/AddUserDialog.tsx` | **MODIFICAR** - Chamar a edge function |
 
 ### Detalhes Técnicos
 
-#### Migração de Banco de Dados
-```sql
--- Adicionar coluna user_id para vínculo com auth.users
-ALTER TABLE public.collaborators
-ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+#### 1. Edge Function: `create-user/index.ts`
 
--- Índice para buscas rápidas
-CREATE INDEX idx_collaborators_user_id ON public.collaborators(user_id);
-
--- Constraint para garantir vínculo único (1 usuário = 1 colaborador)
-ALTER TABLE public.collaborators
-ADD CONSTRAINT collaborators_user_id_unique UNIQUE (user_id);
-```
-
-#### Query para dropdown de usuários no formulário
 ```typescript
-const { data: availableUsers } = useQuery({
-  queryKey: ['available-users', currentCollaboratorId],
-  queryFn: async () => {
-    // Buscar todos os profiles (usuários)
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, email');
-    
-    // Buscar colaboradores já vinculados
-    const { data: linked } = await supabase
-      .from('collaborators')
-      .select('user_id')
-      .not('user_id', 'is', null)
-      .neq('id', currentCollaboratorId); // Excluir o próprio
-    
-    const linkedIds = linked?.map(c => c.user_id) || [];
-    
-    // Retornar apenas usuários não vinculados
-    return profiles?.filter(p => !linkedIds.includes(p.user_id)) || [];
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
-});
-```
 
-#### Auto-seleção no ApontamentoDiario.tsx (linhas 75-90)
-```typescript
-// Adicionar user_id na query de colaboradores
-const { data: colaboradores } = useQuery({
-  queryKey: ['colaboradores-lista'],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('collaborators')
-      .select('id, full_name, cpf, equipe, user_id') // ADICIONAR user_id
-      .eq('status', 'ativo')
-      .order('full_name');
-    if (error) throw error;
-    return data;
-  },
-  enabled: canAccess,
-});
+  try {
+    // Verificar se o chamador é admin
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) throw new Error('Missing authorization')
 
-// Novo useEffect para auto-seleção
-useEffect(() => {
-  if (!colaboradorIdParam && user && colaboradores && !selectedColaborador) {
-    const meuColaborador = colaboradores.find(c => c.user_id === user.id);
-    if (meuColaborador) {
-      setSelectedColaborador(meuColaborador.id);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    // Cliente com token do usuário para verificar permissões
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) throw new Error('Unauthorized')
+
+    // Verificar se é admin
+    const { data: callerRoles } = await userClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', callerUser.id)
+    
+    const isAdmin = callerRoles?.some(r => 
+      r.role === 'admin' || r.role === 'super_admin'
+    )
+    if (!isAdmin) throw new Error('Apenas administradores podem criar usuários')
+
+    // Dados do novo usuário
+    const { email, password, fullName, roles, collaboratorId } = await req.json()
+
+    // Cliente admin para operações privilegiadas
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    // 1. Criar usuário via Admin API (não faz login)
+    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName }
+    })
+
+    if (createError) throw createError
+    const userId = newUser.user.id
+
+    // 2. Inserir roles
+    for (const role of roles) {
+      await adminClient.from('user_roles').insert({ user_id: userId, role })
     }
+
+    // 3. Vincular colaborador
+    if (collaboratorId) {
+      await adminClient
+        .from('collaborators')
+        .update({ user_id: userId })
+        .eq('id', collaboratorId)
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, userId }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
-}, [colaboradorIdParam, user, colaboradores, selectedColaborador]);
+})
 ```
 
-### Fluxo do Usuário Final
+#### 2. Modificar `AddUserDialog.tsx`
 
-1. **Administrador** acessa `/collaborators` e edita "CONRADO MATOS"
-2. Seleciona o usuário "Conrado (conradodematos@gmail.com)" no dropdown
-3. Salva o vínculo
-4. **Conrado** acessa `/apontamento-diario`
-5. O sistema detecta o vínculo e pré-seleciona automaticamente
-6. Conrado pode começar a lançar horas imediatamente
+```typescript
+// Substituir supabase.auth.signUp por chamada à edge function
+const handleSubmit = async () => {
+  // ... validações existentes ...
 
-### Vantagens
+  setIsSubmitting(true);
 
-- Vínculo explícito e seguro (não depende de emails iguais)
-- 1:1 garantido (constraint UNIQUE)
-- Fácil de desfazer/refazer pelo admin
-- Fallback: se não houver vínculo, funciona como antes (seleção manual)
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName: colaboradores?.find(c => c.id === selectedColaborador)?.full_name || '',
+          roles: selectedRoles,
+          collaboratorId: selectedColaborador,
+        }),
+      }
+    );
 
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (result.error?.includes('already registered') || result.error?.includes('already been registered')) {
+        toast.error('Este email já está cadastrado');
+      } else {
+        toast.error(result.error || 'Erro ao criar usuário');
+      }
+      return;
+    }
+
+    toast.success('Usuário criado com sucesso');
+    onSuccess();
+    onOpenChange(false);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    toast.error('Erro ao criar usuário');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+```
+
+#### 3. Arquivo CORS compartilhado (se não existir)
+
+```typescript
+// supabase/functions/_shared/cors.ts
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+```
+
+### Fluxo Corrigido
+
+```text
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Admin clica    │────▶│  Edge Function   │────▶│  Supabase       │
+│  "Criar Usuário"│     │  (Service Role)  │     │  Admin API      │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                              │
+                              ▼
+                        ┌──────────────────┐
+                        │ 1. Verifica se   │
+                        │    chamador é    │
+                        │    admin         │
+                        └────────┬─────────┘
+                                 │
+                              ▼
+                        ┌──────────────────┐
+                        │ 2. Cria usuário  │
+                        │    (Admin API)   │
+                        └────────┬─────────┘
+                                 │
+                              ▼
+                        ┌──────────────────┐
+                        │ 3. Insere roles  │
+                        │    (bypass RLS)  │
+                        └────────┬─────────┘
+                                 │
+                              ▼
+                        ┌──────────────────┐
+                        │ 4. Vincula       │
+                        │    colaborador   │
+                        └──────────────────┘
+```
+
+### Vantagens da Solução
+
+1. **Segurança**: A service role key fica apenas no servidor (edge function)
+2. **Sem login automático**: Admin permanece logado após criar usuário
+3. **Operação atômica**: Tudo acontece na mesma chamada
+4. **Auditoria**: Verificamos permissões do chamador antes de executar
+5. **Usuário já confirmado**: `email_confirm: true` evita email de confirmação
+
+### Alternativa Considerada (Descartada)
+
+Poderíamos criar uma policy de INSERT que permitisse admins inserirem roles para outros usuários. Porém, o problema do login automático do `signUp()` ainda causaria o admin perder sua sessão, então a edge function é a solução correta.
