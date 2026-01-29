@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
@@ -65,6 +65,9 @@ export default function ApontamentoDiario() {
   const [newTipoHora, setNewTipoHora] = useState<TipoHoraExt>('NORMAL');
   const [newHoras, setNewHoras] = useState('');
   const [newDescricao, setNewDescricao] = useState('');
+  
+  // Ref for auto-focus after adding
+  const projetoSelectRef = useRef<HTMLDivElement>(null);
   
   const canAccess = hasRole('admin') || hasRole('rh') || hasRole('super_admin');
   
@@ -168,6 +171,12 @@ export default function ApontamentoDiario() {
     setNewHoras('');
     setNewDescricao('');
     toast.success('Lançamento adicionado');
+    
+    // Auto-focus back to project select for rapid entry
+    setTimeout(() => {
+      const trigger = projetoSelectRef.current?.querySelector('button');
+      trigger?.focus();
+    }, 100);
   };
   
   // Handle duplicate item
@@ -387,7 +396,7 @@ export default function ApontamentoDiario() {
                 {/* Add Item Form */}
                 {isEditable && (
                   <div className="flex flex-col sm:flex-row gap-2 mb-4 p-3 bg-muted/30 rounded-lg">
-                    <div className="flex-1">
+                    <div className="flex-1" ref={projetoSelectRef}>
                       <Select value={newProjetoId} onValueChange={setNewProjetoId}>
                         <SelectTrigger>
                           <SelectValue placeholder="Projeto/OS" />
@@ -439,6 +448,12 @@ export default function ApontamentoDiario() {
                         placeholder="Horas"
                         value={newHoras}
                         onChange={(e) => setNewHoras(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newProjetoId && newHoras) {
+                            e.preventDefault();
+                            handleAddItem();
+                          }
+                        }}
                       />
                     </div>
                     <div className="flex-1">
