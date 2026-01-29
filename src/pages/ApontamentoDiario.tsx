@@ -66,7 +66,7 @@ export default function ApontamentoDiario() {
   const [newHoras, setNewHoras] = useState('');
   const [newDescricao, setNewDescricao] = useState('');
   
-  // Ref for auto-focus after adding
+  // Ref for auto-focus after adding item
   const projetoSelectRef = useRef<HTMLDivElement>(null);
   
   const canAccess = hasRole('admin') || hasRole('rh') || hasRole('super_admin');
