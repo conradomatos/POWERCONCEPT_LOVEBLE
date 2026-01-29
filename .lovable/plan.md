@@ -1,156 +1,160 @@
 
-## Plano: Correção de Rotas/Menus + UX Apontamento Diário
 
-### TAREFA 1: Correção de Rotas e Menus
+## Plano: Pré-Seleção Automática do Colaborador por Usuário Logado
 
-#### Problema Identificado
-O arquivo `src/components/Layout.tsx` possui um mapeamento `routeToArea` que determina qual sidebar lateral mostrar. A rota `/apontamento-diario` **não está neste mapeamento**, então cai no default (`relatorios`), exibindo a sidebar errada.
+### Problema
+Atualmente na tela de Apontamento Diário, o usuário precisa selecionar manualmente o colaborador. Seria muito mais rápido se o sistema pré-selecionasse automaticamente o colaborador correspondente ao usuário logado.
 
-#### Rotas Faltantes no `routeToArea`
-| Rota | Área Correta | Status |
-|------|--------------|--------|
-| `/apontamento-diario` | `projetos` | FALTANDO |
-| `/aprovacoes-projetos` | `projetos` | FALTANDO |
-| `/rentabilidade` | `relatorios` | OK (startsWith funciona) |
-| `/pendencias` | N/A | Página não existe! |
+### Análise do Estado Atual
 
-#### Solução 1.1: Atualizar `Layout.tsx`
-Adicionar as rotas faltantes no objeto `routeToArea`:
+**Tabelas envolvidas:**
+| Tabela | Campos relevantes | Status |
+|--------|-------------------|--------|
+| `auth.users` | `id`, `email` | Gerenciada pelo Supabase Auth |
+| `profiles` | `user_id`, `email`, `full_name` | Sincronizada com auth.users |
+| `collaborators` | `id`, `email`, `cpf`, `full_name` | Cadastro de colaboradores |
 
-```typescript
-const routeToArea: Record<string, NavigationArea> = {
-  // Home
-  '/': 'home',
-  // Recursos
-  '/collaborators': 'recursos',
-  '/recursos/custos': 'recursos',
-  '/import': 'recursos',
-  // Projetos
-  '/empresas': 'projetos',
-  '/projetos': 'projetos',
-  '/planejamento': 'projetos',
-  '/apontamentos': 'projetos',
-  '/apontamento-diario': 'projetos',       // ADICIONAR
-  '/aprovacoes-projetos': 'projetos',      // ADICIONAR
-  '/import-apontamentos': 'projetos',
-  // Relatórios
-  '/dashboard': 'relatorios',
-  '/custos-projeto': 'relatorios',
-  '/rentabilidade': 'relatorios',          // ADICIONAR (explícito)
-  // Orçamentos
-  '/orcamentos': 'orcamentos',
-  '/orcamentos/bases': 'orcamentos',
-};
+**Situação atual dos dados:**
+- Usuário `conradodematos@gmail.com` logado (profile)
+- Colaborador "CONRADO MATOS" tem email `conrado@conceptengenharia.com.br`
+- Os emails são **diferentes**, então não há match automático possível
+
+### Solução Proposta
+
+#### Fase 1: Adicionar campo `user_id` na tabela `collaborators`
+
+Criar uma coluna `user_id` que faz referência direta ao usuário do sistema, permitindo o vínculo explícito.
+
+**Migração SQL:**
+```sql
+ALTER TABLE public.collaborators
+ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_collaborators_user_id ON public.collaborators(user_id);
+
+COMMENT ON COLUMN public.collaborators.user_id IS 'Vínculo com usuário do sistema para auto-seleção';
 ```
 
-#### Solução 1.2: Remover ou Criar `/pendencias`
-A rota `/pendencias` está listada no menu de Relatórios mas a página não existe (erro 404 no console). 
+#### Fase 2: Modificar `ApontamentoDiario.tsx`
 
-**Opção A (recomendada)**: Remover do menu até a funcionalidade ser implementada.
-**Opção B**: Criar página placeholder.
+Adicionar lógica para buscar o colaborador vinculado ao usuário logado:
 
-Arquivo: `src/components/AppSidebar.tsx` - Remover linha:
 ```typescript
-{ title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
+// Novo useEffect para auto-selecionar colaborador
+useEffect(() => {
+  // Só pré-seleciona se:
+  // 1. Não veio colaborador por URL
+  // 2. Usuário está logado
+  // 3. Lista de colaboradores carregou
+  // 4. Ainda não há seleção
+  if (!colaboradorIdParam && user && colaboradores && !selectedColaborador) {
+    const meuColaborador = colaboradores.find(c => c.user_id === user.id);
+    if (meuColaborador) {
+      setSelectedColaborador(meuColaborador.id);
+    }
+  }
+}, [colaboradorIdParam, user, colaboradores, selectedColaborador]);
 ```
 
----
+#### Fase 3: Interface de Vinculação (Tela de Colaboradores)
 
-### TAREFA 2: Melhorias de UX no Apontamento Diário
+Adicionar opção para vincular usuário ao colaborador na tela `/collaborators`:
 
-A tela atual já possui boa estrutura. Melhorias propostas para velocidade:
+- Novo campo "Usuário do Sistema" no formulário de edição
+- Dropdown mostrando usuários disponíveis (que ainda não estão vinculados)
+- Permitir desvincular (setar como null)
 
-#### 2.1: Atalhos de Teclado para Lançamento Rápido
-- **Enter** no campo de horas → adiciona lançamento
-- **Foco automático** no próximo campo após adicionar
-- Adicionar `autoFocus` no primeiro campo após limpeza
+### Arquivos a Modificar
 
-#### 2.2: Melhoria no Formulário de Lançamento
-- Usar `Command` (cmdk) para autocomplete de projetos mais rápido
-- Simplificar: apenas Projeto + Horas como campos obrigatórios
-- Mover Tipo Hora e Descrição para expansão opcional (accordion)
-
-#### 2.3: Indicadores no Topo (Já existem, apenas ajustes)
-Os 4 cards (Base, Apontadas, Saldo, Custo) já estão implementados. Ajustes:
-- Tornar mais compactos em mobile
-- Adicionar badge de fonte quando Secullum estiver ativo (futuro)
-
-#### 2.4: Validação de Saldo (Já implementada)
-- Tolerância de ±0.25h já está no código (`tolerancia = 0.25`)
-- Botão "Enviar para Aprovação" já desabilita quando saldo ≠ 0
-- Warning visual já existe quando há divergência
-
-#### Arquivos a Modificar
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/Layout.tsx` | Adicionar rotas faltantes em `routeToArea` |
-| `src/components/AppSidebar.tsx` | Remover link "Pendências" que não existe |
-| `src/pages/ApontamentoDiario.tsx` | Adicionar atalho Enter + autoFocus para velocidade |
+| **Migração SQL** | Adicionar coluna `user_id` em `collaborators` |
+| `src/pages/ApontamentoDiario.tsx` | Lógica de auto-seleção por `user_id` |
+| `src/pages/Collaborators.tsx` | Buscar `user_id` na query |
+| `src/components/CollaboratorForm.tsx` | Adicionar campo para vincular usuário |
 
----
+### Detalhes Técnicos
 
-### TAREFA 3: Preparação para Secullum (Estrutura Pronta)
+#### Migração de Banco de Dados
+```sql
+-- Adicionar coluna user_id para vínculo com auth.users
+ALTER TABLE public.collaborators
+ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
 
-A estrutura atual já está preparada:
+-- Índice para buscas rápidas
+CREATE INDEX idx_collaborators_user_id ON public.collaborators(user_id);
 
-| Campo/Recurso | Status |
-|---------------|--------|
-| `horas_base_dia` | ✅ Existe, editável manualmente |
-| `fonte_base` | ✅ Campo existe (PONTO, JORNADA, MANUAL) |
-| `saldoHoras` | ✅ Calculado automaticamente |
-| Tolerância ±0.25h | ✅ Implementada |
-| Badge de fonte | ⏳ Adicionar visualização futura |
-
-Quando Secullum for integrado:
-1. O trigger `sync_apontamento_dia_from_secullum` já existe no banco
-2. O campo `fonte_base` será preenchido como `'SECULLUM'`
-3. A lógica de conciliação ativará automaticamente
-
----
-
-### Detalhes Técnicos das Alterações
-
-#### Layout.tsx (linhas 29-49)
-Adicionar 3 rotas faltantes no mapeamento:
-
-```typescript
-'/apontamento-diario': 'projetos',
-'/aprovacoes-projetos': 'projetos',
-'/rentabilidade': 'relatorios',
+-- Constraint para garantir vínculo único (1 usuário = 1 colaborador)
+ALTER TABLE public.collaborators
+ADD CONSTRAINT collaborators_user_id_unique UNIQUE (user_id);
 ```
 
-#### AppSidebar.tsx (linha 92)
-Remover item de menu que causa 404:
-
+#### Query para dropdown de usuários no formulário
 ```typescript
-// REMOVER esta linha:
-{ title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
-```
-
-#### ApontamentoDiario.tsx (linhas 436-454)
-Adicionar handler de teclado para Enter e autoFocus:
-
-```typescript
-// No Input de horas:
-onKeyDown={(e) => {
-  if (e.key === 'Enter' && newProjetoId && newHoras) {
-    e.preventDefault();
-    handleAddItem();
+const { data: availableUsers } = useQuery({
+  queryKey: ['available-users', currentCollaboratorId],
+  queryFn: async () => {
+    // Buscar todos os profiles (usuários)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name, email');
+    
+    // Buscar colaboradores já vinculados
+    const { data: linked } = await supabase
+      .from('collaborators')
+      .select('user_id')
+      .not('user_id', 'is', null)
+      .neq('id', currentCollaboratorId); // Excluir o próprio
+    
+    const linkedIds = linked?.map(c => c.user_id) || [];
+    
+    // Retornar apenas usuários não vinculados
+    return profiles?.filter(p => !linkedIds.includes(p.user_id)) || [];
   }
-}}
-
-// No Select de projeto, adicionar ref para foco:
-const projetoInputRef = useRef<HTMLButtonElement>(null);
-
-// Após adicionar, focar novamente:
-setTimeout(() => projetoInputRef.current?.focus(), 100);
+});
 ```
 
----
+#### Auto-seleção no ApontamentoDiario.tsx (linhas 75-90)
+```typescript
+// Adicionar user_id na query de colaboradores
+const { data: colaboradores } = useQuery({
+  queryKey: ['colaboradores-lista'],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from('collaborators')
+      .select('id, full_name, cpf, equipe, user_id') // ADICIONAR user_id
+      .eq('status', 'ativo')
+      .order('full_name');
+    if (error) throw error;
+    return data;
+  },
+  enabled: canAccess,
+});
 
-### Resumo das Entregas
+// Novo useEffect para auto-seleção
+useEffect(() => {
+  if (!colaboradorIdParam && user && colaboradores && !selectedColaborador) {
+    const meuColaborador = colaboradores.find(c => c.user_id === user.id);
+    if (meuColaborador) {
+      setSelectedColaborador(meuColaborador.id);
+    }
+  }
+}, [colaboradorIdParam, user, colaboradores, selectedColaborador]);
+```
 
-1. **Correção de Rotas**: Menu "Apontamento Diário" abrirá com sidebar correta de Projetos
-2. **Remoção de Pendências**: Link removido até funcionalidade existir
-3. **UX Velocidade**: Enter para adicionar + foco automático
-4. **Secullum Ready**: Estrutura já preparada para conciliação futura
+### Fluxo do Usuário Final
+
+1. **Administrador** acessa `/collaborators` e edita "CONRADO MATOS"
+2. Seleciona o usuário "Conrado (conradodematos@gmail.com)" no dropdown
+3. Salva o vínculo
+4. **Conrado** acessa `/apontamento-diario`
+5. O sistema detecta o vínculo e pré-seleciona automaticamente
+6. Conrado pode começar a lançar horas imediatamente
+
+### Vantagens
+
+- Vínculo explícito e seguro (não depende de emails iguais)
+- 1:1 garantido (constraint UNIQUE)
+- Fácil de desfazer/refazer pelo admin
+- Fallback: se não houver vínculo, funciona como antes (seleção manual)
+
