@@ -66,6 +66,9 @@ export default function ApontamentoDiario() {
   const [newHoras, setNewHoras] = useState('');
   const [newDescricao, setNewDescricao] = useState('');
   
+  // Ref for auto-focus after adding
+  const projetoSelectRef = useRef<HTMLDivElement>(null);
+  
   const canAccess = hasRole('admin') || hasRole('rh') || hasRole('super_admin');
   
   // Update URL when selection changes
@@ -168,6 +171,12 @@ export default function ApontamentoDiario() {
     setNewHoras('');
     setNewDescricao('');
     toast.success('Lançamento adicionado');
+    
+    // Auto-focus back to project select for rapid entry
+    setTimeout(() => {
+      const trigger = projetoSelectRef.current?.querySelector('button');
+      trigger?.focus();
+    }, 100);
   };
   
   // Handle duplicate item
