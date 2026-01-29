@@ -39,7 +39,6 @@ import {
   Loader2,
   FileText,
   AlertTriangle,
-  Check,
   Users,
   Plus,
   Trash2,
@@ -103,12 +102,12 @@ export function ApontamentoDesktop() {
     totalHoras,
     isLoading,
     hasChanges,
+    isSaving,
     addItem,
     removeItem,
     setHoras,
     setDescricao,
-    saveBatch,
-    isProjectSaved,
+    saveAll,
   } = useApontamentoSimplificado(primaryColaboradorId, dataStr);
 
   // Get selected project details
@@ -133,7 +132,7 @@ export function ApontamentoDesktop() {
 
   const handleSave = () => {
     if (selectedColaboradores.length > 0) {
-      saveBatch.mutate(selectedColaboradores);
+      saveAll();
     }
   };
 
@@ -400,10 +399,19 @@ export function ApontamentoDesktop() {
                         <>
                           <TableRow key={item.projeto_id}>
                             <TableCell className="font-medium">
-                              <span className="text-muted-foreground mr-2 font-mono text-sm">
-                                {item.projeto_os}
-                              </span>
-                              {item.projeto_nome}
+                              <div>
+                                <div>
+                                  <span className="text-muted-foreground mr-2 font-mono text-sm">
+                                    {item.projeto_os}
+                                  </span>
+                                  {item.projeto_nome}
+                                </div>
+                                {item.descricao && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[300px]">
+                                    {item.descricao}
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Input
@@ -434,8 +442,8 @@ export function ApontamentoDesktop() {
                               </Button>
                             </TableCell>
                             <TableCell>
-                              {isProjectSaved(item.projeto_id) && (
-                                <Check className="h-4 w-4 text-emerald-500" />
+                              {item.status !== 'unchanged' && (
+                                <span className="text-xs text-warning">•</span>
                               )}
                             </TableCell>
                             <TableCell>
@@ -479,11 +487,11 @@ export function ApontamentoDesktop() {
                     </div>
                     <Button
                       onClick={handleSave}
-                      disabled={!hasChanges || saveBatch.isPending}
+                      disabled={!hasChanges || isSaving}
                       size="lg"
                       className="gap-2"
                     >
-                      {saveBatch.isPending ? (
+                      {isSaving ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Salvando...
