@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Users, Shield, UserCheck } from 'lucide-react';
+import { UserPlus, Users, Shield, UserCheck, Clock } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -125,9 +125,14 @@ export default function Admin() {
     return labels[role] || String(role).toUpperCase();
   };
 
-  // Filter users with roles (approved)
-  const approvedUsers = users.filter(u => u.roles.length > 0);
-  const activeUsers = approvedUsers.filter(u => u.is_active);
+  // All users from profiles table
+  const allUsers = users;
+  // Users with roles assigned
+  const usersWithRoles = users.filter(u => u.roles.length > 0);
+  // Users without roles (pending activation)
+  const pendingUsers = users.filter(u => u.roles.length === 0);
+  // Active users (has roles AND is_active = true)
+  const activeUsers = users.filter(u => u.roles.length > 0 && u.is_active);
 
   // Action handlers
   const handleEdit = (u: UserWithRole) => {
@@ -236,14 +241,14 @@ export default function Admin() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{approvedUsers.length}</div>
+              <div className="text-2xl font-bold">{allUsers.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -253,6 +258,15 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeUsers.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pendentes de Ativação</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-500">{pendingUsers.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -290,9 +304,9 @@ export default function Admin() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Usuários Ativos</CardTitle>
+                <CardTitle className="text-lg">Todos os Usuários</CardTitle>
                 <CardDescription>
-                  {approvedUsers.length} usuário{approvedUsers.length !== 1 && 's'} com acesso ao sistema
+                  {allUsers.length} usuário{allUsers.length !== 1 && 's'} no sistema
                 </CardDescription>
               </div>
               <Button onClick={() => setAddDialogOpen(true)} className="gap-2">
@@ -304,9 +318,9 @@ export default function Admin() {
           <CardContent>
             {loadingUsers ? (
               <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-            ) : approvedUsers.length === 0 ? (
+            ) : allUsers.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhum usuário ativo no sistema
+                Nenhum usuário no sistema
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -322,26 +336,40 @@ export default function Admin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {approvedUsers.map((u) => (
+                    {allUsers.map((u) => (
                       <TableRow key={u.id} className={!u.is_active ? 'opacity-60' : ''}>
                         <TableCell className="font-medium">{u.email}</TableCell>
                         <TableCell>{u.full_name || '-'}</TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {u.roles.map((role) => (
-                              <Badge
-                                key={role}
-                                variant={getRoleBadgeVariant(role)}
-                              >
-                                {getRoleLabel(role)}
-                              </Badge>
-                            ))}
-                          </div>
+                          {u.roles.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {u.roles.map((role) => (
+                                <Badge
+                                  key={role}
+                                  variant={getRoleBadgeVariant(role)}
+                                >
+                                  {getRoleLabel(role)}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Sem papéis</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={u.is_active ? 'success' : 'secondary'}>
-                            {u.is_active ? 'Ativo' : 'Inativo'}
-                          </Badge>
+                          {u.roles.length === 0 ? (
+                            <Badge variant="outline" className="bg-orange-500/20 text-orange-500 border-orange-500/50">
+                              Sem Papéis
+                            </Badge>
+                          ) : u.is_active ? (
+                            <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                              Ativo
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              Inativo
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {format(new Date(u.created_at), 'dd/MM/yyyy', { locale: ptBR })}
