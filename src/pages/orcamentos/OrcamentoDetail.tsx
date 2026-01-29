@@ -33,11 +33,11 @@ export default function OrcamentoDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { hasRole } = useAuth();
+  const { isSuperAdmin, loading: authLoading } = useAuth();
 
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>();
 
-  // Fetch budget details
+  // Fetch budget details - hook must be called unconditionally
   const { data: budget, isLoading: budgetLoading } = useQuery({
     queryKey: ['budget', budgetId],
     queryFn: async () => {
@@ -78,19 +78,19 @@ export default function OrcamentoDetail() {
     }
   }, [revisions, searchParams, selectedRevisionId, setSearchParams]);
 
-  // Handle revision change from dropdown
-  const handleRevisionChange = (id: string) => {
-    setSelectedRevisionId(id);
-    setSearchParams({ rev: id });
-  };
-
   const selectedRevision = revisions.find((r) => r.id === selectedRevisionId) as BudgetRevision | undefined;
   const lockState = useRevisionLock(selectedRevision || null);
   const { summary } = useBudgetSummary(selectedRevision?.id);
   const { createProject } = useCreateProjectFromBudget();
 
-  const canManage = hasRole('admin') || hasRole('financeiro') || hasRole('super_admin');
-  const canApprove = hasRole('admin') || hasRole('super_admin');
+  const canManage = isSuperAdmin();
+  const canApprove = isSuperAdmin();
+
+  // Handle revision change from dropdown
+  const handleRevisionChange = (id: string) => {
+    setSelectedRevisionId(id);
+    setSearchParams({ rev: id });
+  };
 
   const handleCreateNewRevision = async () => {
     const newRevision = await createRevision.mutateAsync(selectedRevisionId);
@@ -135,7 +135,22 @@ export default function OrcamentoDetail() {
     }
   };
 
-  if (budgetLoading || revisionsLoading) {
+  // Only super_admin can access this page - check after all hooks
+  if (!authLoading && !isSuperAdmin()) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
+          <p className="text-muted-foreground">Esta página é exclusiva para administradores master.</p>
+          <Button variant="outline" className="mt-4" onClick={() => navigate('/dashboard')}>
+            Voltar ao Dashboard
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (budgetLoading || revisionsLoading || authLoading) {
     return (
       <Layout>
         <div className="space-y-4">
