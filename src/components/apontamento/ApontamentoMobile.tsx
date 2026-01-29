@@ -54,11 +54,12 @@ export function ApontamentoMobile() {
     totalHoras,
     isLoading,
     hasChanges,
+    isSaving,
     addItem,
     removeItem,
     setHoras,
     setDescricao,
-    saveBatch,
+    saveAll,
   } = useApontamentoSimplificado(meuColaborador?.id || null, dataStr);
 
   // Get selected project details
@@ -73,7 +74,7 @@ export function ApontamentoMobile() {
 
   const handleSave = () => {
     if (meuColaborador?.id) {
-      saveBatch.mutate([meuColaborador.id]);
+      saveAll();
     }
   };
 
@@ -284,6 +285,11 @@ export function ApontamentoMobile() {
                           </span>
                           {item.projeto_nome}
                         </p>
+                        {item.descricao && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {item.descricao}
+                          </p>
+                        )}
                       </div>
                       
                       {/* Hours Input */}
@@ -363,11 +369,11 @@ export function ApontamentoMobile() {
         {/* Save Button */}
         <Button
           onClick={handleSave}
-          disabled={!hasChanges || saveBatch.isPending}
+          disabled={!hasChanges || isSaving}
           className="w-full h-14 text-lg font-semibold gap-2"
           size="lg"
         >
-          {saveBatch.isPending ? (
+          {isSaving ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
               Salvando...

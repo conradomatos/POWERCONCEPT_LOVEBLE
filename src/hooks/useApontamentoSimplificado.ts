@@ -1,18 +1,21 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export interface ProjetoComHoras {
+// ========== Types ==========
+
+type ItemStatus = 'unchanged' | 'new' | 'modified' | 'deleted';
+
+export interface ApontamentoItemLocal {
+  id?: string;
   projeto_id: string;
-  projeto_nome: string;
   projeto_os: string;
+  projeto_nome: string;
   is_sistema: boolean;
-  horas: number | null;
+  horas: number;
   descricao: string | null;
-  item_id: string | null; // null = novo, uuid = existente
-  changed: boolean;
-  markedForDeletion?: boolean;
+  status: ItemStatus;
 }
 
 export interface ProjetoDisponivel {
@@ -22,17 +25,21 @@ export interface ProjetoDisponivel {
   is_sistema: boolean;
 }
 
-interface ApontamentoDiaSimples {
+interface DiaInfo {
   id: string;
   colaborador_id: string;
   data: string;
-  total_horas_apontadas: number;
 }
 
+// ========== Main Hook ==========
+
 export function useApontamentoSimplificado(colaboradorId: string | null, data: string) {
-  const queryClient = useQueryClient();
-  const [localChanges, setLocalChanges] = useState<Record<string, { horas: number | null; descricao: string | null; markedForDeletion?: boolean }>>({});
-  const [savedProjects, setSavedProjects] = useState<Set<string>>(new Set());
+  // Unified state for all items
+  const [items, setItems] = useState<ApontamentoItemLocal[]>([]);
+  const [diaInfo, setDiaInfo] = useState<DiaInfo | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastLoadKey, setLastLoadKey] = useState<string>('');
 
   // Fetch active projects
   const { data: projetos, isLoading: isLoadingProjetos } = useQuery({
@@ -48,332 +55,298 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
     },
   });
 
-  // Fetch existing apontamento_dia
-  const { data: apontamentoDia, isLoading: isLoadingDia } = useQuery({
-    queryKey: ['apontamento-dia-simples', colaboradorId, data],
-    queryFn: async () => {
-      if (!colaboradorId) return null;
-      const { data: dia, error } = await supabase
+  // Load data from DB when colaborador/date changes
+  useEffect(() => {
+    const loadKey = `${colaboradorId}-${data}`;
+    
+    // Skip if same key or missing required params
+    if (!colaboradorId || !data || !projetos || loadKey === lastLoadKey) return;
+
+    const loadData = async () => {
+      setIsInitialized(false);
+      
+      // 1. Fetch apontamento_dia
+      const { data: dia, error: diaError } = await supabase
         .from('apontamento_dia')
         .select('id, colaborador_id, data, total_horas_apontadas')
         .eq('colaborador_id', colaboradorId)
         .eq('data', data)
         .maybeSingle();
-      if (error) throw error;
-      return dia as ApontamentoDiaSimples | null;
-    },
-    enabled: !!colaboradorId,
-  });
 
-  // Fetch existing items for the day
-  const { data: existingItems, isLoading: isLoadingItems } = useQuery({
-    queryKey: ['apontamento-items-simples', apontamentoDia?.id],
-    queryFn: async () => {
-      if (!apontamentoDia?.id) return [];
-      const { data, error } = await supabase
+      if (diaError) {
+        console.error('Error loading apontamento_dia:', diaError);
+        setItems([]);
+        setDiaInfo(null);
+        setIsInitialized(true);
+        setLastLoadKey(loadKey);
+        return;
+      }
+
+      if (!dia) {
+        setItems([]);
+        setDiaInfo(null);
+        setIsInitialized(true);
+        setLastLoadKey(loadKey);
+        return;
+      }
+
+      setDiaInfo({
+        id: dia.id,
+        colaborador_id: dia.colaborador_id,
+        data: dia.data,
+      });
+
+      // 2. Fetch existing items
+      const { data: existingItems, error: itemsError } = await supabase
         .from('apontamento_item')
         .select('id, projeto_id, horas, descricao')
-        .eq('apontamento_dia_id', apontamentoDia.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!apontamentoDia?.id,
-  });
+        .eq('apontamento_dia_id', dia.id);
 
-  // Merge projects with existing items - only show items that have hours or are in localChanges
-  const lancamentosDoDia: ProjetoComHoras[] = useMemo(() => {
-    if (!projetos) return [];
-    
-    const result: ProjetoComHoras[] = [];
-    
-    // First, add existing items from DB
-    existingItems?.forEach(item => {
-      const projeto = projetos.find(p => p.id === item.projeto_id);
-      if (!projeto) return;
-      
-      const localChange = localChanges[item.projeto_id];
-      
-      // Skip if marked for deletion
-      if (localChange?.markedForDeletion) return;
-      
-      result.push({
-        projeto_id: item.projeto_id,
-        projeto_nome: projeto.nome,
-        projeto_os: projeto.os,
-        is_sistema: projeto.is_sistema || false,
-        horas: localChange?.horas !== undefined ? localChange.horas : item.horas,
-        descricao: localChange?.descricao !== undefined ? localChange.descricao : item.descricao,
-        item_id: item.id,
-        changed: localChange !== undefined,
-      });
-    });
-    
-    // Then, add newly added items (from localChanges but not in existingItems)
-    Object.entries(localChanges).forEach(([projetoId, change]) => {
-      // Skip if already in result or marked for deletion
-      if (result.find(r => r.projeto_id === projetoId) || change.markedForDeletion) return;
-      
-      const projeto = projetos.find(p => p.id === projetoId);
-      if (!projeto) return;
-      
-      // Only add if has hours > 0
-      if (change.horas && change.horas > 0) {
-        result.push({
-          projeto_id: projetoId,
-          projeto_nome: projeto.nome,
-          projeto_os: projeto.os,
-          is_sistema: projeto.is_sistema || false,
-          horas: change.horas,
-          descricao: change.descricao,
-          item_id: null,
-          changed: true,
-        });
+      if (itemsError) {
+        console.error('Error loading items:', itemsError);
+        setItems([]);
+        setIsInitialized(true);
+        setLastLoadKey(loadKey);
+        return;
       }
-    });
-    
-    // Sort by OS
-    result.sort((a, b) => a.projeto_os.localeCompare(b.projeto_os));
-    
-    return result;
-  }, [projetos, existingItems, localChanges]);
 
-  // Projects available for dropdown (excludes already added)
+      // 3. Merge with project info
+      const loadedItems: ApontamentoItemLocal[] = (existingItems || []).map(item => {
+        const projeto = projetos.find(p => p.id === item.projeto_id);
+        return {
+          id: item.id,
+          projeto_id: item.projeto_id,
+          projeto_os: projeto?.os || '',
+          projeto_nome: projeto?.nome || '',
+          is_sistema: projeto?.is_sistema || false,
+          horas: Number(item.horas) || 0,
+          descricao: item.descricao,
+          status: 'unchanged' as const,
+        };
+      });
+
+      setItems(loadedItems);
+      setIsInitialized(true);
+      setLastLoadKey(loadKey);
+    };
+
+    loadData();
+  }, [colaboradorId, data, projetos, lastLoadKey]);
+
+  // ========== Item Manipulation Functions ==========
+
+  const addItem = useCallback((projetoId: string, horas: number, descricao?: string | null) => {
+    const projeto = projetos?.find(p => p.id === projetoId);
+    if (!projeto) return;
+
+    setItems(prev => [
+      ...prev,
+      {
+        projeto_id: projetoId,
+        projeto_os: projeto.os,
+        projeto_nome: projeto.nome,
+        is_sistema: projeto.is_sistema || false,
+        horas,
+        descricao: descricao ?? null,
+        status: 'new',
+      },
+    ]);
+  }, [projetos]);
+
+  const updateHoras = useCallback((projetoId: string, horas: number | null) => {
+    setItems(prev => prev.map(item => {
+      if (item.projeto_id !== projetoId) return item;
+      return {
+        ...item,
+        horas: horas ?? 0,
+        status: item.status === 'new' ? 'new' : 'modified',
+      };
+    }));
+  }, []);
+
+  const updateDescricao = useCallback((projetoId: string, descricao: string | null) => {
+    setItems(prev => prev.map(item => {
+      if (item.projeto_id !== projetoId) return item;
+      return {
+        ...item,
+        descricao,
+        status: item.status === 'new' ? 'new' : 'modified',
+      };
+    }));
+  }, []);
+
+  const removeItem = useCallback((projetoId: string) => {
+    setItems(prev => {
+      const item = prev.find(i => i.projeto_id === projetoId);
+      if (!item) return prev;
+
+      // If it's new (no id), just remove from array
+      if (item.status === 'new' || !item.id) {
+        return prev.filter(i => i.projeto_id !== projetoId);
+      }
+
+      // If exists in DB, mark for deletion
+      return prev.map(i =>
+        i.projeto_id === projetoId
+          ? { ...i, status: 'deleted' as const }
+          : i
+      );
+    });
+  }, []);
+
+  // ========== Save Function ==========
+
+  const saveAll = useCallback(async () => {
+    if (!colaboradorId) return;
+
+    setIsSaving(true);
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+
+      // 1. Ensure apontamento_dia exists
+      let diaId = diaInfo?.id;
+
+      if (!diaId) {
+        const { data: newDia, error: createError } = await supabase
+          .from('apontamento_dia')
+          .insert({
+            colaborador_id: colaboradorId,
+            data,
+            status: 'RASCUNHO',
+            created_by: userId,
+            updated_by: userId,
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        diaId = newDia.id;
+      }
+
+      // 2. Process each item based on status
+      for (const item of items) {
+        if (item.status === 'new') {
+          // INSERT
+          const { error } = await supabase.from('apontamento_item').insert({
+            apontamento_dia_id: diaId,
+            projeto_id: item.projeto_id,
+            horas: item.horas,
+            descricao: item.descricao,
+            tipo_hora: 'NORMAL',
+            is_overhead: item.is_sistema,
+            created_by: userId,
+            updated_by: userId,
+          });
+          if (error) throw error;
+        } else if (item.status === 'modified' && item.id) {
+          // UPDATE
+          const { error } = await supabase
+            .from('apontamento_item')
+            .update({
+              horas: item.horas,
+              descricao: item.descricao,
+              updated_by: userId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.id);
+          if (error) throw error;
+        } else if (item.status === 'deleted' && item.id) {
+          // DELETE
+          const { error } = await supabase
+            .from('apontamento_item')
+            .delete()
+            .eq('id', item.id);
+          if (error) throw error;
+        }
+      }
+
+      // 3. Reload fresh data from DB
+      const { data: freshItems } = await supabase
+        .from('apontamento_item')
+        .select('id, projeto_id, horas, descricao')
+        .eq('apontamento_dia_id', diaId);
+
+      // 4. Update local state with fresh data
+      const newItems: ApontamentoItemLocal[] = (freshItems || []).map(item => {
+        const projeto = projetos?.find(p => p.id === item.projeto_id);
+        return {
+          id: item.id,
+          projeto_id: item.projeto_id,
+          projeto_os: projeto?.os || '',
+          projeto_nome: projeto?.nome || '',
+          is_sistema: projeto?.is_sistema || false,
+          horas: Number(item.horas) || 0,
+          descricao: item.descricao,
+          status: 'unchanged' as const,
+        };
+      });
+
+      setItems(newItems);
+      setDiaInfo({ id: diaId, colaborador_id: colaboradorId, data });
+
+      toast.success('Horas salvas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar horas');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [colaboradorId, data, diaInfo, items, projetos]);
+
+  // ========== Derived Values ==========
+
+  // Visible list (excludes deleted)
+  const lancamentosDoDia = useMemo(() =>
+    items
+      .filter(i => i.status !== 'deleted')
+      .sort((a, b) => a.projeto_os.localeCompare(b.projeto_os)),
+    [items]
+  );
+
+  // Available projects (excludes already added)
   const projetosDisponiveis: ProjetoDisponivel[] = useMemo(() => {
     if (!projetos) return [];
-    
-    const addedIds = new Set(lancamentosDoDia.map(l => l.projeto_id));
-    
+    const usedIds = new Set(items.filter(i => i.status !== 'deleted').map(i => i.projeto_id));
     return projetos
-      .filter(p => !addedIds.has(p.id))
+      .filter(p => !usedIds.has(p.id))
       .map(p => ({
         id: p.id,
         nome: p.nome,
         os: p.os,
         is_sistema: p.is_sistema || false,
       }));
-  }, [projetos, lancamentosDoDia]);
+  }, [projetos, items]);
 
-  // Calculate total hours
-  const totalHoras = useMemo(() => {
-    return lancamentosDoDia.reduce((sum, p) => sum + (p.horas || 0), 0);
-  }, [lancamentosDoDia]);
+  // Total hours
+  const totalHoras = useMemo(() =>
+    lancamentosDoDia.reduce((sum, i) => sum + i.horas, 0),
+    [lancamentosDoDia]
+  );
 
-  // Add a new item to the list
-  const addItem = useCallback((projetoId: string, horas: number, descricao?: string | null) => {
-    setLocalChanges(prev => ({
-      ...prev,
-      [projetoId]: {
-        horas,
-        descricao: descricao ?? null,
-      },
-    }));
-    setSavedProjects(prev => {
-      const next = new Set(prev);
-      next.delete(projetoId);
-      return next;
-    });
-  }, []);
-
-  // Remove an item from the list
-  const removeItem = useCallback((projetoId: string) => {
-    const existingItem = existingItems?.find(i => i.projeto_id === projetoId);
-    
-    if (existingItem) {
-      // Mark for deletion if it exists in DB
-      setLocalChanges(prev => ({
-        ...prev,
-        [projetoId]: {
-          horas: 0,
-          descricao: null,
-          markedForDeletion: true,
-        },
-      }));
-    } else {
-      // Just remove from local changes if it was newly added
-      setLocalChanges(prev => {
-        const next = { ...prev };
-        delete next[projetoId];
-        return next;
-      });
-    }
-    
-    setSavedProjects(prev => {
-      const next = new Set(prev);
-      next.delete(projetoId);
-      return next;
-    });
-  }, [existingItems]);
-
-  // Update local hours for a project
-  const setHoras = useCallback((projetoId: string, horas: number | null, descricao?: string | null) => {
-    setLocalChanges(prev => ({
-      ...prev,
-      [projetoId]: {
-        horas,
-        descricao: descricao !== undefined ? descricao : (prev[projetoId]?.descricao ?? null),
-        markedForDeletion: false,
-      },
-    }));
-    setSavedProjects(prev => {
-      const next = new Set(prev);
-      next.delete(projetoId);
-      return next;
-    });
-  }, []);
-
-  // Update description for a project
-  const setDescricao = useCallback((projetoId: string, descricao: string | null) => {
-    setLocalChanges(prev => ({
-      ...prev,
-      [projetoId]: {
-        horas: prev[projetoId]?.horas ?? null,
-        descricao,
-        markedForDeletion: false,
-      },
-    }));
-  }, []);
-
-  // Save batch mutation
-  const saveBatch = useMutation({
-    mutationFn: async (colaboradorIds: string[]) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-
-      for (const colabId of colaboradorIds) {
-        // 1. Ensure apontamento_dia exists
-        let diaId = apontamentoDia?.id;
-        
-        if (!diaId || colabId !== colaboradorId) {
-          // Check if exists for this collaborator
-          const { data: existingDia } = await supabase
-            .from('apontamento_dia')
-            .select('id')
-            .eq('colaborador_id', colabId)
-            .eq('data', data)
-            .maybeSingle();
-
-          if (existingDia) {
-            diaId = existingDia.id;
-          } else {
-            // Create new
-            const { data: newDia, error: createError } = await supabase
-              .from('apontamento_dia')
-              .insert({
-                colaborador_id: colabId,
-                data,
-                horas_base_dia: null,
-                created_by: userId,
-                updated_by: userId,
-                status: 'RASCUNHO',
-              })
-              .select('id')
-              .single();
-
-            if (createError) throw createError;
-            diaId = newDia.id;
-          }
-        }
-
-        // 2. Get existing items for this day
-        const { data: currentItems } = await supabase
-          .from('apontamento_item')
-          .select('id, projeto_id')
-          .eq('apontamento_dia_id', diaId);
-
-        const currentItemsMap = new Map(currentItems?.map(i => [i.projeto_id, i.id]) || []);
-
-        // 3. Process each project with changes
-        for (const [projetoId, change] of Object.entries(localChanges)) {
-          const existingItemId = currentItemsMap.get(projetoId);
-          const horas = change.horas;
-          const projeto = projetos?.find(p => p.id === projetoId);
-
-          if (change.markedForDeletion && existingItemId) {
-            // Delete the item
-            await supabase
-              .from('apontamento_item')
-              .delete()
-              .eq('id', existingItemId);
-          } else if (horas && horas > 0) {
-            if (existingItemId) {
-              // Update existing
-              await supabase
-                .from('apontamento_item')
-                .update({
-                  horas,
-                  descricao: change.descricao,
-                  updated_by: userId,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', existingItemId);
-            } else {
-              // Insert new
-              await supabase
-                .from('apontamento_item')
-                .insert({
-                  apontamento_dia_id: diaId,
-                  projeto_id: projetoId,
-                  horas,
-                  descricao: change.descricao,
-                  tipo_hora: 'NORMAL',
-                  is_overhead: projeto?.is_sistema || false,
-                  created_by: userId,
-                  updated_by: userId,
-                });
-            }
-          } else if (existingItemId && (!horas || horas === 0)) {
-            // Delete if hours are 0 and item existed
-            await supabase
-              .from('apontamento_item')
-              .delete()
-              .eq('id', existingItemId);
-          }
-        }
-      }
-    },
-    onSuccess: () => {
-      // Mark all changed projects as saved
-      const changedIds = Object.keys(localChanges);
-      setSavedProjects(new Set(changedIds));
-      
-      // Clear local changes
-      setLocalChanges({});
-      
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ['apontamento-dia-simples'] });
-      queryClient.invalidateQueries({ queryKey: ['apontamento-items-simples'] });
-      queryClient.invalidateQueries({ queryKey: ['apontamento-dia'] });
-      queryClient.invalidateQueries({ queryKey: ['apontamento-items'] });
-      
-      toast.success('Horas salvas com sucesso!');
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao salvar: ${error.message}`);
-    },
-  });
-
-  // Check if there are unsaved changes
-  const hasChanges = Object.keys(localChanges).length > 0;
-
-  // Check if a project was just saved
-  const isProjectSaved = useCallback((projetoId: string) => {
-    return savedProjects.has(projetoId);
-  }, [savedProjects]);
+  // Has unsaved changes?
+  const hasChanges = useMemo(() =>
+    items.some(i => i.status !== 'unchanged'),
+    [items]
+  );
 
   return {
     lancamentosDoDia,
     projetosDisponiveis,
     totalHoras,
-    isLoading: isLoadingProjetos || isLoadingDia || isLoadingItems,
+    isLoading: isLoadingProjetos || !isInitialized,
     hasChanges,
+    isSaving,
     addItem,
     removeItem,
-    setHoras,
-    setDescricao,
-    saveBatch,
-    isProjectSaved,
+    setHoras: updateHoras,
+    setDescricao: updateDescricao,
+    saveAll,
   };
 }
+
+// ========== Helper Hooks ==========
 
 // Hook for fetching collaborators (for desktop multi-select)
 export function useColaboradoresAtivos() {
