@@ -1,72 +1,156 @@
 
-## Plano: Correção dos Filtros na Página de Colaboradores
+## Plano: Correção de Rotas/Menus + UX Apontamento Diário
 
-### Problema Identificado
-A página de Colaboradores (`/collaborators`) apresenta dois problemas:
-1. **Busca não funciona corretamente** - O texto digitado não filtra os resultados
-2. **Status não mantém seleção** - Ao selecionar um status, o valor não persiste visualmente
+### TAREFA 1: Correção de Rotas e Menus
 
-### Análise Técnica
+#### Problema Identificado
+O arquivo `src/components/Layout.tsx` possui um mapeamento `routeToArea` que determina qual sidebar lateral mostrar. A rota `/apontamento-diario` **não está neste mapeamento**, então cai no default (`relatorios`), exibindo a sidebar errada.
 
-#### Causa Raiz
-1. **Tipagem desatualizada**: O código usa `(c as any).equipe` em múltiplos lugares quando o campo `equipe` já existe oficialmente no tipo `Collaborator`
-2. **Comparação de valores nulos**: Campos como `department`, `position` e `equipe` podem ser `null`, e a chamada `.toLowerCase()` em valores nulos causa erro silencioso
-3. **Performance**: O cálculo de `uniqueEquipes` é refeito a cada render, o que pode causar problemas de estado
+#### Rotas Faltantes no `routeToArea`
+| Rota | Área Correta | Status |
+|------|--------------|--------|
+| `/apontamento-diario` | `projetos` | FALTANDO |
+| `/aprovacoes-projetos` | `projetos` | FALTANDO |
+| `/rentabilidade` | `relatorios` | OK (startsWith funciona) |
+| `/pendencias` | N/A | Página não existe! |
 
-### Solução Proposta
+#### Solução 1.1: Atualizar `Layout.tsx`
+Adicionar as rotas faltantes no objeto `routeToArea`:
 
-#### 1. Corrigir a lógica de busca (segurança contra null)
 ```typescript
-const filteredCollaborators = useMemo(() => {
-  const searchLower = search.toLowerCase().trim();
-  
-  return collaborators.filter((c) => {
-    // Busca segura com verificação de null
-    const matchesSearch = searchLower === '' || 
-      c.full_name.toLowerCase().includes(searchLower) ||
-      c.cpf.includes(search.replace(/\D/g, '')) ||
-      (c.department?.toLowerCase().includes(searchLower) ?? false) ||
-      (c.position?.toLowerCase().includes(searchLower) ?? false) ||
-      (c.equipe?.toLowerCase().includes(searchLower) ?? false);
-
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesEquipe = equipeFilter === 'all' || c.equipe === equipeFilter;
-
-    return matchesSearch && matchesStatus && matchesEquipe;
-  });
-}, [collaborators, search, statusFilter, equipeFilter]);
+const routeToArea: Record<string, NavigationArea> = {
+  // Home
+  '/': 'home',
+  // Recursos
+  '/collaborators': 'recursos',
+  '/recursos/custos': 'recursos',
+  '/import': 'recursos',
+  // Projetos
+  '/empresas': 'projetos',
+  '/projetos': 'projetos',
+  '/planejamento': 'projetos',
+  '/apontamentos': 'projetos',
+  '/apontamento-diario': 'projetos',       // ADICIONAR
+  '/aprovacoes-projetos': 'projetos',      // ADICIONAR
+  '/import-apontamentos': 'projetos',
+  // Relatórios
+  '/dashboard': 'relatorios',
+  '/custos-projeto': 'relatorios',
+  '/rentabilidade': 'relatorios',          // ADICIONAR (explícito)
+  // Orçamentos
+  '/orcamentos': 'orcamentos',
+  '/orcamentos/bases': 'orcamentos',
+};
 ```
 
-#### 2. Otimizar cálculo de equipes únicas com useMemo
+#### Solução 1.2: Remover ou Criar `/pendencias`
+A rota `/pendencias` está listada no menu de Relatórios mas a página não existe (erro 404 no console). 
+
+**Opção A (recomendada)**: Remover do menu até a funcionalidade ser implementada.
+**Opção B**: Criar página placeholder.
+
+Arquivo: `src/components/AppSidebar.tsx` - Remover linha:
 ```typescript
-const uniqueEquipes = useMemo(() => 
-  [...new Set(collaborators.map(c => c.equipe).filter(Boolean))].sort() as string[],
-  [collaborators]
-);
+{ title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
 ```
 
-#### 3. Remover todas as ocorrências de `(c as any).equipe`
-Substituir por acesso direto `c.equipe` já que o campo existe no tipo.
+---
 
-### Arquivos a Modificar
+### TAREFA 2: Melhorias de UX no Apontamento Diário
+
+A tela atual já possui boa estrutura. Melhorias propostas para velocidade:
+
+#### 2.1: Atalhos de Teclado para Lançamento Rápido
+- **Enter** no campo de horas → adiciona lançamento
+- **Foco automático** no próximo campo após adicionar
+- Adicionar `autoFocus` no primeiro campo após limpeza
+
+#### 2.2: Melhoria no Formulário de Lançamento
+- Usar `Command` (cmdk) para autocomplete de projetos mais rápido
+- Simplificar: apenas Projeto + Horas como campos obrigatórios
+- Mover Tipo Hora e Descrição para expansão opcional (accordion)
+
+#### 2.3: Indicadores no Topo (Já existem, apenas ajustes)
+Os 4 cards (Base, Apontadas, Saldo, Custo) já estão implementados. Ajustes:
+- Tornar mais compactos em mobile
+- Adicionar badge de fonte quando Secullum estiver ativo (futuro)
+
+#### 2.4: Validação de Saldo (Já implementada)
+- Tolerância de ±0.25h já está no código (`tolerancia = 0.25`)
+- Botão "Enviar para Aprovação" já desabilita quando saldo ≠ 0
+- Warning visual já existe quando há divergência
+
+#### Arquivos a Modificar
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Collaborators.tsx` | Corrigir lógica de filtros, adicionar `useMemo`, remover type casting |
+| `src/components/Layout.tsx` | Adicionar rotas faltantes em `routeToArea` |
+| `src/components/AppSidebar.tsx` | Remover link "Pendências" que não existe |
+| `src/pages/ApontamentoDiario.tsx` | Adicionar atalho Enter + autoFocus para velocidade |
 
-### Detalhes Técnicos
+---
 
-**Linha 27-29**: Manter estados como estão (corretos)
+### TAREFA 3: Preparação para Secullum (Estrutura Pronta)
 
-**Linha 62**: Adicionar `useMemo` para `uniqueEquipes`
+A estrutura atual já está preparada:
 
-**Linha 64-76**: Refatorar `filteredCollaborators`:
-- Envolver em `useMemo` com dependências corretas
-- Adicionar verificações de null com operador `??`
-- Remover `(c as any)` e acessar `c.equipe` diretamente
+| Campo/Recurso | Status |
+|---------------|--------|
+| `horas_base_dia` | ✅ Existe, editável manualmente |
+| `fonte_base` | ✅ Campo existe (PONTO, JORNADA, MANUAL) |
+| `saldoHoras` | ✅ Calculado automaticamente |
+| Tolerância ±0.25h | ✅ Implementada |
+| Badge de fonte | ⏳ Adicionar visualização futura |
 
-**Linhas 70, 73, 215, 326**: Trocar `(c as any).equipe` por `c.equipe`
+Quando Secullum for integrado:
+1. O trigger `sync_apontamento_dia_from_secullum` já existe no banco
+2. O campo `fonte_base` será preenchido como `'SECULLUM'`
+3. A lógica de conciliação ativará automaticamente
 
-### Impacto
-- Zero impacto em outras funcionalidades
-- Melhoria de performance com `useMemo`
-- Código mais limpo sem type casting desnecessário
+---
+
+### Detalhes Técnicos das Alterações
+
+#### Layout.tsx (linhas 29-49)
+Adicionar 3 rotas faltantes no mapeamento:
+
+```typescript
+'/apontamento-diario': 'projetos',
+'/aprovacoes-projetos': 'projetos',
+'/rentabilidade': 'relatorios',
+```
+
+#### AppSidebar.tsx (linha 92)
+Remover item de menu que causa 404:
+
+```typescript
+// REMOVER esta linha:
+{ title: 'Pendências', url: '/pendencias', icon: AlertTriangle },
+```
+
+#### ApontamentoDiario.tsx (linhas 436-454)
+Adicionar handler de teclado para Enter e autoFocus:
+
+```typescript
+// No Input de horas:
+onKeyDown={(e) => {
+  if (e.key === 'Enter' && newProjetoId && newHoras) {
+    e.preventDefault();
+    handleAddItem();
+  }
+}}
+
+// No Select de projeto, adicionar ref para foco:
+const projetoInputRef = useRef<HTMLButtonElement>(null);
+
+// Após adicionar, focar novamente:
+setTimeout(() => projetoInputRef.current?.focus(), 100);
+```
+
+---
+
+### Resumo das Entregas
+
+1. **Correção de Rotas**: Menu "Apontamento Diário" abrirá com sidebar correta de Projetos
+2. **Remoção de Pendências**: Link removido até funcionalidade existir
+3. **UX Velocidade**: Enter para adicionar + foco automático
+4. **Secullum Ready**: Estrutura já preparada para conciliação futura
