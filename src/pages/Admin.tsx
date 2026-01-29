@@ -5,14 +5,19 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Trash2, UserCheck, Clock, Users, Shield, AlertCircle } from 'lucide-react';
+import { UserPlus, Users, Shield, UserCheck } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AddUserDialog } from '@/components/admin/AddUserDialog';
+import { EditUserDialog } from '@/components/admin/EditUserDialog';
+import { ManageRolesDialog } from '@/components/admin/ManageRolesDialog';
+import { ResetPasswordDialog } from '@/components/admin/ResetPasswordDialog';
+import { UserActionsMenu } from '@/components/admin/UserActionsMenu';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -22,6 +27,7 @@ interface UserWithRole {
   full_name: string | null;
   roles: AppRole[];
   created_at: string;
+  is_active: boolean;
 }
 
 export default function Admin() {
@@ -29,7 +35,16 @@ export default function Admin() {
   const { user, loading, hasRole, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [selectedRoles, setSelectedRoles] = useState<Record<string, AppRole>>({});
+
+  // Dialog states
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [rolesDialogOpen, setRolesDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -44,7 +59,7 @@ export default function Admin() {
     // Get all profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, full_name, email, created_at')
+      .select('user_id, full_name, email, created_at, is_active')
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -71,6 +86,7 @@ export default function Admin() {
         .filter((r) => r.user_id === profile.user_id)
         .map((r) => r.role),
       created_at: profile.created_at,
+      is_active: profile.is_active !== false,
     }));
 
     setUsers(usersData);
@@ -82,46 +98,6 @@ export default function Admin() {
       fetchUsers();
     }
   }, [user, hasRole]);
-
-  const addRole = async (userId: string, role: AppRole) => {
-    const { error } = await supabase.from('user_roles').insert({
-      user_id: userId,
-      role,
-    });
-
-    if (error) {
-      if (error.code === '23505') {
-        toast.error('Usuário já possui esse papel');
-      } else {
-        toast.error('Erro ao adicionar papel');
-      }
-      return;
-    }
-
-    toast.success('Papel atribuído com sucesso!');
-    fetchUsers();
-  };
-
-  const removeRole = async (userId: string, role: AppRole) => {
-    const { error } = await supabase
-      .from('user_roles')
-      .delete()
-      .eq('user_id', userId)
-      .eq('role', role);
-
-    if (error) {
-      toast.error('Erro ao remover papel');
-      return;
-    }
-
-    toast.success('Papel removido!');
-    fetchUsers();
-  };
-
-  const approveUser = async (userId: string) => {
-    const role = selectedRoles[userId] || 'rh';
-    await addRole(userId, role);
-  };
 
   const getRoleBadgeVariant = (role: AppRole): "default" | "secondary" | "outline" | "destructive" => {
     switch (role) {
@@ -149,9 +125,95 @@ export default function Admin() {
     return labels[role] || String(role).toUpperCase();
   };
 
-  // Separate pending and approved users
-  const pendingUsers = users.filter(u => u.roles.length === 0);
+  // Filter users with roles (approved)
   const approvedUsers = users.filter(u => u.roles.length > 0);
+  const activeUsers = approvedUsers.filter(u => u.is_active);
+
+  // Action handlers
+  const handleEdit = (u: UserWithRole) => {
+    setSelectedUser(u);
+    setEditDialogOpen(true);
+  };
+
+  const handleManageRoles = (u: UserWithRole) => {
+    setSelectedUser(u);
+    setRolesDialogOpen(true);
+  };
+
+  const handleResetPassword = (u: UserWithRole) => {
+    setSelectedUser(u);
+    setPasswordDialogOpen(true);
+  };
+
+  const handleToggleActive = (u: UserWithRole) => {
+    setSelectedUser(u);
+    setDeactivateDialogOpen(true);
+  };
+
+  const handleDelete = (u: UserWithRole) => {
+    setSelectedUser(u);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmToggleActive = async () => {
+    if (!selectedUser) return;
+    setActionLoading(true);
+
+    try {
+      const newStatus = !selectedUser.is_active;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: newStatus })
+        .eq('user_id', selectedUser.id);
+
+      if (error) {
+        toast.error(`Erro ao ${newStatus ? 'ativar' : 'desativar'} usuário`);
+        return;
+      }
+
+      toast.success(`Usuário ${newStatus ? 'ativado' : 'desativado'} com sucesso`);
+      fetchUsers();
+      setDeactivateDialogOpen(false);
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      toast.error('Erro ao alterar status do usuário');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedUser) return;
+    setActionLoading(true);
+
+    try {
+      // Remove all roles first
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', selectedUser.id);
+
+      // Remove profile
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', selectedUser.id);
+
+      if (error) {
+        toast.error('Erro ao remover usuário');
+        return;
+      }
+
+      toast.success('Usuário removido com sucesso');
+      fetchUsers();
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Erro ao remover usuário');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -174,34 +236,23 @@ export default function Admin() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{users.length}</div>
-            </CardContent>
-          </Card>
-          <Card className={pendingUsers.length > 0 ? 'border-amber-500/50 bg-amber-500/5' : ''}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pendentes de Aprovação</CardTitle>
-              <Clock className={`h-4 w-4 ${pendingUsers.length > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${pendingUsers.length > 0 ? 'text-amber-500' : ''}`}>
-                {pendingUsers.length}
-              </div>
+              <div className="text-2xl font-bold">{approvedUsers.length}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
-              <Shield className="h-4 w-4 text-muted-foreground" />
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{approvedUsers.length}</div>
+              <div className="text-2xl font-bold">{activeUsers.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -234,86 +285,21 @@ export default function Admin() {
           </CardContent>
         </Card>
 
-        {/* Pending Users */}
-        {pendingUsers.length > 0 && (
-          <Card className="border-amber-500/50">
-            <CardHeader className="bg-amber-500/10">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-amber-500" />
-                <CardTitle className="text-lg text-amber-600 dark:text-amber-400">
-                  Usuários Pendentes de Aprovação
-                </CardTitle>
-              </div>
-              <CardDescription>
-                {pendingUsers.length} usuário{pendingUsers.length !== 1 && 's'} aguardando aprovação
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Solicitado em</TableHead>
-                      <TableHead>Atribuir Papel</TableHead>
-                      <TableHead className="text-right">Ação</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingUsers.map((u) => (
-                      <TableRow key={u.id} className="bg-amber-500/5">
-                        <TableCell className="font-medium">{u.email}</TableCell>
-                        <TableCell>{u.full_name || '-'}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {format(new Date(u.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={selectedRoles[u.id] || 'rh'}
-                            onValueChange={(v: AppRole) => 
-                              setSelectedRoles(prev => ({ ...prev, [u.id]: v }))
-                            }
-                          >
-                            <SelectTrigger className="w-40">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {isSuperAdmin() && (
-                                <SelectItem value="super_admin">Super Admin</SelectItem>
-                              )}
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="rh">RH</SelectItem>
-                              <SelectItem value="financeiro">Financeiro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => approveUser(u.id)}
-                            className="gap-2"
-                          >
-                            <UserCheck className="h-4 w-4" />
-                            Aprovar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Approved Users Table */}
+        {/* Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Usuários Ativos</CardTitle>
-            <CardDescription>
-              {approvedUsers.length} usuário{approvedUsers.length !== 1 && 's'} com acesso ao sistema
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Usuários Ativos</CardTitle>
+                <CardDescription>
+                  {approvedUsers.length} usuário{approvedUsers.length !== 1 && 's'} com acesso ao sistema
+                </CardDescription>
+              </div>
+              <Button onClick={() => setAddDialogOpen(true)} className="gap-2">
+                <UserPlus className="h-4 w-4" />
+                Adicionar Usuário
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingUsers ? (
@@ -330,12 +316,14 @@ export default function Admin() {
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Papéis</TableHead>
-                      <TableHead className="text-right">Adicionar Papel</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {approvedUsers.map((u) => (
-                      <TableRow key={u.id}>
+                      <TableRow key={u.id} className={!u.is_active ? 'opacity-60' : ''}>
                         <TableCell className="font-medium">{u.email}</TableCell>
                         <TableCell>{u.full_name || '-'}</TableCell>
                         <TableCell>
@@ -344,51 +332,31 @@ export default function Admin() {
                               <Badge
                                 key={role}
                                 variant={getRoleBadgeVariant(role)}
-                                className="gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => {
-                                  if (u.id !== user?.id) {
-                                    removeRole(u.id, role);
-                                  }
-                                }}
-                                title={u.id === user?.id ? 'Você não pode remover seu próprio papel' : 'Clique para remover'}
                               >
                                 {getRoleLabel(role)}
-                                {u.id !== user?.id && <Trash2 className="h-3 w-3" />}
                               </Badge>
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {u.id !== user?.id && (
-                            <div className="flex items-center justify-end gap-2">
-                              <Select
-                                value={selectedRoles[u.id] || 'rh'}
-                                onValueChange={(v: AppRole) => 
-                                  setSelectedRoles(prev => ({ ...prev, [u.id]: v }))
-                                }
-                              >
-                                <SelectTrigger className="w-36">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {isSuperAdmin() && (
-                                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                                  )}
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                  <SelectItem value="rh">RH</SelectItem>
-                                  <SelectItem value="financeiro">Financeiro</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                onClick={() => addRole(u.id, selectedRoles[u.id] || 'rh')}
-                                title="Adicionar papel"
-                              >
-                                <UserPlus className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
+                        <TableCell>
+                          <Badge variant={u.is_active ? 'success' : 'secondary'}>
+                            {u.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(u.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          <UserActionsMenu
+                            user={u}
+                            currentUserId={user?.id}
+                            isSuperAdmin={isSuperAdmin()}
+                            onEdit={handleEdit}
+                            onManageRoles={handleManageRoles}
+                            onResetPassword={handleResetPassword}
+                            onToggleActive={handleToggleActive}
+                            onDelete={handleDelete}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -399,6 +367,62 @@ export default function Admin() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialogs */}
+      <AddUserDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onSuccess={fetchUsers}
+        isSuperAdmin={isSuperAdmin()}
+      />
+
+      <EditUserDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        user={selectedUser}
+        onSuccess={fetchUsers}
+      />
+
+      <ManageRolesDialog
+        open={rolesDialogOpen}
+        onOpenChange={setRolesDialogOpen}
+        user={selectedUser}
+        onSuccess={fetchUsers}
+        isSuperAdmin={isSuperAdmin()}
+      />
+
+      <ResetPasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        user={selectedUser}
+        onSuccess={fetchUsers}
+      />
+
+      <ConfirmDialog
+        open={deactivateDialogOpen}
+        onOpenChange={setDeactivateDialogOpen}
+        title={selectedUser?.is_active ? 'Desativar Usuário' : 'Ativar Usuário'}
+        description={
+          selectedUser?.is_active
+            ? `Tem certeza que deseja desativar o usuário ${selectedUser?.full_name || selectedUser?.email}? Ele não poderá mais acessar o sistema.`
+            : `Tem certeza que deseja ativar o usuário ${selectedUser?.full_name || selectedUser?.email}?`
+        }
+        confirmLabel={selectedUser?.is_active ? 'Desativar' : 'Ativar'}
+        variant={selectedUser?.is_active ? 'destructive' : 'default'}
+        isLoading={actionLoading}
+        onConfirm={confirmToggleActive}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Remover Usuário"
+        description={`Esta ação é irreversível. Deseja remover permanentemente o usuário ${selectedUser?.full_name || selectedUser?.email}?`}
+        confirmLabel="Remover"
+        variant="destructive"
+        isLoading={actionLoading}
+        onConfirm={confirmDelete}
+      />
     </Layout>
   );
 }
