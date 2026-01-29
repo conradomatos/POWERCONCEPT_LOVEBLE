@@ -137,52 +137,42 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isSuperAdmin }: A
     setIsSubmitting(true);
 
     try {
-      // Create user via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: colaboradores?.find(c => c.id === selectedColaborador)?.full_name || '',
-          },
-        },
-      });
+      // Get current session to pass auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Sessão expirada. Faça login novamente.');
+        return;
+      }
 
-      if (authError) {
-        if (authError.message.includes('already registered')) {
+      // Call edge function to create user securely
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            fullName: colaboradores?.find(c => c.id === selectedColaborador)?.full_name || '',
+            roles: selectedRoles,
+            collaboratorId: selectedColaborador,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result.error?.includes('already registered') || result.error?.includes('already been registered')) {
           toast.error('Este email já está cadastrado');
         } else {
-          toast.error(`Erro ao criar usuário: ${authError.message}`);
+          toast.error(result.error || 'Erro ao criar usuário');
         }
         return;
-      }
-
-      if (!authData.user) {
-        toast.error('Erro ao criar usuário');
-        return;
-      }
-
-      const userId = authData.user.id;
-
-      // Add roles
-      for (const role of selectedRoles) {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role });
-        
-        if (roleError) {
-          console.error('Error adding role:', roleError);
-        }
-      }
-
-      // Link collaborator to user
-      const { error: linkError } = await supabase
-        .from('collaborators')
-        .update({ user_id: userId })
-        .eq('id', selectedColaborador);
-
-      if (linkError) {
-        console.error('Error linking collaborator:', linkError);
       }
 
       toast.success('Usuário criado com sucesso');
