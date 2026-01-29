@@ -1933,6 +1933,7 @@ export type Database = {
           termination_date: string | null
           updated_at: string
           updated_by: string | null
+          user_id: string | null
         }
         Insert: {
           birth_date?: string | null
@@ -1951,6 +1952,7 @@ export type Database = {
           termination_date?: string | null
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Update: {
           birth_date?: string | null
@@ -1969,6 +1971,7 @@ export type Database = {
           termination_date?: string | null
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
