@@ -12,6 +12,14 @@ export interface ProjetoComHoras {
   descricao: string | null;
   item_id: string | null; // null = novo, uuid = existente
   changed: boolean;
+  markedForDeletion?: boolean;
+}
+
+export interface ProjetoDisponivel {
+  id: string;
+  nome: string;
+  os: string;
+  is_sistema: boolean;
 }
 
 interface ApontamentoDiaSimples {
@@ -23,7 +31,7 @@ interface ApontamentoDiaSimples {
 
 export function useApontamentoSimplificado(colaboradorId: string | null, data: string) {
   const queryClient = useQueryClient();
-  const [localChanges, setLocalChanges] = useState<Record<string, { horas: number | null; descricao: string | null }>>({});
+  const [localChanges, setLocalChanges] = useState<Record<string, { horas: number | null; descricao: string | null; markedForDeletion?: boolean }>>({});
   const [savedProjects, setSavedProjects] = useState<Set<string>>(new Set());
 
   // Fetch active projects
@@ -72,31 +80,129 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
     enabled: !!apontamentoDia?.id,
   });
 
-  // Merge projects with existing items
-  const projetosComHoras: ProjetoComHoras[] = useMemo(() => {
+  // Merge projects with existing items - only show items that have hours or are in localChanges
+  const lancamentosDoDia: ProjetoComHoras[] = useMemo(() => {
     if (!projetos) return [];
     
-    return projetos.map(p => {
-      const existingItem = existingItems?.find(i => i.projeto_id === p.id);
-      const localChange = localChanges[p.id];
+    const result: ProjetoComHoras[] = [];
+    
+    // First, add existing items from DB
+    existingItems?.forEach(item => {
+      const projeto = projetos.find(p => p.id === item.projeto_id);
+      if (!projeto) return;
       
-      return {
-        projeto_id: p.id,
-        projeto_nome: p.nome,
-        projeto_os: p.os,
-        is_sistema: p.is_sistema || false,
-        horas: localChange?.horas !== undefined ? localChange.horas : (existingItem?.horas ?? null),
-        descricao: localChange?.descricao !== undefined ? localChange.descricao : (existingItem?.descricao ?? null),
-        item_id: existingItem?.id ?? null,
+      const localChange = localChanges[item.projeto_id];
+      
+      // Skip if marked for deletion
+      if (localChange?.markedForDeletion) return;
+      
+      result.push({
+        projeto_id: item.projeto_id,
+        projeto_nome: projeto.nome,
+        projeto_os: projeto.os,
+        is_sistema: projeto.is_sistema || false,
+        horas: localChange?.horas !== undefined ? localChange.horas : item.horas,
+        descricao: localChange?.descricao !== undefined ? localChange.descricao : item.descricao,
+        item_id: item.id,
         changed: localChange !== undefined,
-      };
+      });
     });
+    
+    // Then, add newly added items (from localChanges but not in existingItems)
+    Object.entries(localChanges).forEach(([projetoId, change]) => {
+      // Skip if already in result or marked for deletion
+      if (result.find(r => r.projeto_id === projetoId) || change.markedForDeletion) return;
+      
+      const projeto = projetos.find(p => p.id === projetoId);
+      if (!projeto) return;
+      
+      // Only add if has hours > 0
+      if (change.horas && change.horas > 0) {
+        result.push({
+          projeto_id: projetoId,
+          projeto_nome: projeto.nome,
+          projeto_os: projeto.os,
+          is_sistema: projeto.is_sistema || false,
+          horas: change.horas,
+          descricao: change.descricao,
+          item_id: null,
+          changed: true,
+        });
+      }
+    });
+    
+    // Sort by OS
+    result.sort((a, b) => a.projeto_os.localeCompare(b.projeto_os));
+    
+    return result;
   }, [projetos, existingItems, localChanges]);
+
+  // Projects available for dropdown (excludes already added)
+  const projetosDisponiveis: ProjetoDisponivel[] = useMemo(() => {
+    if (!projetos) return [];
+    
+    const addedIds = new Set(lancamentosDoDia.map(l => l.projeto_id));
+    
+    return projetos
+      .filter(p => !addedIds.has(p.id))
+      .map(p => ({
+        id: p.id,
+        nome: p.nome,
+        os: p.os,
+        is_sistema: p.is_sistema || false,
+      }));
+  }, [projetos, lancamentosDoDia]);
 
   // Calculate total hours
   const totalHoras = useMemo(() => {
-    return projetosComHoras.reduce((sum, p) => sum + (p.horas || 0), 0);
-  }, [projetosComHoras]);
+    return lancamentosDoDia.reduce((sum, p) => sum + (p.horas || 0), 0);
+  }, [lancamentosDoDia]);
+
+  // Add a new item to the list
+  const addItem = useCallback((projetoId: string, horas: number, descricao?: string | null) => {
+    setLocalChanges(prev => ({
+      ...prev,
+      [projetoId]: {
+        horas,
+        descricao: descricao ?? null,
+      },
+    }));
+    setSavedProjects(prev => {
+      const next = new Set(prev);
+      next.delete(projetoId);
+      return next;
+    });
+  }, []);
+
+  // Remove an item from the list
+  const removeItem = useCallback((projetoId: string) => {
+    const existingItem = existingItems?.find(i => i.projeto_id === projetoId);
+    
+    if (existingItem) {
+      // Mark for deletion if it exists in DB
+      setLocalChanges(prev => ({
+        ...prev,
+        [projetoId]: {
+          horas: 0,
+          descricao: null,
+          markedForDeletion: true,
+        },
+      }));
+    } else {
+      // Just remove from local changes if it was newly added
+      setLocalChanges(prev => {
+        const next = { ...prev };
+        delete next[projetoId];
+        return next;
+      });
+    }
+    
+    setSavedProjects(prev => {
+      const next = new Set(prev);
+      next.delete(projetoId);
+      return next;
+    });
+  }, [existingItems]);
 
   // Update local hours for a project
   const setHoras = useCallback((projetoId: string, horas: number | null, descricao?: string | null) => {
@@ -105,9 +211,9 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
       [projetoId]: {
         horas,
         descricao: descricao !== undefined ? descricao : (prev[projetoId]?.descricao ?? null),
+        markedForDeletion: false,
       },
     }));
-    // Remove from saved set when changed again
     setSavedProjects(prev => {
       const next = new Set(prev);
       next.delete(projetoId);
@@ -122,6 +228,7 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
       [projetoId]: {
         horas: prev[projetoId]?.horas ?? null,
         descricao,
+        markedForDeletion: false,
       },
     }));
   }, []);
@@ -154,7 +261,7 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
               .insert({
                 colaborador_id: colabId,
                 data,
-                horas_base_dia: null, // Not tracking base in simplified version
+                horas_base_dia: null,
                 created_by: userId,
                 updated_by: userId,
                 status: 'RASCUNHO',
@@ -176,20 +283,25 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
         const currentItemsMap = new Map(currentItems?.map(i => [i.projeto_id, i.id]) || []);
 
         // 3. Process each project with changes
-        for (const projeto of projetosComHoras) {
-          if (!projeto.changed) continue;
+        for (const [projetoId, change] of Object.entries(localChanges)) {
+          const existingItemId = currentItemsMap.get(projetoId);
+          const horas = change.horas;
+          const projeto = projetos?.find(p => p.id === projetoId);
 
-          const existingItemId = currentItemsMap.get(projeto.projeto_id);
-          const horas = projeto.horas;
-
-          if (horas && horas > 0) {
+          if (change.markedForDeletion && existingItemId) {
+            // Delete the item
+            await supabase
+              .from('apontamento_item')
+              .delete()
+              .eq('id', existingItemId);
+          } else if (horas && horas > 0) {
             if (existingItemId) {
               // Update existing
               await supabase
                 .from('apontamento_item')
                 .update({
                   horas,
-                  descricao: projeto.descricao,
+                  descricao: change.descricao,
                   updated_by: userId,
                   updated_at: new Date().toISOString(),
                 })
@@ -200,16 +312,16 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
                 .from('apontamento_item')
                 .insert({
                   apontamento_dia_id: diaId,
-                  projeto_id: projeto.projeto_id,
+                  projeto_id: projetoId,
                   horas,
-                  descricao: projeto.descricao,
+                  descricao: change.descricao,
                   tipo_hora: 'NORMAL',
-                  is_overhead: projeto.is_sistema,
+                  is_overhead: projeto?.is_sistema || false,
                   created_by: userId,
                   updated_by: userId,
                 });
             }
-          } else if (existingItemId) {
+          } else if (existingItemId && (!horas || horas === 0)) {
             // Delete if hours are 0 and item existed
             await supabase
               .from('apontamento_item')
@@ -249,10 +361,13 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
   }, [savedProjects]);
 
   return {
-    projetosComHoras,
+    lancamentosDoDia,
+    projetosDisponiveis,
     totalHoras,
     isLoading: isLoadingProjetos || isLoadingDia || isLoadingItems,
     hasChanges,
+    addItem,
+    removeItem,
     setHoras,
     setDescricao,
     saveBatch,

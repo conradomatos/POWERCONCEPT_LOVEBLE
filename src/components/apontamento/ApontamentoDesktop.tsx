@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
@@ -8,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { 
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { 
   Select, 
   SelectContent, 
@@ -32,7 +40,10 @@ import {
   FileText,
   AlertTriangle,
   Check,
-  Users
+  Users,
+  Plus,
+  Trash2,
+  ChevronsUpDown
 } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -59,6 +70,13 @@ export function ApontamentoDesktop() {
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+  
+  // Add form state
+  const [projetoDropdownOpen, setProjetoDropdownOpen] = useState(false);
+  const [selectedProjetoId, setSelectedProjetoId] = useState<string | null>(null);
+  const [addHoras, setAddHoras] = useState<string>('');
+  const [addDescricao, setAddDescricao] = useState<string>('');
+  const [showAddDescricao, setShowAddDescricao] = useState(false);
 
   const canAccess = hasRole('admin') || hasRole('rh') || hasRole('super_admin');
 
@@ -80,15 +98,21 @@ export function ApontamentoDesktop() {
   const dataStr = format(selectedDate, 'yyyy-MM-dd');
 
   const {
-    projetosComHoras,
+    lancamentosDoDia,
+    projetosDisponiveis,
     totalHoras,
     isLoading,
     hasChanges,
+    addItem,
+    removeItem,
     setHoras,
     setDescricao,
     saveBatch,
     isProjectSaved,
   } = useApontamentoSimplificado(primaryColaboradorId, dataStr);
+
+  // Get selected project details
+  const selectedProjeto = projetosDisponiveis.find(p => p.id === selectedProjetoId);
 
   // Update URL when selection changes
   useEffect(() => {
@@ -113,6 +137,21 @@ export function ApontamentoDesktop() {
     }
   };
 
+  const handleAddItem = () => {
+    if (!selectedProjetoId || !addHoras) return;
+    
+    const horas = parseFloat(addHoras.replace(',', '.'));
+    if (isNaN(horas) || horas <= 0) return;
+    
+    addItem(selectedProjetoId, horas, addDescricao || null);
+    
+    // Reset form
+    setSelectedProjetoId(null);
+    setAddHoras('');
+    setAddDescricao('');
+    setShowAddDescricao(false);
+  };
+
   const goToPreviousDay = () => setSelectedDate(subDays(selectedDate, 1));
   const goToNextDay = () => setSelectedDate(addDays(selectedDate, 1));
   const goToToday = () => setSelectedDate(new Date());
@@ -128,10 +167,6 @@ export function ApontamentoDesktop() {
       return next;
     });
   };
-
-  // Separate real projects from overhead
-  const projetosReais = projetosComHoras.filter(p => !p.is_sistema);
-  const projetosOverhead = projetosComHoras.filter(p => p.is_sistema);
 
   if (!canAccess) {
     return (
@@ -233,16 +268,120 @@ export function ApontamentoDesktop() {
           </CardContent>
         </Card>
 
-        {/* Projects Table */}
+        {/* Add Entry Form */}
         {primaryColaboradorId && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Projetos Ativos</CardTitle>
+              <CardTitle className="text-base">Adicionar Lançamento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col md:flex-row gap-3">
+                {/* Project Dropdown */}
+                <div className="flex-1">
+                  <Popover open={projetoDropdownOpen} onOpenChange={setProjetoDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={projetoDropdownOpen}
+                        className="w-full justify-between"
+                      >
+                        {selectedProjeto 
+                          ? `${selectedProjeto.os} - ${selectedProjeto.nome}`
+                          : "Selecione o projeto..."
+                        }
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar projeto..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum projeto encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            {projetosDisponiveis.map((projeto) => (
+                              <CommandItem
+                                key={projeto.id}
+                                value={`${projeto.os} ${projeto.nome}`}
+                                onSelect={() => {
+                                  setSelectedProjetoId(projeto.id);
+                                  setProjetoDropdownOpen(false);
+                                }}
+                              >
+                                <span className="text-muted-foreground mr-2 font-mono text-sm">
+                                  {projeto.os}
+                                </span>
+                                <span className="truncate">{projeto.nome}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Hours Input */}
+                <div className="w-24">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Horas"
+                    value={addHoras}
+                    onChange={(e) => setAddHoras(e.target.value)}
+                    className="text-center"
+                  />
+                </div>
+
+                {/* Note Toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAddDescricao(!showAddDescricao)}
+                  className={cn(showAddDescricao && 'text-primary')}
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+
+                {/* Add Button */}
+                <Button
+                  onClick={handleAddItem}
+                  disabled={!selectedProjetoId || !addHoras}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar
+                </Button>
+              </div>
+
+              {/* Description field (expandable) */}
+              {showAddDescricao && (
+                <Textarea
+                  value={addDescricao}
+                  onChange={(e) => setAddDescricao(e.target.value)}
+                  placeholder="Adicione uma nota ou descrição..."
+                  className="min-h-[60px]"
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Entries Table */}
+        {primaryColaboradorId && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Lançamentos do Dia</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : lancamentosDoDia.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Nenhum lançamento para este dia.</p>
+                  <p className="text-sm mt-1">Use o formulário acima para adicionar.</p>
                 </div>
               ) : (
                 <>
@@ -250,66 +389,72 @@ export function ApontamentoDesktop() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[50%]">Projeto</TableHead>
-                        <TableHead className="w-[120px] text-center">Horas</TableHead>
+                        <TableHead className="w-[100px] text-center">Horas</TableHead>
                         <TableHead className="w-[60px] text-center">Nota</TableHead>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead className="w-[40px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {projetosReais.map((projeto) => (
+                      {lancamentosDoDia.map((item) => (
                         <>
-                          <TableRow key={projeto.projeto_id}>
+                          <TableRow key={item.projeto_id}>
                             <TableCell className="font-medium">
-                              <span className="text-muted-foreground mr-2">
-                                {projeto.projeto_os}
+                              <span className="text-muted-foreground mr-2 font-mono text-sm">
+                                {item.projeto_os}
                               </span>
-                              {projeto.projeto_nome}
+                              {item.projeto_nome}
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="text"
                                 inputMode="decimal"
-                                value={projeto.horas !== null ? String(projeto.horas) : ''}
+                                value={item.horas !== null ? String(item.horas) : ''}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   const parsed = parseFloat(val.replace(',', '.'));
                                   if (val === '') {
-                                    setHoras(projeto.projeto_id, null);
+                                    setHoras(item.projeto_id, null);
                                   } else if (!isNaN(parsed)) {
-                                    setHoras(projeto.projeto_id, parsed);
+                                    setHoras(item.projeto_id, parsed);
                                   }
                                 }}
                                 placeholder="0"
-                                className={cn(
-                                  'w-20 h-9 text-center',
-                                  projeto.horas && projeto.horas > 0 && 'bg-primary/5 border-primary/30'
-                                )}
+                                className="w-20 h-9 text-center"
                               />
                             </TableCell>
                             <TableCell className="text-center">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => toggleDescription(projeto.projeto_id)}
-                                className={cn(
-                                  projeto.descricao && 'text-primary'
-                                )}
+                                onClick={() => toggleDescription(item.projeto_id)}
+                                className={cn(item.descricao && 'text-primary')}
                               >
                                 <FileText className="h-4 w-4" />
                               </Button>
                             </TableCell>
                             <TableCell>
-                              {isProjectSaved(projeto.projeto_id) && (
+                              {isProjectSaved(item.projeto_id) && (
                                 <Check className="h-4 w-4 text-emerald-500" />
                               )}
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(item.projeto_id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
-                          {expandedDescriptions.has(projeto.projeto_id) && (
+                          {expandedDescriptions.has(item.projeto_id) && (
                             <TableRow>
-                              <TableCell colSpan={4} className="bg-muted/30">
+                              <TableCell colSpan={5} className="bg-muted/30">
                                 <Textarea
-                                  value={projeto.descricao || ''}
-                                  onChange={(e) => setDescricao(projeto.projeto_id, e.target.value || null)}
+                                  value={item.descricao || ''}
+                                  onChange={(e) => setDescricao(item.projeto_id, e.target.value || null)}
                                   placeholder="Adicione uma nota ou descrição..."
                                   className="min-h-[60px]"
                                 />
@@ -318,82 +463,6 @@ export function ApontamentoDesktop() {
                           )}
                         </>
                       ))}
-
-                      {/* Overhead Section */}
-                      {projetosOverhead.length > 0 && (
-                        <>
-                          <TableRow>
-                            <TableCell 
-                              colSpan={4} 
-                              className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground"
-                            >
-                              Overhead / Administrativo
-                            </TableCell>
-                          </TableRow>
-                          {projetosOverhead.map((projeto) => (
-                            <>
-                              <TableRow key={projeto.projeto_id}>
-                                <TableCell className="font-medium">
-                                  <span className="text-muted-foreground mr-2">
-                                    {projeto.projeto_os}
-                                  </span>
-                                  {projeto.projeto_nome}
-                                </TableCell>
-                                <TableCell>
-                                  <Input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={projeto.horas !== null ? String(projeto.horas) : ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      const parsed = parseFloat(val.replace(',', '.'));
-                                      if (val === '') {
-                                        setHoras(projeto.projeto_id, null);
-                                      } else if (!isNaN(parsed)) {
-                                        setHoras(projeto.projeto_id, parsed);
-                                      }
-                                    }}
-                                    placeholder="0"
-                                    className={cn(
-                                      'w-20 h-9 text-center',
-                                      projeto.horas && projeto.horas > 0 && 'bg-primary/5 border-primary/30'
-                                    )}
-                                  />
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => toggleDescription(projeto.projeto_id)}
-                                    className={cn(
-                                      projeto.descricao && 'text-primary'
-                                    )}
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                                <TableCell>
-                                  {isProjectSaved(projeto.projeto_id) && (
-                                    <Check className="h-4 w-4 text-emerald-500" />
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                              {expandedDescriptions.has(projeto.projeto_id) && (
-                                <TableRow>
-                                  <TableCell colSpan={4} className="bg-muted/30">
-                                    <Textarea
-                                      value={projeto.descricao || ''}
-                                      onChange={(e) => setDescricao(projeto.projeto_id, e.target.value || null)}
-                                      placeholder="Adicione uma nota ou descrição..."
-                                      className="min-h-[60px]"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </>
-                          ))}
-                        </>
-                      )}
                     </TableBody>
                   </Table>
 
@@ -429,16 +498,6 @@ export function ApontamentoDesktop() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {!primaryColaboradorId && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Selecione um colaborador para lançar horas.
-              </p>
             </CardContent>
           </Card>
         )}
