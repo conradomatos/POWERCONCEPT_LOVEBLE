@@ -59,7 +59,7 @@ export default function Admin() {
     // Get all profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, full_name, email, created_at, is_active')
+      .select('user_id, full_name, email, created_at')
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -77,8 +77,8 @@ export default function Admin() {
       console.error('Error fetching roles:', rolesError);
     }
 
-    // Combine data
-    const usersData: UserWithRole[] = (profiles || []).map((profile) => ({
+    // Combine data - cast to any for new is_active column until types regenerate
+    const usersData: UserWithRole[] = (profiles || []).map((profile: any) => ({
       id: profile.user_id,
       email: profile.email || '',
       full_name: profile.full_name,
@@ -163,7 +163,7 @@ export default function Admin() {
       const newStatus = !selectedUser.is_active;
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: newStatus })
+        .update({ is_active: newStatus } as any)
         .eq('user_id', selectedUser.id);
 
       if (error) {
