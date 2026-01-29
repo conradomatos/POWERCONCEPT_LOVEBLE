@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, ChevronRight, UserCheck } from 'lucide-react';
 import { format, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
 import { formatCPF, cleanCPF, validateCPF } from '@/lib/cpf';
 import { Database } from '@/integrations/supabase/types';
 import {
@@ -44,6 +45,9 @@ export default function CollaboratorForm({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  
+  // State for linked user (edit mode only)
+  const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
   
   // Step 1: Collaborator data
   const [formData, setFormData] = useState({
@@ -78,6 +82,37 @@ export default function CollaboratorForm({
 
   // Validation errors
   const [custoErrors, setCustoErrors] = useState<Record<string, string>>({});
+  
+  // Query available users for linking (edit mode only)
+  const { data: availableUsers, isLoading: loadingUsers } = useQuery({
+    queryKey: ['available-users-for-collaborator', collaborator?.id],
+    queryFn: async () => {
+      // Fetch all profiles (users)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .order('full_name');
+      
+      if (profilesError) throw profilesError;
+      
+      // Fetch collaborators already linked (except current one)
+      const { data: linkedCollaborators, error: linkedError } = await supabase
+        .from('collaborators')
+        .select('user_id')
+        .not('user_id', 'is', null);
+      
+      if (linkedError) throw linkedError;
+      
+      // Get IDs that are already linked to OTHER collaborators
+      const linkedIds = linkedCollaborators
+        ?.filter(c => c.user_id !== (collaborator as any)?.user_id)
+        .map(c => c.user_id) || [];
+      
+      // Return only users not linked to other collaborators
+      return profiles?.filter(p => !linkedIds.includes(p.user_id)) || [];
+    },
+    enabled: !!collaborator, // Only fetch in edit mode
+  });
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -98,6 +133,8 @@ export default function CollaboratorForm({
           email: collaborator.email || '',
           phone: collaborator.phone || '',
         });
+        // Set linked user from collaborator
+        setLinkedUserId((collaborator as any).user_id || null);
       } else {
         // New collaborator: start at step 1
         setStep(1);
@@ -125,6 +162,7 @@ export default function CollaboratorForm({
           observacao: '',
         });
         setCustoErrors({});
+        setLinkedUserId(null);
       }
     }
   }, [collaborator, open]);
@@ -326,6 +364,7 @@ export default function CollaboratorForm({
       status: formData.status,
       email: formData.email || null,
       phone: formData.phone || null,
+      user_id: linkedUserId || null,
     };
 
     const { error } = await supabase
@@ -335,7 +374,11 @@ export default function CollaboratorForm({
 
     if (error) {
       if (error.code === '23505') {
-        toast.error('CPF já cadastrado para outro colaborador');
+        if (error.message.includes('user_id')) {
+          toast.error('Este usuário já está vinculado a outro colaborador');
+        } else {
+          toast.error('CPF já cadastrado para outro colaborador');
+        }
       } else {
         toast.error('Erro ao atualizar colaborador');
       }
@@ -476,6 +519,41 @@ export default function CollaboratorForm({
             onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
           />
         </div>
+
+        {/* User link field (edit mode only) */}
+        {collaborator && (
+          <div className="space-y-2 md:col-span-2">
+            <Label className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Usuário do Sistema
+            </Label>
+            <Select
+              value={linkedUserId || '__none'}
+              onValueChange={(value) => setLinkedUserId(value === '__none' ? null : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum usuário vinculado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Nenhum usuário vinculado</SelectItem>
+                {loadingUsers && (
+                  <SelectItem value="__loading" disabled>Carregando...</SelectItem>
+                )}
+                {availableUsers?.map((u) => (
+                  <SelectItem key={u.user_id} value={u.user_id}>
+                    {u.full_name || u.email} 
+                    {u.full_name && u.email && (
+                      <span className="text-muted-foreground ml-1">({u.email})</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Vincular permite pré-seleção automática na tela de Apontamento Diário
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -88,13 +88,13 @@ export default function ApontamentoDiario() {
     }
   }, [user, loading, navigate]);
   
-  // Fetch collaborators
+  // Fetch collaborators (with user_id for auto-selection)
   const { data: colaboradores } = useQuery({
     queryKey: ['colaboradores-lista'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('collaborators')
-        .select('id, full_name, cpf, equipe')
+        .select('id, full_name, cpf, equipe, user_id')
         .eq('status', 'ativo')
         .order('full_name');
       if (error) throw error;
@@ -102,6 +102,21 @@ export default function ApontamentoDiario() {
     },
     enabled: canAccess,
   });
+  
+  // Auto-select collaborator linked to logged-in user
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. No collaborator specified in URL
+    // 2. User is logged in
+    // 3. Collaborators list loaded
+    // 4. No selection yet
+    if (!colaboradorIdParam && user && colaboradores && !selectedColaborador) {
+      const meuColaborador = colaboradores.find(c => c.user_id === user.id);
+      if (meuColaborador) {
+        setSelectedColaborador(meuColaborador.id);
+      }
+    }
+  }, [colaboradorIdParam, user, colaboradores, selectedColaborador]);
   
   // Use hook for apontamento data
   const dataStr = format(selectedDate, 'yyyy-MM-dd');
