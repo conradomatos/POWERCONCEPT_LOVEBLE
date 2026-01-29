@@ -49,7 +49,7 @@ import type { BudgetFormData, BudgetWithRelations, RevisionStatus } from '@/lib/
 
 export default function OrcamentosList() {
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const { isSuperAdmin, loading } = useAuth();
   const { budgets, isLoading, createBudget, updateBudget, deleteBudget, duplicateBudget } = useBudgets();
 
   const [search, setSearch] = useState('');
@@ -57,9 +57,9 @@ export default function OrcamentosList() {
   const [editingBudget, setEditingBudget] = useState<BudgetWithRelations | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const canManage = hasRole('admin') || hasRole('financeiro') || hasRole('super_admin');
+  const canManage = isSuperAdmin();
 
-  // Filter budgets
+  // Filter budgets - hook must be called unconditionally
   const filteredBudgets = useMemo(() => {
     if (!search) return budgets;
     const searchLower = search.toLowerCase();
@@ -100,6 +100,18 @@ export default function OrcamentosList() {
   const handleOpen = (id: string) => {
     navigate(`/orcamentos/${id}`);
   };
+
+  // Only super_admin can access this page - check after all hooks
+  if (!loading && !isSuperAdmin()) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
+          <p className="text-muted-foreground">Esta página é exclusiva para administradores master.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -159,7 +171,7 @@ export default function OrcamentosList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isLoading || loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>
                         <TableCell colSpan={8}>
