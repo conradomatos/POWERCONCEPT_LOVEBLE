@@ -56,10 +56,10 @@ export default function Admin() {
   }, [user, loading, navigate, hasRole]);
 
   const fetchUsers = async () => {
-    // Get all profiles
+    // Get all profiles (including is_active which may not be in generated types yet)
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, full_name, email, created_at')
+      .select('user_id, full_name, email, created_at, is_active')
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -77,8 +77,8 @@ export default function Admin() {
       console.error('Error fetching roles:', rolesError);
     }
 
-    // Combine data - cast to any for new is_active column until types regenerate
-    const usersData: UserWithRole[] = (profiles || []).map((profile: any) => ({
+    // Combine profiles with their roles
+    const usersData: UserWithRole[] = (profiles || []).map((profile) => ({
       id: profile.user_id,
       email: profile.email || '',
       full_name: profile.full_name,
@@ -86,7 +86,7 @@ export default function Admin() {
         .filter((r) => r.user_id === profile.user_id)
         .map((r) => r.role),
       created_at: profile.created_at,
-      is_active: profile.is_active !== false,
+      is_active: (profile as { is_active?: boolean }).is_active !== false,
     }));
 
     setUsers(usersData);
@@ -163,7 +163,7 @@ export default function Admin() {
       const newStatus = !selectedUser.is_active;
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: newStatus } as any)
+        .update({ is_active: newStatus })
         .eq('user_id', selectedUser.id);
 
       if (error) {
