@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Layout from '@/components/Layout';
@@ -387,7 +387,7 @@ export default function ApontamentoDiario() {
                 {/* Add Item Form */}
                 {isEditable && (
                   <div className="flex flex-col sm:flex-row gap-2 mb-4 p-3 bg-muted/30 rounded-lg">
-                    <div className="flex-1">
+                    <div className="flex-1" ref={projetoSelectRef}>
                       <Select value={newProjetoId} onValueChange={setNewProjetoId}>
                         <SelectTrigger>
                           <SelectValue placeholder="Projeto/OS" />
@@ -439,6 +439,12 @@ export default function ApontamentoDiario() {
                         placeholder="Horas"
                         value={newHoras}
                         onChange={(e) => setNewHoras(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newProjetoId && newHoras) {
+                            e.preventDefault();
+                            handleAddItem();
+                          }
+                        }}
                       />
                     </div>
                     <div className="flex-1">
