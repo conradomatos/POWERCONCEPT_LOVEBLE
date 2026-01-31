@@ -7,8 +7,7 @@ import { RefreshCw } from 'lucide-react';
 import { useDashboardData, Periodo } from '@/hooks/useDashboardData';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { ProjetosCard } from '@/components/dashboard/ProjetosCard';
-import { EquipeCard } from '@/components/dashboard/EquipeCard';
-import { FinanceiroCard } from '@/components/dashboard/FinanceiroCard';
+import { FinancialKPIs } from '@/components/dashboard/FinancialKPIs';
 import { AcoesPendentes } from '@/components/dashboard/AcoesPendentes';
 import {
   Select,
@@ -23,7 +22,7 @@ export default function Dashboard() {
   const { user, loading, hasAnyRole } = useAuth();
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   
-  const { alertas, projetos, equipe, financeiro, pendencias, isLoading, refetchAll } = useDashboardData(periodo);
+  const { alertas, projetos, financeiro, pendencias, isLoading, refetchAll } = useDashboardData(periodo);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -60,7 +59,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
-            <p className="text-muted-foreground">Visão geral da gestão de projetos</p>
+            <p className="text-muted-foreground">Visão gerencial de projetos</p>
           </div>
           <div className="flex items-center gap-3">
             <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
@@ -84,33 +83,29 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bloco 1: Alertas Críticos */}
+        {/* Bloco 1: Alertas Críticos - Only if there are alerts */}
         <AlertBanner 
           alertas={alertas.data || []} 
           isLoading={alertas.isLoading} 
         />
 
-        {/* Bloco 2: Cards em 3 colunas (Projetos, Equipe, Financeiro) */}
-        <div className="grid gap-6 lg:grid-cols-3 md:grid-cols-2 grid-cols-1">
+        {/* Bloco 2: KPIs Financeiros */}
+        <FinancialKPIs
+          receita={financeiro.data?.valores.faturado || 0}
+          custo={financeiro.data?.valores.custoMO || 0}
+          isLoading={financeiro.isLoading}
+        />
+
+        {/* Bloco 3: Tabela de Projetos */}
+        <div className="grid gap-6 lg:grid-cols-3">
           <ProjetosCard
             contadores={projetos.data?.contadores || { ativos: 0, emDia: 0, emAlerta: 0, critico: 0 }}
             projetos={projetos.data?.projetos || []}
             isLoading={projetos.isLoading}
           />
-          <EquipeCard
-            contadores={equipe.data?.contadores || { ativos: 0, alocados: 0, disponiveis: 0, sobrecarregados: 0 }}
-            ocupacaoPct={equipe.data?.ocupacaoPct || 0}
-            listaAtencao={equipe.data?.listaAtencao || []}
-            isLoading={equipe.isLoading}
-          />
-          <FinanceiroCard
-            valores={financeiro.data?.valores || { faturado: 0, aReceber: 0, custoMO: 0, margemPct: null }}
-            aging={financeiro.data?.aging || { aVencer: 0, ate30: 0, ate60: 0, mais60: 0 }}
-            isLoading={financeiro.isLoading}
-          />
         </div>
 
-        {/* Bloco 3: Ações Pendentes */}
+        {/* Bloco 4: Ações Pendentes */}
         <AcoesPendentes
           pendencias={pendencias.data || []}
           isLoading={pendencias.isLoading}

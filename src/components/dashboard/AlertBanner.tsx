@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clock, DollarSign, Users, FileWarning } from 'lucide-react';
+import { AlertTriangle, Clock, DollarSign, Users, FileWarning } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -38,12 +38,7 @@ export function AlertBanner({ alertas, isLoading }: AlertBannerProps) {
   }
 
   if (!alertas || alertas.length === 0) {
-    return (
-      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 flex items-center gap-3">
-        <CheckCircle className="h-5 w-5 text-emerald-500" />
-        <span className="text-emerald-500 font-medium">✓ Nenhum alerta crítico</span>
-      </div>
-    );
+    return null;
   }
 
   return (

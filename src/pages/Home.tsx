@@ -1,516 +1,185 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { 
+  Clock, 
+  FolderKanban, 
+  GanttChart, 
+  ClipboardList, 
+  LayoutDashboard, 
+  AlertTriangle,
+  ChevronRight
+} from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import ProjetoForm from '@/components/ProjetoForm';
-import {
-  FolderPlus,
-  UserPlus,
-  Upload,
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  XCircle,
-  AlertCircle,
-  Info,
-  Link2,
-  Clock,
-  Building2,
-  FolderKanban,
-} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function formatDateExtended(): string {
+  return format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
+}
+
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 export default function Home() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [projetoFormOpen, setProjetoFormOpen] = useState(false);
+  const { user, loading, hasAnyRole } = useAuth();
 
-  // Fetch pending counts
-  const { data: pendingCounts, isLoading: loadingPending } = useQuery({
-    queryKey: ['home-pending-counts'],
+  // Fetch user profile name
+  const { data: profile } = useQuery({
+    queryKey: ['profile', user?.id],
     queryFn: async () => {
-      // Fetch counts from apontamentos_consolidado
-      const [naoLancados, comErro, semCusto] = await Promise.all([
-        supabase
-          .from('apontamentos_consolidado')
-          .select('id', { count: 'exact', head: true })
-          .eq('status_apontamento', 'NAO_LANCADO'),
-        supabase
-          .from('apontamentos_consolidado')
-          .select('id', { count: 'exact', head: true })
-          .eq('status_integracao', 'ERRO'),
-        supabase
-          .from('custo_projeto_dia')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'SEM_CUSTO'),
-      ]);
-
-      return {
-        naoLancados: naoLancados.count || 0,
-        comErro: comErro.count || 0,
-        semCusto: semCusto.count || 0,
-      };
-    },
-  });
-
-  // Fetch Omie integration status
-  const { data: omieStatus } = useQuery({
-    queryKey: ['home-omie-status'],
-    queryFn: async () => {
-      const [synced, error, notSent, lastSync] = await Promise.all([
-        supabase
-          .from('projetos')
-          .select('id', { count: 'exact', head: true })
-          .eq('omie_sync_status', 'SYNCED'),
-        supabase
-          .from('projetos')
-          .select('id', { count: 'exact', head: true })
-          .eq('omie_sync_status', 'ERROR'),
-        supabase
-          .from('projetos')
-          .select('id', { count: 'exact', head: true })
-          .or('omie_sync_status.is.null,omie_sync_status.eq.NOT_SENT'),
-        supabase
-          .from('projetos')
-          .select('omie_last_sync_at')
-          .not('omie_last_sync_at', 'is', null)
-          .order('omie_last_sync_at', { ascending: false })
-          .limit(1)
-          .single(),
-      ]);
-
-      return {
-        synced: synced.count || 0,
-        error: error.count || 0,
-        notSent: notSent.count || 0,
-        lastSyncAt: lastSync.data?.omie_last_sync_at || null,
-      };
-    },
-  });
-
-  // Fetch recent projects
-  const { data: recentProjects, isLoading: loadingProjects } = useQuery({
-    queryKey: ['home-recent-projects'],
-    queryFn: async () => {
+      if (!user?.id) return null;
       const { data } = await supabase
-        .from('projetos')
-        .select('id, os, nome, empresa_id, empresas(empresa)')
-        .order('updated_at', { ascending: false })
-        .limit(5);
-      return data || [];
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .single();
+      return data;
     },
+    enabled: !!user?.id,
   });
 
-  // Fetch recent clients
-  const { data: recentClients, isLoading: loadingClients } = useQuery({
-    queryKey: ['home-recent-clients'],
+  // Fetch pending count
+  const { data: pendingCount } = useQuery({
+    queryKey: ['home-pendencias-count'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('empresas')
-        .select('id, codigo, empresa')
-        .order('updated_at', { ascending: false })
-        .limit(5);
-      return data || [];
+      const { count } = await supabase
+        .from('apontamentos_consolidado')
+        .select('*', { count: 'exact', head: true })
+        .eq('status_apontamento', 'NAO_LANCADO');
+      return count || 0;
     },
+    enabled: !!user,
   });
 
-  const handleProjetoCreated = () => {
-    queryClient.invalidateQueries({ queryKey: ['home-recent-projects'] });
-    queryClient.invalidateQueries({ queryKey: ['projetos'] });
-  };
-
-  const formatLastSync = (dateStr: string | null) => {
-    if (!dateStr) return 'Nunca sincronizado';
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 1) return 'Agora mesmo';
-    if (diffMins < 60) return `Há ${diffMins} min`;
-    if (diffHours < 24) return `Há ${diffHours}h`;
-    return `Há ${diffDays} dias`;
-  };
-
-  const getOmieStatusInfo = () => {
-    if (!omieStatus) return { status: 'loading', label: 'Carregando...', variant: 'outline' as const };
-    
-    if (omieStatus.synced > 0) {
-      if (omieStatus.error > 0) {
-        return { 
-          status: 'warning', 
-          label: `${omieStatus.synced} ok, ${omieStatus.error} erro(s)`, 
-          variant: 'outline' as const,
-          className: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
-        };
-      }
-      return { 
-        status: 'ok', 
-        label: `${omieStatus.synced} sincronizado(s)`, 
-        variant: 'outline' as const,
-        className: 'bg-green-500/20 text-green-500 border-green-500/30'
-      };
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
     }
-    
-    return { status: 'not_configured', label: 'Não configurado', variant: 'outline' as const };
-  };
+  }, [user, loading, navigate]);
 
-  const quickActions = [
-    {
-      icon: FolderPlus,
-      title: 'Novo Projeto',
-      description: 'Criar um novo projeto',
-      onClick: () => setProjetoFormOpen(true),
-      variant: 'default' as const,
-    },
-    {
-      icon: UserPlus,
-      title: 'Novo Cliente',
-      description: 'Cadastrar novo cliente',
-      onClick: () => navigate('/empresas?new=true'),
-      variant: 'outline' as const,
-    },
-    {
-      icon: Upload,
-      title: 'Importar Apontamentos',
-      description: 'Importar do Secullum',
-      onClick: () => navigate('/import-apontamentos'),
-      variant: 'outline' as const,
-    },
-    {
-      icon: Users,
-      title: 'Importar Colaboradores',
-      description: 'Importar via CSV',
-      onClick: () => navigate('/import'),
-      variant: 'outline' as const,
-    },
-    {
-      icon: TrendingUp,
-      title: 'Custos & Margem',
-      description: 'Ver relatório de custos',
-      onClick: () => navigate('/custos-projeto'),
-      variant: 'outline' as const,
-    },
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!hasAnyRole()) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-16">
+          <h2 className="text-xl font-semibold mb-2">Acesso Pendente</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Sua conta foi criada, mas você ainda não tem permissão para acessar o sistema.
+            Entre em contato com um administrador para liberar seu acesso.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
+  const userName = profile?.full_name || user?.email?.split('@')[0] || 'Usuário';
+  const firstName = userName.split(' ')[0];
+
+  const shortcuts = [
+    { label: 'Meus Projetos', icon: FolderKanban, url: '/projetos' },
+    { label: 'Planejamento', icon: GanttChart, url: '/planejamento' },
+    { label: 'Apontamentos', icon: ClipboardList, url: '/apontamentos' },
+    { label: 'Dashboard', icon: LayoutDashboard, url: '/dashboard' },
   ];
-
-  const pendingCards = [
-    {
-      icon: AlertTriangle,
-      title: 'Não lançados',
-      count: pendingCounts?.naoLancados ?? 0,
-      description: 'apontamentos pendentes',
-      status: 'warning' as const,
-      onClick: () => navigate('/apontamentos?status=NAO_LANCADO'),
-    },
-    {
-      icon: XCircle,
-      title: 'Com erro',
-      count: pendingCounts?.comErro ?? 0,
-      description: 'registros com falha',
-      status: 'danger' as const,
-      onClick: () => navigate('/apontamentos?status=ERRO'),
-    },
-    {
-      icon: AlertCircle,
-      title: 'Sem custo',
-      count: pendingCounts?.semCusto ?? 0,
-      description: 'pendências de custo',
-      status: 'warning' as const,
-      onClick: () => navigate('/recursos/custos?sem_custo=true'),
-    },
-    {
-      icon: Info,
-      title: 'Divergências',
-      count: 0,
-      description: 'planejado vs real',
-      status: 'info' as const,
-      onClick: () => navigate('/planejamento'),
-    },
-  ];
-
-  const getStatusColor = (status: 'warning' | 'danger' | 'info', count: number) => {
-    if (count === 0) return 'bg-muted/50 border-muted';
-    switch (status) {
-      case 'danger':
-        return 'bg-destructive/10 border-destructive/50 hover:border-destructive';
-      case 'warning':
-        return 'bg-primary/10 border-primary/50 hover:border-primary';
-      case 'info':
-        return 'bg-secondary/20 border-secondary hover:border-secondary/80';
-    }
-  };
-
-  const getCountColor = (status: 'warning' | 'danger' | 'info', count: number) => {
-    if (count === 0) return 'text-muted-foreground';
-    switch (status) {
-      case 'danger':
-        return 'text-destructive';
-      case 'warning':
-        return 'text-primary';
-      case 'info':
-        return 'text-secondary-foreground';
-    }
-  };
 
   return (
     <Layout>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Home</h1>
-          <p className="text-muted-foreground">Atalhos, pendências e status do sistema</p>
+      <div className="max-w-xl mx-auto space-y-6 py-4">
+        {/* Greeting */}
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {getGreeting()}, {firstName}!
+          </h1>
+          <p className="text-muted-foreground">
+            {capitalizeFirst(formatDateExtended())}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/import-apontamentos')}>
-            <Upload className="h-4 w-4 mr-2" />
-            Importar Apontamentos
-          </Button>
-          <Button onClick={() => setProjetoFormOpen(true)}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            Novo Projeto
-          </Button>
-        </div>
-      </div>
 
-      {/* Section 1: Quick Actions */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Ações Rápidas</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Card
-                key={action.title}
-                className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md"
-                onClick={action.onClick}
-              >
-                <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                  <div className="p-3 rounded-full bg-primary/10">
-                    <Icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-medium">{action.title}</h3>
-                  <p className="text-xs text-muted-foreground">{action.description}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
+        {/* Main Action - Apontar Horas */}
+        <Card 
+          className="bg-primary text-primary-foreground cursor-pointer hover:bg-primary/90 transition-colors"
+          onClick={() => navigate('/apontamento-diario')}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary-foreground/10 rounded-lg">
+                  <Clock className="h-8 w-8" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Apontar Horas</h2>
+                  <p className="text-primary-foreground/80 text-sm">
+                    Registrar trabalho de hoje
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-6 w-6 text-primary-foreground/60" />
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Section 2: Pending Items */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Pendências</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {pendingCards.map((card) => {
-            const Icon = card.icon;
+        {/* Shortcuts Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {shortcuts.map((shortcut) => {
+            const Icon = shortcut.icon;
             return (
-              <Card
-                key={card.title}
-                className={`cursor-pointer transition-all border-2 ${getStatusColor(card.status, card.count)}`}
-                onClick={card.onClick}
+              <Card 
+                key={shortcut.url}
+                className="cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => navigate(shortcut.url)}
               >
                 <CardContent className="p-4">
-                  {loadingPending ? (
-                    <Skeleton className="h-20 w-full" />
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <Icon className={`h-5 w-5 mt-1 ${getCountColor(card.status, card.count)}`} />
-                      <div className="flex-1">
-                        <p className={`text-3xl font-bold ${getCountColor(card.status, card.count)}`}>
-                          {card.count}
-                        </p>
-                        <p className="font-medium text-sm">{card.title}</p>
-                        <p className="text-xs text-muted-foreground">{card.description}</p>
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-medium text-sm">{shortcut.label}</span>
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
-      </section>
 
-      {/* Section 3: Integration Status */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Integrações</h2>
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-4">
+        {/* Pending Alert - Conditional */}
+        {pendingCount && pendingCount > 0 && (
+          <Card 
+            className="border-amber-500/50 bg-amber-500/10 cursor-pointer hover:bg-amber-500/20 transition-colors"
+            onClick={() => navigate('/dashboard')}
+          >
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Link2 className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Omie</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {formatLastSync(omieStatus?.lastSyncAt)}
-                    </p>
-                  </div>
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  <span className="text-amber-700 dark:text-amber-300 font-medium">
+                    {pendingCount} pendência{pendingCount > 1 ? 's' : ''} requer{pendingCount > 1 ? 'em' : ''} atenção
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge 
-                    variant={getOmieStatusInfo().variant} 
-                    className={getOmieStatusInfo().className}
-                  >
-                    {getOmieStatusInfo().label}
-                  </Badge>
-                  {omieStatus?.error && omieStatus.error > 0 && (
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/projetos?omie=ERROR')}>
-                      Ver erros
-                    </Button>
-                  )}
-                  {getOmieStatusInfo().status === 'not_configured' && (
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}>
-                      Configurar
-                    </Button>
-                  )}
-                </div>
+                <ChevronRight className="h-5 w-5 text-amber-500" />
               </div>
-              <div className="border-t border-border" />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Link2 className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Secullum</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Não configurado
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-muted-foreground">
-                    Não configurado
-                  </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}>
-                    Configurar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Section 4: Recent Items */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Projects */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FolderKanban className="h-4 w-4" />
-                Projetos Recentes
-              </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/projetos')}>
-                Ver todos
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingProjects ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : recentProjects && recentProjects.length > 0 ? (
-              <div className="space-y-2">
-                {recentProjects.map((project: any) => (
-                  <div
-                    key={project.id}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/projetos`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {project.os}
-                      </Badge>
-                      <span className="font-medium text-sm truncate max-w-[200px]">
-                        {project.nome}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                      {project.empresas?.empresa}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FolderKanban className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground mb-3">Nenhum projeto cadastrado</p>
-                <Button size="sm" onClick={() => navigate('/projetos?new=true')}>
-                  Criar primeiro projeto
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Clients */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Clientes Recentes
-              </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/empresas')}>
-                Ver todos
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingClients ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : recentClients && recentClients.length > 0 ? (
-              <div className="space-y-2">
-                {recentClients.map((client: any) => (
-                  <div
-                    key={client.id}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/empresas`)}
-                  >
-                    <span className="font-medium text-sm truncate max-w-[200px]">
-                      {client.empresa}
-                    </span>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {client.codigo}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Building2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground mb-3">Nenhum cliente cadastrado</p>
-                <Button size="sm" onClick={() => navigate('/empresas?new=true')}>
-                  Cadastrar primeiro cliente
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Projeto Form Modal */}
-      <ProjetoForm
-        open={projetoFormOpen}
-        onOpenChange={setProjetoFormOpen}
-        onSuccess={handleProjetoCreated}
-      />
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </Layout>
   );
 }
