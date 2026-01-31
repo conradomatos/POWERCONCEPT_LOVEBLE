@@ -1,204 +1,197 @@
 
-
-# Integracao: Apontamentos Diarios na View Consolidada e Gantt
+# Plano: Visualizacao de Rateio com Barras Empilhadas no Gantt
 
 ## Problema Identificado
 
-Os apontamentos lancados no modulo "Apontamento Diario" (salvos em `apontamento_dia` + `apontamento_item`) nao aparecem em:
+Quando um colaborador tem horas em multiplos projetos no mesmo dia:
+- O sistema cria blocos separados corretamente (um por projeto)
+- Porem, o GanttChart renderiza todos os blocos na mesma posicao vertical
+- Resultado: blocos sobrepostos, visualmente parece haver apenas 1 bloco
 
-1. **Tela Apontamentos** - le da view `vw_apontamentos_consolidado` que nao inclui dados de `apontamento_item`
-2. **Tela Planejamento Gantt** - botao "Puxar Apontamentos" le de `apontamentos_horas_dia` (tem apenas 1 registro)
-
-### Dados Encontrados
-
-| Tabela | Registros |
-|--------|-----------|
-| `apontamento_item` | 6 registros com horas > 0 |
-| `apontamentos_horas_dia` | 1 registro (quase vazia) |
-| `apontamentos_consolidado` | Dados de importacao/manual antigos |
-
----
-
-## Solucao em 2 Partes
-
-### Parte 1: Atualizar View `vw_apontamentos_consolidado`
-
-Adicionar um terceiro UNION ALL para incluir dados de `apontamento_item`:
-
-```sql
-DROP VIEW IF EXISTS public.vw_apontamentos_consolidado;
-
-CREATE VIEW public.vw_apontamentos_consolidado 
-WITH (security_invoker = true) AS
-
--- Part A: Apontamentos existentes (importados/manuais antigos)
-SELECT 
-  id, origem, arquivo_importacao_id, linha_arquivo, data_importacao,
-  usuario_lancamento, projeto_id, projeto_nome, os_numero, tarefa_id,
-  tarefa_nome, centro_custo, funcionario_id, cpf, nome_funcionario,
-  data_apontamento, horas, tipo_hora, descricao, observacao,
-  status_apontamento, status_integracao, motivo_erro, gantt_atualizado,
-  data_atualizacao_gantt, created_at, updated_at,
-  false AS is_pending
-FROM apontamentos_consolidado
-
-UNION ALL
-
--- Part B: Apontamentos do modulo diario (apontamento_dia + apontamento_item)
-SELECT 
-  ai.id,
-  'MANUAL'::apontamento_origem AS origem,
-  NULL::uuid AS arquivo_importacao_id,
-  NULL::integer AS linha_arquivo,
-  NULL::timestamp with time zone AS data_importacao,
-  ad.created_by AS usuario_lancamento,
-  ai.projeto_id,
-  p.nome AS projeto_nome,
-  p.os AS os_numero,
-  ai.atividade_id AS tarefa_id,
-  NULL::text AS tarefa_nome,
-  NULL::text AS centro_custo,
-  ad.colaborador_id AS funcionario_id,
-  c.cpf,
-  c.full_name AS nome_funcionario,
-  ad.data AS data_apontamento,
-  ai.horas,
-  ai.tipo_hora,
-  ai.descricao,
-  ad.observacao,
-  'LANCADO'::apontamento_status AS status_apontamento,
-  'OK'::integracao_status AS status_integracao,
-  NULL::text AS motivo_erro,
-  false AS gantt_atualizado,
-  NULL::timestamp with time zone AS data_atualizacao_gantt,
-  ai.created_at,
-  ai.updated_at,
-  false AS is_pending
-FROM apontamento_item ai
-JOIN apontamento_dia ad ON ad.id = ai.apontamento_dia_id
-JOIN collaborators c ON c.id = ad.colaborador_id
-JOIN projetos p ON p.id = ai.projeto_id
-WHERE ai.horas > 0
-
-UNION ALL
-
--- Part C: Expectativas pendentes (alocacoes planejadas sem apontamento)
-SELECT 
-  ab.id,
-  'SISTEMA'::apontamento_origem AS origem,
-  NULL::uuid AS arquivo_importacao_id,
-  NULL::integer AS linha_arquivo,
-  NULL::timestamp with time zone AS data_importacao,
-  NULL::uuid AS usuario_lancamento,
-  ab.projeto_id,
-  p.nome AS projeto_nome,
-  p.os AS os_numero,
-  NULL::uuid AS tarefa_id,
-  NULL::text AS tarefa_nome,
-  NULL::text AS centro_custo,
-  ab.colaborador_id AS funcionario_id,
-  c.cpf,
-  c.full_name AS nome_funcionario,
-  d.date_val AS data_apontamento,
-  0::numeric AS horas,
-  'NORMAL'::tipo_hora AS tipo_hora,
-  NULL::text AS descricao,
-  ab.observacao,
-  'NAO_LANCADO'::apontamento_status AS status_apontamento,
-  'PENDENTE'::integracao_status AS status_integracao,
-  NULL::text AS motivo_erro,
-  false AS gantt_atualizado,
-  NULL::timestamp with time zone AS data_atualizacao_gantt,
-  ab.created_at,
-  ab.updated_at,
-  true AS is_pending
-FROM alocacoes_blocos ab
-CROSS JOIN LATERAL (
-  SELECT generate_series(ab.data_inicio::timestamp, ab.data_fim::timestamp, '1 day'::interval)::date AS date_val
-) d
-JOIN collaborators c ON c.id = ab.colaborador_id
-JOIN projetos p ON p.id = ab.projeto_id
-WHERE ab.tipo = 'planejado'
-  -- Excluir dias que ja tem apontamento em apontamentos_consolidado
-  AND NOT EXISTS (
-    SELECT 1 FROM apontamentos_consolidado ac
-    WHERE ac.funcionario_id = ab.colaborador_id
-      AND ac.projeto_id = ab.projeto_id
-      AND ac.data_apontamento = d.date_val
-  )
-  -- Excluir dias que ja tem apontamento em apontamento_item
-  AND NOT EXISTS (
-    SELECT 1 FROM apontamento_item ai2
-    JOIN apontamento_dia ad2 ON ad2.id = ai2.apontamento_dia_id
-    WHERE ad2.colaborador_id = ab.colaborador_id
-      AND ai2.projeto_id = ab.projeto_id
-      AND ad2.data = d.date_val
-      AND ai2.horas > 0
-  );
-
-GRANT SELECT ON public.vw_apontamentos_consolidado TO authenticated;
+### Exemplo do Problema
 ```
-
-### Parte 2: Atualizar `handlePullApontamentos` em Planejamento.tsx
-
-Mudar a query de `apontamentos_horas_dia` para ler de `apontamento_item`:
-
-```typescript
-// Linha 438-443 atual:
-const { data: apontamentos, error: aptError } = await supabase
-  .from('apontamentos_horas_dia')
-  .select('colaborador_id, projeto_id, data')
-  ...
-
-// Mudar para:
-const { data: rawApontamentos, error: aptError } = await supabase
-  .from('apontamento_item')
-  .select(`
-    id,
-    projeto_id,
-    horas,
-    apontamento_dia!inner (
-      colaborador_id,
-      data
-    )
-  `)
-  .gt('horas', 0)
-  .gte('apontamento_dia.data', format(period.start, 'yyyy-MM-dd'))
-  .lte('apontamento_dia.data', format(period.end, 'yyyy-MM-dd'));
-
-if (aptError) throw aptError;
-
-// Transformar para formato esperado
-const apontamentos = (rawApontamentos || []).map(item => ({
-  colaborador_id: item.apontamento_dia.colaborador_id,
-  projeto_id: item.projeto_id,
-  data: item.apontamento_dia.data,
-}));
+Dia 30/01 - CONRADO:
+  Atual:    [████ BRASCARGO + ADMINISTRATIVO sobrepostos ████]
+  Esperado: [████ ADMINISTRATIVO 4h ████]
+            [████ BRASCARGO 4h ████]  <- empilhado abaixo
 ```
 
 ---
 
-## Arquivos a Modificar
+## Solucao Proposta
+
+Implementar barras empilhadas (stacked bars) no estilo Primavera P6.
+
+### Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| **Supabase Migration** | Recriar view `vw_apontamentos_consolidado` com 3 UNIONs |
-| `src/pages/Planejamento.tsx` | Alterar query na funcao `handlePullApontamentos` (linhas 438-464) |
+| `src/components/GanttChart.tsx` | Adicionar logica de stacking e altura dinamica |
+| `src/lib/gantt-utils.ts` | Adicionar funcao para calcular indices de empilhamento |
 
 ---
 
-## Resultado Esperado
+## Detalhamento Tecnico
 
-| Tela | Comportamento Apos Correcao |
-|------|----------------------------|
-| Apontamentos | Mostra lancamentos do modulo diario com origem="MANUAL", status="LANCADO" |
-| Planejamento Gantt | Botao "Puxar Apontamentos" cria blocos verdes baseados em `apontamento_item` |
+### 1. Nova Funcao em `gantt-utils.ts`
+
+Adicionar funcao para calcular o indice de empilhamento de cada bloco:
+
+```typescript
+export interface StackedBlock extends Block {
+  stackIndex: number;
+  stackTotal: number;
+}
+
+export function calculateStackedBlocks(
+  blocks: Block[],
+  colaboradorId: string,
+  periodDays: Date[]
+): StackedBlock[] {
+  const colBlocks = blocks.filter(b => b.colaborador_id === colaboradorId);
+  
+  // Para cada dia, encontrar quais blocos estao ativos
+  const dayBlocksMap = new Map<string, Block[]>();
+  
+  for (const day of periodDays) {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const activeBlocks = colBlocks.filter(block => {
+      const start = parseISO(block.data_inicio);
+      const end = parseISO(block.data_fim);
+      return day >= start && day <= end;
+    });
+    dayBlocksMap.set(dayStr, activeBlocks);
+  }
+  
+  // Atribuir stackIndex consistente para cada bloco
+  const blockStackInfo = new Map<string, { index: number; total: number }>();
+  
+  for (const [dayStr, dayBlocks] of dayBlocksMap) {
+    if (dayBlocks.length <= 1) continue;
+    
+    // Ordenar por projeto_id para consistencia
+    const sorted = [...dayBlocks].sort((a, b) => 
+      a.projeto_id.localeCompare(b.projeto_id)
+    );
+    
+    sorted.forEach((block, idx) => {
+      const existing = blockStackInfo.get(block.id);
+      if (!existing || dayBlocks.length > existing.total) {
+        blockStackInfo.set(block.id, {
+          index: idx,
+          total: dayBlocks.length
+        });
+      }
+    });
+  }
+  
+  return colBlocks.map(block => ({
+    ...block,
+    stackIndex: blockStackInfo.get(block.id)?.index ?? 0,
+    stackTotal: blockStackInfo.get(block.id)?.total ?? 1,
+  }));
+}
+```
+
+### 2. Modificar `GanttChart.tsx`
+
+#### 2.1 Usar blocos empilhados
+
+Trocar o filtro simples por calculo de stacking:
+
+```typescript
+// ANTES (linha 303)
+const colBlocks = blocks.filter((b) => b.colaborador_id === col.id);
+
+// DEPOIS
+const colBlocks = useMemo(() => 
+  calculateStackedBlocks(blocks, col.id, period.days),
+  [blocks, col.id, period.days]
+);
+```
+
+#### 2.2 Calcular altura dinamica da linha
+
+```typescript
+// Calcular max stacks para altura da linha
+const maxStacks = Math.max(1, ...colBlocks.map(b => b.stackTotal));
+const rowHeight = 40 + (maxStacks - 1) * 24; // Base 40px + 24px por stack adicional
+```
+
+#### 2.3 Posicionar blocos verticalmente
+
+```typescript
+// ANTES (estilo fixo)
+className="absolute top-2 bottom-2 ..."
+
+// DEPOIS (posicao dinamica baseada no stackIndex)
+const blockHeight = maxStacks > 1 ? (rowHeight - 8) / maxStacks : rowHeight - 8;
+const blockTop = 4 + (block.stackIndex * blockHeight);
+
+style={{
+  top: `${blockTop}px`,
+  height: `${blockHeight - 2}px`,
+  ...
+}}
+```
+
+#### 2.4 Altura dinamica da linha
+
+```typescript
+// ANTES
+<div key={col.id} className="flex h-14 ...">
+
+// DEPOIS
+<div key={col.id} 
+  className="flex transition-all ..."
+  style={{ height: `${rowHeight}px` }}
+>
+```
+
+---
+
+## Fluxo Visual do Resultado
+
+```
+Antes (blocos sobrepostos):
++------------------------------------------+
+| CONRADO  | [████ PROJ1+PROJ2 ████]       |
++------------------------------------------+
+
+Depois (barras empilhadas):
++------------------------------------------+
+| CONRADO  | [████ ADMINISTRATIVO ████]    |
+|          | [████ BRASCARGO ████████]     |
++------------------------------------------+
+```
+
+---
+
+## Estimativa de Complexidade
+
+| Tarefa | Linhas | Complexidade |
+|--------|--------|--------------|
+| Funcao `calculateStackedBlocks` | ~40 | Media |
+| Modificar GanttChart | ~30 | Media |
+| Ajustar estilos/altura dinamica | ~20 | Baixa |
+
+**Total**: ~90 linhas de codigo modificadas/adicionadas
 
 ---
 
 ## Testes
 
-1. Lancar horas no Apontamento Diario (colaborador X, projeto Y, 4 horas)
-2. Ir em Apontamentos → Verificar linha com origem "MANUAL", status "LANCADO", 4h
-3. Ir em Planejamento Gantt → Clicar "Puxar Apontamentos" → Barra verde criada para colaborador X
+1. Lancar 4h em ADMINISTRATIVO + 4h em BRASCARGO para mesmo colaborador/dia
+2. Ir em Planejamento Gantt → Clicar "Puxar Apontamentos"
+3. Verificar: duas barras empilhadas verticalmente, cada uma com sua cor
+4. Hover em cada barra → tooltip mostra projeto correto
+5. Testar navegacao entre semanas/meses → layout deve se manter
 
+---
+
+## Consideracoes Adicionais
+
+- A logica de drag/drop e resize continuara funcionando normalmente
+- O context menu (clique direito) funcionara em cada barra individualmente
+- A cor de cada barra sera determinada pelo `projeto_id` (ja implementado)
+- Blocos "realizado" (borda tracejada) serao empilhados da mesma forma
