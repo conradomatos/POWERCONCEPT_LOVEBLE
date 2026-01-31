@@ -427,23 +427,39 @@ export default function Planejamento() {
     }
   };
 
-  // Pull appointments from apontamentos_horas_dia to create/update blocks
+  // Pull appointments from apontamento_item to create/update blocks
   const handlePullApontamentos = async () => {
     setIsPullingApontamentos(true);
     let created = 0;
     let updated = 0;
 
     try {
-      // Fetch all apontamentos in the period
-      const { data: apontamentos, error: aptError } = await supabase
-        .from('apontamentos_horas_dia')
-        .select('colaborador_id, projeto_id, data')
-        .gte('data', format(period.start, 'yyyy-MM-dd'))
-        .lte('data', format(period.end, 'yyyy-MM-dd'));
+      // Fetch all apontamentos in the period from apontamento_item
+      const { data: rawApontamentos, error: aptError } = await supabase
+        .from('apontamento_item')
+        .select(`
+          id,
+          projeto_id,
+          horas,
+          apontamento_dia!inner (
+            colaborador_id,
+            data
+          )
+        `)
+        .gt('horas', 0)
+        .gte('apontamento_dia.data', format(period.start, 'yyyy-MM-dd'))
+        .lte('apontamento_dia.data', format(period.end, 'yyyy-MM-dd'));
 
       if (aptError) throw aptError;
 
-      if (!apontamentos || apontamentos.length === 0) {
+      // Transform to expected format
+      const apontamentos = (rawApontamentos || []).map((item: any) => ({
+        colaborador_id: item.apontamento_dia.colaborador_id,
+        projeto_id: item.projeto_id,
+        data: item.apontamento_dia.data,
+      }));
+
+      if (apontamentos.length === 0) {
         toast.info('Nenhum apontamento encontrado no período');
         return;
       }
