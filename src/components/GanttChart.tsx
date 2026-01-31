@@ -35,7 +35,7 @@ interface GanttChartProps {
   collaborators: Collaborator[];
   blocks: Block[];
   period: GanttPeriod;
-  onEditBlock: (block: Block) => void;
+  onEditBlock: (block: Block, clickedDate: Date) => void;
   onDeleteBlock: (blockId: string) => void;
   onCreateBlock: (colaboradorId: string, startDate: Date, endDate: Date) => void;
   onMoveBlock?: (blockId: string, newStartDate: Date, newEndDate: Date) => void;
@@ -446,7 +446,11 @@ export default function GanttChart({
                                   // Only open modal if not in drag state AND not just finished a drag
                                   if (!dragState && !justFinishedDrag) {
                                     e.stopPropagation();
-                                    onEditBlock(block);
+                                    // Determine which day was clicked based on mouse position
+                                    const rowElement = e.currentTarget.parentElement as HTMLElement;
+                                    const dayIndex = getDayIndexFromEvent(e, rowElement);
+                                    const clickedDate = period.days[dayIndex] || parseISO(block.data_inicio);
+                                    onEditBlock(block, clickedDate);
                                   }
                                 }}
                               >
@@ -525,7 +529,7 @@ export default function GanttChart({
                           </Tooltip>
                         </ContextMenuTrigger>
                         <ContextMenuContent className="z-50">
-                          <ContextMenuItem onClick={() => onEditBlock(block)}>
+                          <ContextMenuItem onClick={() => onEditBlock(block, parseISO(block.data_inicio))}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </ContextMenuItem>
@@ -586,7 +590,7 @@ function GridView({
   blocks: Block[];
   period: GanttPeriod;
   allProjectIds: string[];
-  onEditBlock: (block: Block) => void;
+  onEditBlock: (block: Block, clickedDate: Date) => void;
   onCreateBlock: (colaboradorId: string, startDate: Date, endDate: Date) => void;
 }) {
   const todayIndex = period.days.findIndex(day => isToday(day));
@@ -705,7 +709,7 @@ function GridView({
                             }}
                             onClick={() => {
                               if (blockForDay) {
-                                onEditBlock(blockForDay);
+                                onEditBlock(blockForDay, day);
                               } else if (!isDisabled) {
                                 onCreateBlock(col.id, day, day);
                               }
