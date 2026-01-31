@@ -1,17 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Command,
   CommandEmpty,
@@ -25,12 +18,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronsUpDown, Loader2, CalendarIcon } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, CalendarIcon, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tables } from '@/integrations/supabase/types';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 
 type Collaborator = Tables<'collaborators'>;
 
@@ -69,6 +63,8 @@ export default function AlocacaoForm({
   );
   const [observacao, setObservacao] = useState(initialObservacao);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [colaboradorOpen, setColaboradorOpen] = useState(false);
   const [projetoOpen, setProjetoOpen] = useState(false);
   const [dataInicioOpen, setDataInicioOpen] = useState(false);
@@ -180,6 +176,29 @@ export default function AlocacaoForm({
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!alocacaoId) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('alocacoes_blocos')
+        .delete()
+        .eq('id', alocacaoId);
+      
+      if (error) throw error;
+      
+      toast.success('Alocação excluída com sucesso');
+      setShowDeleteConfirm(false);
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error deleting allocation:', error);
+      toast.error(error.message || 'Erro ao excluir alocação');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -391,15 +410,43 @@ export default function AlocacaoForm({
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {alocacaoId ? 'Atualizar' : 'Criar'} Alocação
-        </Button>
+      <div className="flex justify-between gap-2 pt-4">
+        <div>
+          {alocacaoId && (
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isDeleting}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Excluir
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {alocacaoId ? 'Atualizar' : 'Criar'} Alocação
+          </Button>
+        </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Excluir Alocação"
+        description="Tem certeza que deseja excluir esta alocação? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="destructive"
+        isLoading={isDeleting}
+        onConfirm={handleDelete}
+      />
     </form>
   );
 }
