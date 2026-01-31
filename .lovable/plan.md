@@ -1,10 +1,143 @@
 
 
-# Plano Corrigido: Puxar Apontamentos para Datas Nao-Consecutivas
+# Diagnostico: Bug de Drag-and-Drop Nao Persiste
 
-## Resumo
+## Causa Raiz Identificada
 
-Corrigir a funcao `handlePullApontamentos` para tratar corretamente lancamentos em datas nao-consecutivas, criando blocos separados ao inves de um unico bloco com datas incorretas.
+O problema **NAO esta no drag-and-drop**, mas sim na **sequencia de eventos que ocorre apos o drag**:
+
+1. Usuario arrasta bloco → `handleResizeBlock` ou `handleMoveBlock` e chamado com datas CORRETAS
+2. Supabase atualiza o banco corretamente (PATCH retorna 200/204)
+3. `queryClient.invalidateQueries` dispara refetch
+4. **AO CLICAR NO BLOCO**, `onEditBlock` e disparado e abre o modal
+5. **PROBLEMA**: O modal recebe `editingBlock` que ainda contem as datas ANTIGAS do estado React (nao refletiu o refetch ainda)
+6. Usuario clica "Atualizar" no modal → sobrescreve com datas antigas
+
+---
+
+## Fluxo Detalhado do Bug
+
+```text
+[1] Drag-and-drop conclui
+    ↓
+[2] handleResizeBlock(blockId, newStart, newEnd)
+    ↓
+[3] Supabase PATCH → banco atualizado ✓
+    ↓
+[4] queryClient.invalidateQueries → dispara refetch assincrono
+    ↓
+[5] SIMULTANEAMENTE: evento onClick dispara handleEditBlock(block)
+    ↓
+[6] setEditingBlock(block) → block ainda tem datas antigas (da lista antes do refetch)
+    ↓
+[7] Modal abre com datas antigas
+    ↓
+[8] Usuario clica Atualizar → envia datas antigas para o banco
+    ↓
+[9] Datas "voltam" para o valor original ✗
+```
+
+---
+
+## Evidencia nos Logs
+
+O log `Drag resize update` mostra datas CORRETAS sendo enviadas:
+```json
+{
+  "id": "4bc71ae2-...",
+  "original": { "inicio": "2026-01-05", "fim": "2026-01-09" },
+  "novo": { "inicio": "2026-01-05", "fim": "2026-01-07" }
+}
+```
+
+Mas a resposta do banco mostra que as datas foram atualizadas:
+```json
+{
+  "data_inicio": "2026-01-05",
+  "data_fim": "2026-01-07"  // <- Correto no banco!
+}
+```
+
+O problema e que o usuario abre o modal e ve `05/01 a 09/01` porque o `editingBlock` foi setado ANTES do refetch completar.
+
+---
+
+## Solucao Proposta
+
+### Opcao A: Impedir click apos drag (Recomendada)
+
+Adicionar flag para distinguir fim de drag de click intencional:
+
+**GanttChart.tsx - handleMouseUp:**
+```typescript
+const [justFinishedDrag, setJustFinishedDrag] = useState(false);
+
+const handleMouseUp = useCallback(() => {
+  if (!dragState) return;
+  
+  // ... logica existente de move/resize ...
+  
+  // Marcar que acabou de fazer drag
+  if (dragState.type !== 'create') {
+    setJustFinishedDrag(true);
+    setTimeout(() => setJustFinishedDrag(false), 200);
+  }
+  
+  setDragState(null);
+}, [/* deps */]);
+
+// No onClick do bloco:
+onClick={(e) => {
+  if (!dragState && !justFinishedDrag) {
+    e.stopPropagation();
+    onEditBlock(block);
+  }
+}}
+```
+
+### Opcao B: Sincronizar modal com dados frescos
+
+Buscar dados atualizados do banco ao abrir modal:
+
+**Planejamento.tsx - handleEditBlock:**
+```typescript
+const handleEditBlock = async (block: Block) => {
+  // Buscar dados mais recentes do banco antes de abrir modal
+  const { data } = await supabase
+    .from('alocacoes_blocos')
+    .select('*')
+    .eq('id', block.id)
+    .single();
+  
+  if (data) {
+    setEditingBlock({
+      ...block,
+      data_inicio: data.data_inicio,
+      data_fim: data.data_fim,
+    });
+  } else {
+    setEditingBlock(block);
+  }
+  setDefaultFormData({});
+  setIsFormOpen(true);
+};
+```
+
+### Opcao C: Desabilitar click durante drag (mais simples)
+
+Verificar se houve movimento antes de permitir click:
+
+```typescript
+onClick={(e) => {
+  // So abre modal se nao houve movimento (drag/resize)
+  const isRealClick = !dragState && 
+    dragState?.startDayIndex === dragState?.currentDayIndex;
+  if (isRealClick) {
+    e.stopPropagation();
+    onEditBlock(block);
+  }
+}}
+```
 
 ---
 
@@ -12,201 +145,70 @@ Corrigir a funcao `handlePullApontamentos` para tratar corretamente lancamentos 
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/gantt-utils.ts` | Adicionar funcao `groupConsecutiveDates` |
-| `src/pages/Planejamento.tsx` | Refatorar logica de criacao de blocos |
+| `src/components/GanttChart.tsx` | Adicionar flag `justFinishedDrag` e logica de debounce |
 
 ---
 
-## 1. Adicionar funcao em gantt-utils.ts
+## Implementacao Recomendada
 
-Inserir antes de `calculateStackedBlocks`:
+A **Opcao A** e a mais robusta porque:
+- Nao adiciona latencia (nao precisa buscar do banco)
+- Resolve a causa raiz (evento conflitante)
+- Simples de implementar
+
+Codigo final:
 
 ```typescript
-/**
- * Groups an array of sorted date strings into clusters of consecutive dates.
- * Consecutive means difference of exactly 1 day between dates.
- * 
- * @example
- * Input: ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-15", "2026-01-29", "2026-01-30"]
- * Output: [["2026-01-05", "2026-01-06", "2026-01-07"], ["2026-01-15"], ["2026-01-29", "2026-01-30"]]
- */
-export function groupConsecutiveDates(sortedDates: string[]): string[][] {
-  if (sortedDates.length === 0) return [];
+// Estado para evitar click imediato apos drag
+const [justFinishedDrag, setJustFinishedDrag] = useState(false);
+
+const handleMouseUp = useCallback(() => {
+  if (!dragState) return;
+
+  const { type, colaboradorId, blockId, startDayIndex, currentDayIndex, originalStart, originalEnd } = dragState;
   
-  const groups: string[][] = [];
-  let currentGroup: string[] = [sortedDates[0]];
+  // Se houve movimento (drag/resize), marcar flag para impedir click
+  const hasMoved = startDayIndex !== currentDayIndex;
   
-  for (let i = 1; i < sortedDates.length; i++) {
-    const prevDate = parseISO(sortedDates[i - 1]);
-    const currDate = parseISO(sortedDates[i]);
-    const diff = differenceInDays(currDate, prevDate);
-    
-    if (diff === 1) {
-      currentGroup.push(sortedDates[i]);
-    } else {
-      groups.push(currentGroup);
-      currentGroup = [sortedDates[i]];
+  if (type === 'create') {
+    // ... logica existente ...
+  } else if (hasMoved) {
+    // Processar move/resize normalmente
+    if (type === 'move' && blockId && originalStart && originalEnd && onMoveBlock) {
+      // ... logica existente ...
+    } else if (type === 'resize-left' && /* ... */) {
+      // ... logica existente ...
+    } else if (type === 'resize-right' && /* ... */) {
+      // ... logica existente ...
     }
+    
+    // Impedir click por 300ms apos drag
+    setJustFinishedDrag(true);
+    setTimeout(() => setJustFinishedDrag(false), 300);
   }
-  groups.push(currentGroup);
-  
-  return groups;
-}
-```
 
----
+  setDragState(null);
+}, [dragState, period.days, onCreateBlock, onMoveBlock, onResizeBlock]);
 
-## 2. Atualizar imports em Planejamento.tsx
-
-Linha 48:
-```typescript
-import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval, addDays } from 'date-fns';
-```
-
-Linha 49:
-```typescript
-import { getGanttPeriod, PeriodType, groupConsecutiveDates } from '@/lib/gantt-utils';
-```
-
----
-
-## 3. Refatorar handlePullApontamentos (linhas 483-540)
-
-Substituir a logica atual por iteracao sobre grupos consecutivos:
-
-```typescript
-// For each group, create or expand realizado block
-for (const [, group] of groupedMap) {
-  // Deduplicate and sort dates
-  const sortedDates = [...new Set(group.dates)].sort();
-  
-  // NEW: Separate into consecutive date groups
-  const dateGroups = groupConsecutiveDates(sortedDates);
-  
-  // For EACH consecutive date group
-  for (const consecutiveDates of dateGroups) {
-    const minDate = consecutiveDates[0];
-    const maxDate = consecutiveDates[consecutiveDates.length - 1];
-    
-    // Search for blocks that overlap OR are adjacent (+/- 1 day)
-    const { data: existingBlocks, error: searchError } = await supabase
-      .from('alocacoes_blocos')
-      .select('id, data_inicio, data_fim')
-      .eq('colaborador_id', group.colaborador_id)
-      .eq('projeto_id', group.projeto_id)
-      .eq('tipo', 'realizado')
-      .lte('data_inicio', format(addDays(parseISO(maxDate), 1), 'yyyy-MM-dd'))
-      .gte('data_fim', format(addDays(parseISO(minDate), -1), 'yyyy-MM-dd'));
-    
-    if (searchError) {
-      console.error('Error searching blocks:', searchError);
-      continue;
-    }
-
-    // Check if dates are already fully covered by existing block
-    const isAlreadyCovered = existingBlocks?.some(block => 
-      minDate >= block.data_inicio && maxDate <= block.data_fim
-    );
-
-    if (isAlreadyCovered) {
-      // Already covered by existing block, skip
-      continue;
-    }
-
-    if (existingBlocks && existingBlocks.length > 0) {
-      // Expand existing block to cover all dates
-      const allDates = [...consecutiveDates];
-      existingBlocks.forEach(block => {
-        allDates.push(block.data_inicio, block.data_fim);
-      });
-      allDates.sort();
-      const newMinDate = allDates[0];
-      const newMaxDate = allDates[allDates.length - 1];
-
-      const { error: updateError } = await supabase
-        .from('alocacoes_blocos')
-        .update({
-          data_inicio: newMinDate,
-          data_fim: newMaxDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingBlocks[0].id);
-      
-      if (updateError) {
-        console.error('Error updating block:', updateError);
-      } else {
-        updated++;
-      }
-
-      // Delete duplicate overlapping blocks
-      if (existingBlocks.length > 1) {
-        const idsToDelete = existingBlocks.slice(1).map(b => b.id);
-        await supabase
-          .from('alocacoes_blocos')
-          .delete()
-          .in('id', idsToDelete);
-      }
-    } else {
-      // Create new realizado block
-      const { error: insertError } = await supabase
-        .from('alocacoes_blocos')
-        .insert({
-          colaborador_id: group.colaborador_id,
-          projeto_id: group.projeto_id,
-          data_inicio: minDate,
-          data_fim: maxDate,
-          tipo: 'realizado',
-          observacao: 'Criado via puxar apontamentos',
-        });
-      
-      if (insertError) {
-        console.error('Error creating block:', insertError);
-      } else {
-        created++;
-      }
-    }
+// No onClick do bloco:
+onClick={(e) => {
+  if (!dragState && !justFinishedDrag) {
+    e.stopPropagation();
+    onEditBlock(block);
   }
-}
+}}
 ```
 
 ---
 
-## Fluxo Corrigido
+## Teste de Validacao
 
-```
-Lancamentos: [5, 6, 7, 15, 29, 30]
+Apos implementar:
 
-1. Agrupa em consecutivos: [[5,6,7], [15], [29,30]]
-
-2. Para [5,6,7]:
-   - Busca blocos adjacentes (4-8 jan)
-   - Nenhum encontrado → cria bloco 5-7
-
-3. Para [15]:
-   - Busca blocos adjacentes (14-16 jan)
-   - Se existe bloco 12-15 → coberto, pula
-   - Se existe bloco 14-16 → expande
-   - Se nao existe → cria bloco 15-15
-
-4. Para [29,30]:
-   - Busca blocos adjacentes (28-31 jan)
-   - Nenhum encontrado → cria bloco 29-30
-
-Resultado: 3 blocos separados, datas corretas!
-```
-
----
-
-## Cenario de Teste
-
-Dados:
-- Bloco existente: CONRADO + projeto 779, dias 12-15/jan
-- Novo lancamento: dia 29/jan, projeto 779 (4h)
-- Novo lancamento: dia 29/jan, projeto 26002 (4h)
-
-Resultado esperado:
-- Bloco 779 (12-15): mantido
-- Bloco 779 (29): CRIADO (novo)
-- Bloco 26002 (29): CRIADO (novo)
-- Visualizacao: barras empilhadas no dia 29 (stacking)
+1. Arrastar bloco para nova posicao
+2. Verificar toast "Alocacao movida/redimensionada com sucesso"
+3. Modal NAO deve abrir automaticamente
+4. Clicar novamente no bloco apos 1 segundo
+5. Modal deve mostrar datas NOVAS (atualizadas)
+6. Verificar banco - datas devem estar corretas
 
