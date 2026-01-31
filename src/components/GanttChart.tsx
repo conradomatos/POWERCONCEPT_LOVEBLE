@@ -397,6 +397,9 @@ export default function GanttChart({
                       ? (rowHeight - 8) / maxStacks 
                       : rowHeight - 8;
                     const blockTop = 4 + (block.stackIndex * blockHeight);
+                    
+                    // Planejado styling: dashed border, reduced opacity
+                    const isPlanejado = block.tipo === 'planejado';
 
                     return (
                       <ContextMenu key={block.id}>
@@ -408,14 +411,15 @@ export default function GanttChart({
                                   'absolute rounded-lg cursor-grab transition-all z-10 flex flex-col justify-center overflow-hidden group',
                                   'shadow-md hover:shadow-xl hover:scale-[1.02]',
                                   isDragging && 'opacity-80 cursor-grabbing shadow-xl scale-[1.02]',
-                                  isRealized && 'border-2 border-dashed border-white/50'
+                                  isRealized && 'border-2 border-white/50',
+                                  isPlanejado && 'border-2 border-dashed border-white/70'
                                 )}
                                 style={{
                                   left: `${position.left}%`,
                                   width: `${position.width}%`,
                                   top: `${blockTop}px`,
                                   height: `${blockHeight - 2}px`,
-                                  backgroundColor: color,
+                                  backgroundColor: isPlanejado ? `${color}99` : color,
                                   minWidth: '28px',
                                 }}
                                 onMouseDown={(e) => {
@@ -447,6 +451,9 @@ export default function GanttChart({
                                 <div className="px-2 min-w-0 flex items-center gap-1">
                                   {isRealized && (
                                     <CheckCircle2 className="h-3 w-3 text-white/80 flex-shrink-0" />
+                                  )}
+                                  {isPlanejado && (
+                                    <div className="w-2 h-2 rounded-full border border-white/70 flex-shrink-0" />
                                   )}
                                   <div className="min-w-0">
                                     <div className="text-white font-bold text-xs drop-shadow-sm truncate leading-tight">
@@ -482,6 +489,11 @@ export default function GanttChart({
                                   {isRealized && (
                                     <span className="text-[10px] bg-accent text-accent-foreground px-1.5 py-0.5 rounded">
                                       Realizado
+                                    </span>
+                                  )}
+                                  {isPlanejado && (
+                                    <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-dashed">
+                                      Planejado
                                     </span>
                                   )}
                                 </div>
@@ -531,6 +543,18 @@ export default function GanttChart({
             );
           })
         )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 py-3 border-t border-border bg-muted/20">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="w-6 h-4 rounded bg-primary border-2 border-white/50" />
+          <span>Realizado</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="w-6 h-4 rounded bg-primary/60 border-2 border-dashed border-white/70" />
+          <span>Planejado</span>
+        </div>
       </div>
     </div>
   );

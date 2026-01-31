@@ -33,6 +33,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -42,11 +47,18 @@ import {
   LayoutGrid,
   GanttChart as GanttIcon,
   Download,
+  MapPin,
+  Users,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
 import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval, addDays } from 'date-fns';
 import { getGanttPeriod, PeriodType, groupConsecutiveDates } from '@/lib/gantt-utils';
+import { Database } from '@/integrations/supabase/types';
+
+type RegiaoColaborador = Database['public']['Enums']['regiao_colaborador'];
 
 interface Block {
   id: string;
@@ -61,6 +73,15 @@ interface Block {
   tipo: 'planejado' | 'realizado';
 }
 
+interface Collaborator {
+  id: string;
+  full_name: string;
+  hire_date: string;
+  termination_date?: string | null;
+  status: string;
+  regiao?: RegiaoColaborador | null;
+}
+
 export default function Planejamento() {
   const { loading: authLoading, user, hasAnyRole, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
@@ -71,6 +92,9 @@ export default function Planejamento() {
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>('');
   const [projetoFilter, setProjetoFilter] = useState<string>('');
+  const [regiaoFilter, setRegiaoFilter] = useState<string>('');
+  const [tipoColabFilter, setTipoColabFilter] = useState<string>('');
+  const [fixosExpanded, setFixosExpanded] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
@@ -88,17 +112,33 @@ export default function Planejamento() {
 
   const period = useMemo(() => getGanttPeriod(currentDate, periodType), [currentDate, periodType]);
 
-  // Fetch collaborators
+  // Fetch user profile for "Minha Região" feature
+  const { data: userProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('regiao')
+        .eq('user_id', user.id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch collaborators with regiao
   const { data: collaborators = [], isLoading: loadingCollaborators } = useQuery({
     queryKey: ['collaborators-gantt'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('collaborators')
-        .select('id, full_name, hire_date, termination_date, status')
+        .select('id, full_name, hire_date, termination_date, status, regiao')
         .eq('status', 'ativo')
         .order('full_name');
       if (error) throw error;
-      return data;
+      return data as Collaborator[];
     },
   });
 
@@ -198,6 +238,24 @@ export default function Planejamento() {
     },
   });
 
+  // Get IDs of collaborators with active default allocations (Fixos)
+  const fixosIds = useMemo(() => {
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    
+    const ids = new Set<string>();
+    for (const def of defaultAllocations as any[]) {
+      const dataInicio = def.data_inicio;
+      const dataFim = def.data_fim;
+      
+      // Active if: data_inicio <= today AND (data_fim is null OR data_fim >= today)
+      if (dataInicio <= todayStr && (!dataFim || dataFim >= todayStr)) {
+        ids.add(def.colaborador_id);
+      }
+    }
+    return ids;
+  }, [defaultAllocations]);
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (blockId: string) => {
@@ -221,11 +279,24 @@ export default function Planejamento() {
   const filteredCollaborators = useMemo(() => {
     let result = collaborators;
 
+    // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
       result = result.filter((c) =>
         c.full_name.toLowerCase().includes(searchLower)
       );
+    }
+
+    // Region filter
+    if (regiaoFilter) {
+      result = result.filter((c) => c.regiao === regiaoFilter);
+    }
+
+    // Tipo filter (Fixos/Variáveis)
+    if (tipoColabFilter === 'fixos') {
+      result = result.filter((c) => fixosIds.has(c.id));
+    } else if (tipoColabFilter === 'variaveis') {
+      result = result.filter((c) => !fixosIds.has(c.id));
     }
 
     // If project filter is active, only show collaborators with allocations in that project
@@ -248,7 +319,20 @@ export default function Planejamento() {
     }
 
     return result;
-  }, [collaborators, search, projetoFilter, empresaFilter, blocks, projetos]);
+  }, [collaborators, search, projetoFilter, empresaFilter, blocks, projetos, regiaoFilter, tipoColabFilter, fixosIds]);
+
+  // Split collaborators into Variáveis and Fixos
+  const { variaveisCollaborators, fixosCollaborators } = useMemo(() => {
+    const variaveis = filteredCollaborators.filter(c => !fixosIds.has(c.id));
+    const fixos = filteredCollaborators.filter(c => fixosIds.has(c.id));
+    return { variaveisCollaborators: variaveis, fixosCollaborators: fixos };
+  }, [filteredCollaborators, fixosIds]);
+
+  // Get collaborators without allocations in the visible period
+  const availableCollaborators = useMemo(() => {
+    const allocatedIds = new Set(blocks.map(b => b.colaborador_id));
+    return filteredCollaborators.filter(c => !allocatedIds.has(c.id));
+  }, [filteredCollaborators, blocks]);
 
   // Navigate period
   const navigatePeriod = (direction: 'prev' | 'next') => {
@@ -711,6 +795,35 @@ export default function Planejamento() {
             </SelectContent>
           </Select>
 
+          {/* Região filter */}
+          <Select
+            value={regiaoFilter}
+            onValueChange={(v) => setRegiaoFilter(v === 'all' ? '' : v)}
+          >
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue placeholder="Região" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas Regiões</SelectItem>
+              <SelectItem value="Campos Gerais">Campos Gerais</SelectItem>
+              <SelectItem value="Paranaguá">Paranaguá</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Tipo Colaborador filter */}
+          <Select
+            value={tipoColabFilter}
+            onValueChange={(v) => setTipoColabFilter(v === 'all' ? '' : v)}
+          >
+            <SelectTrigger className="w-28 h-8 text-xs">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="variaveis">Variáveis</SelectItem>
+              <SelectItem value="fixos">Fixos</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Empresa filter */}
           <Select
@@ -763,24 +876,114 @@ export default function Planejamento() {
           </div>
         </div>
 
-        {/* Gantt Chart */}
+        {/* Quick View buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={regiaoFilter === userProfile?.regiao ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              if (userProfile?.regiao) {
+                setRegiaoFilter(regiaoFilter === userProfile.regiao ? '' : userProfile.regiao);
+              } else {
+                toast.info('Sua região não está configurada no perfil');
+              }
+            }}
+            disabled={!userProfile?.regiao}
+          >
+            <MapPin className="mr-1.5 h-3.5 w-3.5" />
+            Minha Região
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Filter to show only available collaborators
+              const availableIds = availableCollaborators.map(c => c.id);
+              if (availableIds.length === 0) {
+                toast.info('Todos os colaboradores possuem alocação no período');
+              } else {
+                toast.success(`${availableIds.length} colaborador(es) disponível(eis)`);
+              }
+            }}
+          >
+            <Users className="mr-1.5 h-3.5 w-3.5" />
+            Disponíveis ({availableCollaborators.length})
+          </Button>
+        </div>
+
+        {/* Gantt Chart with sections */}
         {loadingCollaborators || loadingBlocks ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <GanttChart
-            collaborators={filteredCollaborators}
-            blocks={blocks}
-            period={period}
-            onEditBlock={handleEditBlock}
-            onDeleteBlock={(id) => setDeleteBlockId(id)}
-            onCreateBlock={handleCreateBlock}
-            onMoveBlock={handleMoveBlock}
-            onResizeBlock={handleResizeBlock}
-            viewMode={viewMode}
-            canDeleteRealized={isSuperAdmin()}
-          />
+          <div className="space-y-4">
+            {/* Variáveis Section - Always expanded */}
+            {tipoColabFilter !== 'fixos' && variaveisCollaborators.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="h-px flex-1 bg-primary/30" />
+                  <span className="text-sm font-bold text-primary uppercase tracking-wide">
+                    Variáveis ({variaveisCollaborators.length})
+                  </span>
+                  <div className="h-px flex-1 bg-primary/30" />
+                </div>
+                <GanttChart
+                  collaborators={variaveisCollaborators}
+                  blocks={blocks}
+                  period={period}
+                  onEditBlock={handleEditBlock}
+                  onDeleteBlock={(id) => setDeleteBlockId(id)}
+                  onCreateBlock={handleCreateBlock}
+                  onMoveBlock={handleMoveBlock}
+                  onResizeBlock={handleResizeBlock}
+                  viewMode={viewMode}
+                  canDeleteRealized={isSuperAdmin()}
+                />
+              </div>
+            )}
+
+            {/* Fixos Section - Collapsible */}
+            {tipoColabFilter !== 'variaveis' && fixosCollaborators.length > 0 && (
+              <Collapsible open={fixosExpanded} onOpenChange={setFixosExpanded}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center gap-2 px-2 cursor-pointer hover:opacity-80 transition-opacity">
+                    <div className="h-px flex-1 bg-muted-foreground/30" />
+                    <div className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground uppercase tracking-wide">
+                      {fixosExpanded ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                      Fixos ({fixosCollaborators.length})
+                    </div>
+                    <div className="h-px flex-1 bg-muted-foreground/30" />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <GanttChart
+                    collaborators={fixosCollaborators}
+                    blocks={blocks}
+                    period={period}
+                    onEditBlock={handleEditBlock}
+                    onDeleteBlock={(id) => setDeleteBlockId(id)}
+                    onCreateBlock={handleCreateBlock}
+                    onMoveBlock={handleMoveBlock}
+                    onResizeBlock={handleResizeBlock}
+                    viewMode={viewMode}
+                    canDeleteRealized={isSuperAdmin()}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Empty state */}
+            {variaveisCollaborators.length === 0 && fixosCollaborators.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                Nenhum colaborador encontrado com os filtros aplicados
+              </div>
+            )}
+          </div>
         )}
 
         {/* Form Dialog */}
