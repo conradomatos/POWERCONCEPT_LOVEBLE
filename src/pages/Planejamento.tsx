@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import GanttChart from '@/components/GanttChart';
 import AlocacaoForm from '@/components/AlocacaoForm';
+import AlocacoesDiaModal from '@/components/AlocacoesDiaModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -97,13 +98,17 @@ export default function Planejamento() {
   const [fixosExpanded, setFixosExpanded] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
   const [deleteBlockId, setDeleteBlockId] = useState<string | null>(null);
   const [defaultFormData, setDefaultFormData] = useState<{
     colaboradorId?: string;
     dataInicio?: string;
     dataFim?: string;
   }>({});
+
+  // New multi-allocation modal state
+  const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [selectedColaboradorId, setSelectedColaboradorId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const [viewMode, setViewMode] = useState<'gantt' | 'grid'>('gantt');
 
@@ -368,7 +373,6 @@ export default function Planejamento() {
     }
     
     // Otherwise open form to select project
-    setEditingBlock(null);
     setDefaultFormData({
       colaboradorId,
       dataInicio: format(startDate, 'yyyy-MM-dd'),
@@ -463,11 +467,11 @@ export default function Planejamento() {
     }
   };
 
-  // Handle edit block
-  const handleEditBlock = (block: Block) => {
-    setEditingBlock(block);
-    setDefaultFormData({});
-    setIsFormOpen(true);
+  // Handle edit block - open multi-allocation modal
+  const handleEditBlock = (block: Block, clickedDate: Date) => {
+    setSelectedColaboradorId(block.colaborador_id);
+    setSelectedDate(clickedDate);
+    setDayModalOpen(true);
   };
 
   // Apply default allocations
@@ -803,7 +807,6 @@ export default function Planejamento() {
             <Button
               size="sm"
               onClick={() => {
-                setEditingBlock(null);
                 setDefaultFormData({});
                 setIsFormOpen(true);
               }}
@@ -1034,38 +1037,50 @@ export default function Planejamento() {
           </div>
         )}
 
-        {/* Form Dialog */}
+        {/* Form Dialog - Only for creation, editing is done via AlocacoesDiaModal */}
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>
-                {editingBlock ? 'Editar Alocação' : 'Nova Alocação'}
-              </DialogTitle>
+              <DialogTitle>Nova Alocação</DialogTitle>
               <DialogDescription>
-                {editingBlock 
-                  ? 'Edite as informações da alocação abaixo.' 
-                  : 'Preencha os campos para criar uma nova alocação.'}
+                Preencha os campos para criar uma nova alocação.
               </DialogDescription>
             </DialogHeader>
             <AlocacaoForm
-              alocacaoId={editingBlock?.id}
-              colaboradorId={editingBlock?.colaborador_id || defaultFormData.colaboradorId}
-              projetoId={editingBlock?.projeto_id}
-              dataInicio={editingBlock?.data_inicio || defaultFormData.dataInicio}
-              dataFim={editingBlock?.data_fim || defaultFormData.dataFim}
-              observacao={editingBlock?.observacao || ''}
+              colaboradorId={defaultFormData.colaboradorId}
+              dataInicio={defaultFormData.dataInicio}
+              dataFim={defaultFormData.dataFim}
               onSuccess={() => {
                 setIsFormOpen(false);
-                setEditingBlock(null);
                 queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
               }}
               onCancel={() => {
                 setIsFormOpen(false);
-                setEditingBlock(null);
               }}
             />
           </DialogContent>
         </Dialog>
+
+        {/* Multi-allocation day modal */}
+        {selectedColaboradorId && selectedDate && (
+          <AlocacoesDiaModal
+            open={dayModalOpen}
+            onOpenChange={setDayModalOpen}
+            colaboradorId={selectedColaboradorId}
+            colaboradorNome={collaborators.find(c => c.id === selectedColaboradorId)?.full_name || ''}
+            dataClicada={selectedDate}
+            alocacoes={blocks.filter(b =>
+              b.colaborador_id === selectedColaboradorId &&
+              parseISO(b.data_inicio) <= selectedDate &&
+              parseISO(b.data_fim) >= selectedDate
+            )}
+            allProjectIds={[...new Set(blocks.map((b) => b.projeto_id))]}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+            }}
+            canDeleteRealized={isSuperAdmin()}
+          />
+        )}
 
         {/* Delete confirmation */}
         <AlertDialog open={!!deleteBlockId} onOpenChange={() => setDeleteBlockId(null)}>
