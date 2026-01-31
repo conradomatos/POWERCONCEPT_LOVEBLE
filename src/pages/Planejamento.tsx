@@ -379,38 +379,86 @@ export default function Planejamento() {
 
   // Handle move block
   const handleMoveBlock = async (blockId: string, newStartDate: Date, newEndDate: Date) => {
+    const novaDataInicio = format(newStartDate, 'yyyy-MM-dd');
+    const novaDataFim = format(newEndDate, 'yyyy-MM-dd');
+    
+    // Find original block to compare
+    const originalBlock = blocks.find(b => b.id === blockId);
+    
+    // Skip if dates haven't changed
+    if (originalBlock && originalBlock.data_inicio === novaDataInicio && originalBlock.data_fim === novaDataFim) {
+      console.log('Move skipped - no change detected');
+      return;
+    }
+    
+    console.log('Drag move update:', {
+      id: blockId,
+      original: originalBlock ? { inicio: originalBlock.data_inicio, fim: originalBlock.data_fim } : null,
+      novo: { inicio: novaDataInicio, fim: novaDataFim }
+    });
+    
     try {
-      const { error } = await supabase
+      const { error, data } = await supabase
         .from('alocacoes_blocos')
         .update({
-          data_inicio: format(newStartDate, 'yyyy-MM-dd'),
-          data_fim: format(newEndDate, 'yyyy-MM-dd'),
+          data_inicio: novaDataInicio,
+          data_fim: novaDataFim,
         })
-        .eq('id', blockId);
+        .eq('id', blockId)
+        .select();
       
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+      
+      console.log('Move update response:', data);
+      
+      // Force refetch to ensure UI syncs with database
+      await queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       toast.success('Alocação movida com sucesso');
     } catch (error: any) {
+      console.error('Error moving block:', error);
       toast.error(error.message || 'Erro ao mover alocação');
     }
   };
 
   // Handle resize block
   const handleResizeBlock = async (blockId: string, newStartDate: Date, newEndDate: Date) => {
+    const novaDataInicio = format(newStartDate, 'yyyy-MM-dd');
+    const novaDataFim = format(newEndDate, 'yyyy-MM-dd');
+    
+    // Find original block to compare
+    const originalBlock = blocks.find(b => b.id === blockId);
+    
+    // Skip if dates haven't changed
+    if (originalBlock && originalBlock.data_inicio === novaDataInicio && originalBlock.data_fim === novaDataFim) {
+      console.log('Resize skipped - no change detected');
+      return;
+    }
+    
+    console.log('Drag resize update:', {
+      id: blockId,
+      original: originalBlock ? { inicio: originalBlock.data_inicio, fim: originalBlock.data_fim } : null,
+      novo: { inicio: novaDataInicio, fim: novaDataFim }
+    });
+    
     try {
-      const { error } = await supabase
+      const { error, data } = await supabase
         .from('alocacoes_blocos')
         .update({
-          data_inicio: format(newStartDate, 'yyyy-MM-dd'),
-          data_fim: format(newEndDate, 'yyyy-MM-dd'),
+          data_inicio: novaDataInicio,
+          data_fim: novaDataFim,
         })
-        .eq('id', blockId);
+        .eq('id', blockId)
+        .select();
       
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
+      
+      console.log('Resize update response:', data);
+      
+      // Force refetch to ensure UI syncs with database
+      await queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       toast.success('Alocação redimensionada com sucesso');
     } catch (error: any) {
+      console.error('Error resizing block:', error);
       toast.error(error.message || 'Erro ao redimensionar alocação');
     }
   };
