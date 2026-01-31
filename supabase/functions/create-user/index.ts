@@ -5,6 +5,48 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Valid role values
+const VALID_ROLES = ['admin', 'rh', 'financeiro', 'super_admin', 'catalog_manager'] as const;
+type AppRole = typeof VALID_ROLES[number];
+
+// Input validation helpers
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return typeof email === 'string' && email.length <= 255 && emailRegex.test(email);
+}
+
+function isValidPassword(password: string): boolean {
+  return typeof password === 'string' && password.length >= 8 && password.length <= 128;
+}
+
+function isValidUUID(id: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return typeof id === 'string' && uuidRegex.test(id);
+}
+
+function isValidRole(role: string): role is AppRole {
+  return VALID_ROLES.includes(role as AppRole);
+}
+
+function sanitizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('duplicate') || msg.includes('already exists')) {
+      return 'Este email já está cadastrado';
+    }
+    if (msg.includes('foreign key') || msg.includes('violates')) {
+      return 'Referência inválida';
+    }
+    if (msg.includes('permission') || msg.includes('denied')) {
+      return 'Sem permissão para esta operação';
+    }
+    if (msg.includes('invalid') && msg.includes('email')) {
+      return 'Email inválido';
+    }
+  }
+  return 'Erro ao processar requisição';
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -15,7 +57,10 @@ Deno.serve(async (req) => {
     // Verificar se o chamador é admin
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      throw new Error('Missing authorization')
+      return new Response(
+        JSON.stringify({ error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -29,7 +74,10 @@ Deno.serve(async (req) => {
     
     const { data: { user: callerUser } } = await userClient.auth.getUser()
     if (!callerUser) {
-      throw new Error('Unauthorized')
+      return new Response(
+        JSON.stringify({ error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Verificar se é admin
@@ -42,21 +90,81 @@ Deno.serve(async (req) => {
       r.role === 'admin' || r.role === 'super_admin'
     )
     if (!isAdmin) {
-      throw new Error('Apenas administradores podem criar usuários')
+      return new Response(
+        JSON.stringify({ error: 'Apenas administradores podem criar usuários' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Dados do novo usuário
-    const { email, password, fullName, roles, collaboratorId } = await req.json()
+    // Parse and validate input
+    let body: { email?: string; password?: string; fullName?: string; roles?: string[]; collaboratorId?: string };
+    try {
+      body = await req.json()
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Dados inválidos' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-    // Validações básicas
-    if (!email || !password || !roles || roles.length === 0) {
-      throw new Error('Dados incompletos: email, senha e papéis são obrigatórios')
+    const { email, password, fullName, roles, collaboratorId } = body;
+
+    // Validate email
+    if (!email || !isValidEmail(email)) {
+      return new Response(
+        JSON.stringify({ error: 'Email inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate password
+    if (!password || !isValidPassword(password)) {
+      return new Response(
+        JSON.stringify({ error: 'Senha deve ter entre 8 e 128 caracteres' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate fullName
+    if (fullName && (typeof fullName !== 'string' || fullName.length > 100)) {
+      return new Response(
+        JSON.stringify({ error: 'Nome inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate roles
+    if (!roles || !Array.isArray(roles) || roles.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Pelo menos um papel é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate each role value
+    const invalidRoles = roles.filter(r => !isValidRole(r));
+    if (invalidRoles.length > 0) {
+      return new Response(
+        JSON.stringify({ error: 'Papel inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate collaboratorId if provided
+    if (collaboratorId && !isValidUUID(collaboratorId)) {
+      return new Response(
+        JSON.stringify({ error: 'ID do colaborador inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Verificar se SUPER_ADMIN só pode ser atribuído por SUPER_ADMIN
     const isSuperAdmin = callerRoles?.some(r => r.role === 'super_admin')
     if (roles.includes('super_admin') && !isSuperAdmin) {
-      throw new Error('Apenas Super Admins podem criar outros Super Admins')
+      return new Response(
+        JSON.stringify({ error: 'Apenas Super Admins podem criar outros Super Admins' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Cliente admin para operações privilegiadas
@@ -75,11 +183,17 @@ Deno.serve(async (req) => {
 
     if (createError) {
       console.error('Error creating user:', createError)
-      throw createError
+      return new Response(
+        JSON.stringify({ error: sanitizeErrorMessage(createError) }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     if (!newUser?.user) {
-      throw new Error('Falha ao criar usuário')
+      return new Response(
+        JSON.stringify({ error: 'Falha ao criar usuário' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     const userId = newUser.user.id
@@ -119,10 +233,9 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error('Error in create-user function:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: sanitizeErrorMessage(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

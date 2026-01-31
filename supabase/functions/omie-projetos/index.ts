@@ -8,6 +8,9 @@ const corsHeaders = {
 
 const OMIE_API_URL = "https://app.omie.com.br/api/v1/geral/projetos/";
 
+// Valid API call types
+const VALID_CALLS = ['ListarProjetos', 'UpsertProjeto', 'ConsultarProjeto'] as const;
+
 interface OmieRequest {
   call: string;
   param: Record<string, unknown>;
@@ -31,6 +34,31 @@ interface OmieResponse {
     inativo?: string;
   }>;
   [key: string]: unknown;
+}
+
+// Input validation helpers
+function isValidCall(call: string): boolean {
+  return VALID_CALLS.includes(call as typeof VALID_CALLS[number]);
+}
+
+function isValidString(value: unknown, maxLength: number = 500): boolean {
+  return typeof value === 'string' && value.length <= maxLength;
+}
+
+function sanitizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+      return 'Tempo limite excedido ao conectar com Omie';
+    }
+    if (msg.includes('network') || msg.includes('fetch')) {
+      return 'Erro de conexão com API Omie';
+    }
+    if (msg.includes('json')) {
+      return 'Resposta inválida da API Omie';
+    }
+  }
+  return 'Erro ao processar requisição';
 }
 
 serve(async (req) => {
@@ -57,15 +85,25 @@ serve(async (req) => {
       );
     }
 
-    const body: OmieRequest = await req.json();
-    console.log("Received request:", JSON.stringify(body, null, 2));
+    // Parse and validate request body
+    let body: OmieRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Dados de requisição inválidos" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Validate required fields based on call type
-    if (!body.call) {
+    console.log("Received request:", JSON.stringify({ call: body.call, meta: body.meta }, null, 2));
+
+    // Validate call field
+    if (!body.call || !isValidCall(body.call)) {
       return new Response(
         JSON.stringify({ 
           ok: false, 
-          error: "Campo obrigatório ausente: call" 
+          error: "Tipo de operação inválido" 
         }),
         { 
           status: 400, 
@@ -115,8 +153,7 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({ 
               ok: false, 
-              error: omieData.faultstring,
-              faultcode: omieData.faultcode
+              error: "Erro ao buscar projetos do Omie"
             }),
             { 
               status: 200, 
@@ -178,12 +215,40 @@ serve(async (req) => {
 
     // Validate UpsertProjeto specific fields
     if (body.call === 'UpsertProjeto') {
-      const param = body.param as { codInt?: string; nome?: string };
-      if (!param?.codInt || !param?.nome) {
+      const param = body.param as { codInt?: string; nome?: string; inativo?: string };
+      
+      if (!param?.codInt || !isValidString(param.codInt, 50)) {
         return new Response(
           JSON.stringify({ 
             ok: false, 
-            error: "Campos obrigatórios ausentes para UpsertProjeto: codInt ou nome" 
+            error: "Código interno inválido" 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      if (!param?.nome || !isValidString(param.nome, 200)) {
+        return new Response(
+          JSON.stringify({ 
+            ok: false, 
+            error: "Nome do projeto inválido" 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Validate inativo field if present
+      if (param.inativo !== undefined && !['S', 'N'].includes(param.inativo)) {
+        return new Response(
+          JSON.stringify({ 
+            ok: false, 
+            error: "Status inativo inválido" 
           }),
           { 
             status: 400, 
@@ -202,10 +267,6 @@ serve(async (req) => {
     };
 
     console.log("Calling Omie API:", OMIE_API_URL);
-    console.log("Payload (without secrets):", JSON.stringify({
-      call: body.call,
-      param: [body.param],
-    }, null, 2));
 
     // Call Omie API
     const omieResponse = await fetch(OMIE_API_URL, {
@@ -217,7 +278,7 @@ serve(async (req) => {
     });
 
     const omieData: OmieResponse = await omieResponse.json();
-    console.log("Omie response:", JSON.stringify(omieData, null, 2));
+    console.log("Omie response received");
 
     // Check for Omie errors
     if (omieData.faultstring || omieData.faultcode) {
@@ -225,9 +286,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           ok: false, 
-          error: omieData.faultstring || "Erro desconhecido do Omie",
-          faultcode: omieData.faultcode,
-          data: omieData
+          error: "Erro na operação com Omie",
+          data: { descricao: omieData.descricao }
         }),
         { 
           status: 200, 
@@ -251,11 +311,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error in omie-projetos function:", error);
-    const errorMessage = error instanceof Error ? error.message : "Erro interno ao processar requisição";
     return new Response(
       JSON.stringify({ 
         ok: false, 
-        error: errorMessage
+        error: sanitizeErrorMessage(error)
       }),
       { 
         status: 500, 

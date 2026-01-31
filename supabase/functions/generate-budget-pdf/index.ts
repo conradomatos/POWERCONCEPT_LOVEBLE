@@ -42,6 +42,26 @@ interface BudgetData {
   };
 }
 
+// Input validation helpers
+function isValidUUID(id: unknown): boolean {
+  if (typeof id !== 'string') return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
+
+function sanitizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('not found') || msg.includes('no rows')) {
+      return 'Revisão não encontrada';
+    }
+    if (msg.includes('permission') || msg.includes('denied')) {
+      return 'Sem permissão para acessar esta revisão';
+    }
+  }
+  return 'Erro ao gerar documento';
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -54,9 +74,33 @@ function formatDate(dateStr?: string): string {
   return new Date(dateStr).toLocaleDateString('pt-BR');
 }
 
+// Sanitize HTML content to prevent XSS
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
+
 function generateProposalHTML(data: BudgetData): string {
   const { budget, revision, summary } = data;
   const today = new Date().toLocaleDateString('pt-BR');
+
+  // Escape all user-provided content
+  const budgetNumber = escapeHtml(budget.budget_number || '');
+  const obraNome = escapeHtml(budget.obra_nome || '');
+  const local = escapeHtml(budget.local || '-');
+  const razaoSocial = escapeHtml(budget.cliente?.razao_social || budget.cliente?.empresa || '-');
+  const cnpj = escapeHtml(budget.cliente?.cnpj || '-');
+  const empresa = escapeHtml(budget.cliente?.empresa || 'CLIENTE');
+  const premissas = revision.premissas ? escapeHtml(revision.premissas) : '';
+  const exclusoes = revision.exclusoes ? escapeHtml(revision.exclusoes) : '';
+  const condicoesPagamento = revision.condicoes_pagamento ? escapeHtml(revision.condicoes_pagamento) : '';
+  const observacoes = revision.observacoes ? escapeHtml(revision.observacoes) : '';
 
   return `
 <!DOCTYPE html>
@@ -64,7 +108,7 @@ function generateProposalHTML(data: BudgetData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proposta Comercial - ${budget.budget_number}</title>
+  <title>Proposta Comercial - ${budgetNumber}</title>
   <style>
     * {
       margin: 0;
@@ -206,7 +250,7 @@ function generateProposalHTML(data: BudgetData): string {
     <div class="header">
       <div class="logo">CONCEPT</div>
       <div class="doc-info">
-        <div class="doc-number">${budget.budget_number}-R${revision.revision_number}</div>
+        <div class="doc-number">${budgetNumber}-R${revision.revision_number}</div>
         <div>Data: ${today}</div>
         <div>Validade: ${formatDate(revision.validade_proposta)}</div>
       </div>
@@ -217,11 +261,11 @@ function generateProposalHTML(data: BudgetData): string {
       <div class="info-grid">
         <div class="info-item">
           <span class="info-label">Razão Social</span>
-          <span class="info-value">${budget.cliente?.razao_social || budget.cliente?.empresa || '-'}</span>
+          <span class="info-value">${razaoSocial}</span>
         </div>
         <div class="info-item">
           <span class="info-label">CNPJ</span>
-          <span class="info-value">${budget.cliente?.cnpj || '-'}</span>
+          <span class="info-value">${cnpj}</span>
         </div>
       </div>
     </div>
@@ -231,11 +275,11 @@ function generateProposalHTML(data: BudgetData): string {
       <div class="info-grid">
         <div class="info-item">
           <span class="info-label">Obra</span>
-          <span class="info-value">${budget.obra_nome}</span>
+          <span class="info-value">${obraNome}</span>
         </div>
         <div class="info-item">
           <span class="info-label">Local</span>
-          <span class="info-value">${budget.local || '-'}</span>
+          <span class="info-value">${local}</span>
         </div>
         <div class="info-item">
           <span class="info-label">Prazo de Execução</span>
@@ -298,38 +342,38 @@ function generateProposalHTML(data: BudgetData): string {
       </table>
     </div>
 
-    ${revision.premissas ? `
+    ${premissas ? `
     <div class="section">
       <div class="section-title">PREMISSAS</div>
       <div class="conditions">
-        <p>${revision.premissas}</p>
+        <p>${premissas}</p>
       </div>
     </div>
     ` : ''}
 
-    ${revision.exclusoes ? `
+    ${exclusoes ? `
     <div class="section">
       <div class="section-title">EXCLUSÕES</div>
       <div class="conditions">
-        <p>${revision.exclusoes}</p>
+        <p>${exclusoes}</p>
       </div>
     </div>
     ` : ''}
 
-    ${revision.condicoes_pagamento ? `
+    ${condicoesPagamento ? `
     <div class="section">
       <div class="section-title">CONDIÇÕES DE PAGAMENTO</div>
       <div class="conditions">
-        <p>${revision.condicoes_pagamento}</p>
+        <p>${condicoesPagamento}</p>
       </div>
     </div>
     ` : ''}
 
-    ${revision.observacoes ? `
+    ${observacoes ? `
     <div class="section">
       <div class="section-title">OBSERVAÇÕES</div>
       <div class="conditions">
-        <p>${revision.observacoes}</p>
+        <p>${observacoes}</p>
       </div>
     </div>
     ` : ''}
@@ -340,7 +384,7 @@ function generateProposalHTML(data: BudgetData): string {
         <div style="font-size: 10px; color: #6b7280;">Contratada</div>
       </div>
       <div class="signature-line">
-        <div>${budget.cliente?.empresa || 'CLIENTE'}</div>
+        <div>${empresa}</div>
         <div style="font-size: 10px; color: #6b7280;">Contratante</div>
       </div>
     </div>
@@ -366,11 +410,31 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { revision_id, return_html } = await req.json();
-
-    if (!revision_id) {
+    // Parse and validate request body
+    let body: { revision_id?: unknown; return_html?: unknown };
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'revision_id is required' }),
+        JSON.stringify({ error: 'Dados de requisição inválidos' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { revision_id, return_html } = body;
+
+    // Validate revision_id
+    if (!revision_id || !isValidUUID(revision_id)) {
+      return new Response(
+        JSON.stringify({ error: 'ID da revisão inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate return_html if provided
+    if (return_html !== undefined && typeof return_html !== 'boolean') {
+      return new Response(
+        JSON.stringify({ error: 'Parâmetro return_html inválido' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -393,7 +457,7 @@ Deno.serve(async (req) => {
     if (revisionError || !revision) {
       console.error('Revision error:', revisionError);
       return new Response(
-        JSON.stringify({ error: 'Revision not found' }),
+        JSON.stringify({ error: 'Revisão não encontrada' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -408,7 +472,7 @@ Deno.serve(async (req) => {
     if (summaryError || !summary) {
       console.error('Summary error:', summaryError);
       return new Response(
-        JSON.stringify({ error: 'Budget summary not found. Please recalculate the budget first.' }),
+        JSON.stringify({ error: 'Resumo do orçamento não encontrado. Recalcule o orçamento primeiro.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -456,9 +520,6 @@ Deno.serve(async (req) => {
     }
 
     // For PDF: we'll return HTML that can be printed as PDF client-side
-    // Real PDF generation would require a service like Puppeteer, but that's complex in Edge Functions
-    // Alternative: return HTML and let client print-to-PDF or use a PDF service
-    
     const fileName = `${revision.budget.budget_number}-R${revision.revision_number}.html`;
 
     // Get user from auth header
@@ -492,16 +553,15 @@ Deno.serve(async (req) => {
         success: true, 
         html,
         fileName,
-        message: 'HTML generated. Use browser print function to save as PDF.'
+        message: 'HTML gerado. Use a função de impressão do navegador para salvar como PDF.'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
     console.error('Error generating PDF:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: sanitizeErrorMessage(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
