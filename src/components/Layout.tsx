@@ -30,6 +30,7 @@ interface LayoutProps {
 const routeToArea: Record<string, NavigationArea> = {
   // Home
   '/': 'home',
+  '/home': 'home',
   // Recursos
   '/collaborators': 'recursos',
   '/recursos/custos': 'recursos',
@@ -86,7 +87,7 @@ export default function Layout({ children }: LayoutProps) {
     setActiveArea(area);
     // Navigate to first route of each area
     const firstRoutes: Record<NavigationArea, string> = {
-      home: '/',
+      home: '/home',
       recursos: '/collaborators',
       projetos: '/projetos',
       orcamentos: '/orcamentos',

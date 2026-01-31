@@ -19,6 +19,7 @@ interface ProjetoResumo {
   horas_previstas: number | null;
   horas_totais: number | null;
   desvio_horas_pct: number | null;
+  custo_total?: number | null;
 }
 
 interface ProjetosCardProps {
@@ -91,116 +92,92 @@ export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardPr
     );
   }
 
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '-';
+    if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+    return `R$ ${value.toFixed(0)}`;
+  };
+
+  const getMargemIndicator = (margem: number | null) => {
+    if (margem === null) return { emoji: '⚪', color: 'text-muted-foreground' };
+    if (margem >= 15) return { emoji: '🟢', color: 'text-emerald-500' };
+    if (margem >= 5) return { emoji: '🟡', color: 'text-amber-500' };
+    return { emoji: '🔴', color: 'text-destructive' };
+  };
+
   return (
-    <Card className="col-span-1">
+    <Card className="lg:col-span-3">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <FolderKanban className="h-5 w-5" />
-          Projetos
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Contadores */}
-        <div className="grid grid-cols-4 gap-2">
-          <div className="bg-muted/50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold">{contadores.ativos}</div>
-            <div className="text-xs text-muted-foreground">Ativos</div>
-          </div>
-          <div className="bg-emerald-500/10 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-emerald-500">{contadores.emDia}</div>
-            <div className="text-xs text-muted-foreground">Em Dia</div>
-          </div>
-          <div className="bg-amber-500/10 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-amber-500">{contadores.emAlerta}</div>
-            <div className="text-xs text-muted-foreground">Alerta</div>
-          </div>
-          <div className="bg-destructive/10 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-destructive">{contadores.critico}</div>
-            <div className="text-xs text-muted-foreground">Crítico</div>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FolderKanban className="h-5 w-5" />
+            Projetos Ativos
+          </CardTitle>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{contadores.ativos} ativos</span>
+            <span className="text-emerald-500">• {contadores.emDia} ok</span>
+            <span className="text-amber-500">• {contadores.emAlerta} alerta</span>
+            <span className="text-destructive">• {contadores.critico} crítico</span>
           </div>
         </div>
-
-        {/* Mini-tabela */}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Tabela simplificada */}
         {projetos.length > 0 ? (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
-              <TableRow>
-                  <TableHead className="w-[180px]">Projeto</TableHead>
-                  <TableHead className="w-[100px]">Cliente</TableHead>
-                  <TableHead className="w-[100px]">Progresso</TableHead>
+                <TableRow>
+                  <TableHead className="w-[220px]">Projeto</TableHead>
+                  <TableHead className="w-[140px]">Horas</TableHead>
+                  <TableHead className="w-[100px] text-right">Custo</TableHead>
                   <TableHead className="w-[80px] text-right">Margem</TableHead>
-                  <TableHead className="w-[80px] text-right">Horas</TableHead>
-                  <TableHead className="w-[60px] text-right">Prazo</TableHead>
-                  <TableHead className="w-[50px] text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {projetos.map((projeto) => {
-                  const StatusIcon = statusIcons[projeto.status_visual];
+                  const margemInfo = getMargemIndicator(projeto.margem_competencia_pct);
+                  const horasExec = Math.round(Number(projeto.horas_totais) || 0);
+                  const horasPrev = projeto.horas_previstas || 0;
+                  const horasProgress = horasPrev > 0 ? Math.min(100, (horasExec / horasPrev) * 100) : 0;
+                  
                   return (
                     <TableRow 
                       key={projeto.projeto_id}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/rentabilidade/${projeto.projeto_id}`)}
                     >
-                      <TableCell className="font-medium">
-                        <div className="truncate max-w-[160px]" title={projeto.projeto_nome}>
+                      <TableCell>
+                        <div className="font-medium truncate max-w-[200px]" title={projeto.projeto_nome}>
+                          <span className="text-muted-foreground">{projeto.projeto_os}</span>
+                          {' - '}
                           {projeto.projeto_nome}
                         </div>
-                        <div className="text-xs text-muted-foreground">{projeto.projeto_os}</div>
                       </TableCell>
                       <TableCell>
-                        <div className="truncate max-w-[100px]" title={projeto.cliente_nome}>
-                          {projeto.cliente_nome || '-'}
+                        <div className="flex items-center gap-2">
+                          <Progress value={horasProgress} className="h-2 flex-1 max-w-[60px]" />
+                          <span className={cn(
+                            "text-xs font-medium whitespace-nowrap",
+                            horasProgress > 100 ? "text-destructive" :
+                            horasProgress > 80 ? "text-amber-500" :
+                            "text-muted-foreground"
+                          )}>
+                            {horasExec}/{horasPrev}h
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {projeto.progresso !== null ? (
-                          <div className="flex items-center gap-2">
-                            <Progress value={projeto.progresso} className="h-2 flex-1" />
-                            <span className="text-xs text-muted-foreground w-8">
-                              {Math.round(projeto.progresso)}%
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Progress value={0} className="h-2 flex-1 opacity-30" />
-                            <span className="text-xs text-muted-foreground w-8">-</span>
-                          </div>
-                        )}
-                      </TableCell>
                       <TableCell className="text-right">
-                        <span className={cn("font-medium", getMargemColor(projeto.margem_competencia_pct))}>
-                          {projeto.margem_competencia_pct !== null 
-                            ? `${projeto.margem_competencia_pct.toFixed(1)}%` 
-                            : '-'}
+                        <span className="text-sm font-medium">
+                          {formatCurrency(projeto.custo_total)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {projeto.horas_previstas ? (
-                          <span className={cn(
-                            "text-xs font-medium",
-                            Number(projeto.desvio_horas_pct) > 20 ? "text-destructive" :
-                            Number(projeto.desvio_horas_pct) > 0 ? "text-amber-500" :
-                            "text-emerald-500"
-                          )}>
-                            {Math.round(Number(projeto.horas_totais))}/{projeto.horas_previstas}h
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge 
-                          variant="outline"
-                          className={cn("text-xs font-medium", getPrazoBadgeClasses(projeto.dias_restantes))}
-                        >
-                          {formatPrazo(projeto.dias_restantes)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <StatusIcon className={cn("h-5 w-5 mx-auto", statusColors[projeto.status_visual])} />
+                        <span className={cn("font-medium", margemInfo.color)}>
+                          {margemInfo.emoji} {projeto.margem_competencia_pct !== null 
+                            ? `${projeto.margem_competencia_pct.toFixed(0)}%` 
+                            : '-'}
+                        </span>
                       </TableCell>
                     </TableRow>
                   );

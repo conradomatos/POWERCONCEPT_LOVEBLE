@@ -11,7 +11,6 @@ import {
   Upload,
   LayoutDashboard,
   DollarSign,
-  AlertTriangle,
   FileCheck,
   Calculator,
   Package,
@@ -28,6 +27,7 @@ import {
   Percent,
   ChevronDown,
   Shield,
+  Home,
 } from 'lucide-react';
 
 import {
@@ -61,7 +61,9 @@ type AreaConfig = {
 const areaNavItems: Record<NavigationArea, AreaConfig> = {
   home: {
     label: 'Home',
-    items: [],
+    items: [
+      { title: 'Home', url: '/home', icon: Home },
+    ],
   },
   recursos: {
     label: 'Recursos',
