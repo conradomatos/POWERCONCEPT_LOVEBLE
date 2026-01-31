@@ -45,8 +45,8 @@ import {
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
-import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval } from 'date-fns';
-import { getGanttPeriod, PeriodType } from '@/lib/gantt-utils';
+import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval, addDays } from 'date-fns';
+import { getGanttPeriod, PeriodType, groupConsecutiveDates } from '@/lib/gantt-utils';
 
 interface Block {
   id: string;
@@ -481,61 +481,94 @@ export default function Planejamento() {
 
       // For each group, create or expand realizado block
       for (const [, group] of groupedMap) {
-        const sortedDates = group.dates.sort();
-        const minDate = sortedDates[0];
-        const maxDate = sortedDates[sortedDates.length - 1];
-
-        // Check for existing realizado block
-        const { data: existingBlocks } = await supabase
-          .from('alocacoes_blocos')
-          .select('id, data_inicio, data_fim')
-          .eq('colaborador_id', group.colaborador_id)
-          .eq('projeto_id', group.projeto_id)
-          .eq('tipo', 'realizado')
-          .lte('data_inicio', maxDate)
-          .gte('data_fim', minDate);
-
-        if (existingBlocks && existingBlocks.length > 0) {
-          // Expand to cover all dates
-          const allDates = [...sortedDates];
-          existingBlocks.forEach(block => {
-            allDates.push(block.data_inicio, block.data_fim);
-          });
-          allDates.sort();
-          const newMinDate = allDates[0];
-          const newMaxDate = allDates[allDates.length - 1];
-
-          await supabase
+        // Deduplicate and sort dates
+        const sortedDates = [...new Set(group.dates)].sort();
+        
+        // Separate into consecutive date groups
+        const dateGroups = groupConsecutiveDates(sortedDates);
+        
+        // For EACH consecutive date group
+        for (const consecutiveDates of dateGroups) {
+          const minDate = consecutiveDates[0];
+          const maxDate = consecutiveDates[consecutiveDates.length - 1];
+          
+          // Search for blocks that overlap OR are adjacent (+/- 1 day)
+          const { data: existingBlocks, error: searchError } = await supabase
             .from('alocacoes_blocos')
-            .update({
-              data_inicio: newMinDate,
-              data_fim: newMaxDate,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existingBlocks[0].id);
-
-          // Delete other overlapping blocks
-          if (existingBlocks.length > 1) {
-            const idsToDelete = existingBlocks.slice(1).map(b => b.id);
-            await supabase
-              .from('alocacoes_blocos')
-              .delete()
-              .in('id', idsToDelete);
+            .select('id, data_inicio, data_fim')
+            .eq('colaborador_id', group.colaborador_id)
+            .eq('projeto_id', group.projeto_id)
+            .eq('tipo', 'realizado')
+            .lte('data_inicio', format(addDays(parseISO(maxDate), 1), 'yyyy-MM-dd'))
+            .gte('data_fim', format(addDays(parseISO(minDate), -1), 'yyyy-MM-dd'));
+          
+          if (searchError) {
+            console.error('Error searching blocks:', searchError);
+            continue;
           }
-          updated++;
-        } else {
-          // Create new realizado block
-          await supabase
-            .from('alocacoes_blocos')
-            .insert({
-              colaborador_id: group.colaborador_id,
-              projeto_id: group.projeto_id,
-              data_inicio: minDate,
-              data_fim: maxDate,
-              tipo: 'realizado',
-              observacao: 'Criado via puxar apontamentos',
+
+          // Check if dates are already fully covered by existing block
+          const isAlreadyCovered = existingBlocks?.some(block => 
+            minDate >= block.data_inicio && maxDate <= block.data_fim
+          );
+
+          if (isAlreadyCovered) {
+            // Already covered by existing block, skip
+            continue;
+          }
+
+          if (existingBlocks && existingBlocks.length > 0) {
+            // Expand existing block to cover all dates
+            const allDates = [...consecutiveDates];
+            existingBlocks.forEach(block => {
+              allDates.push(block.data_inicio, block.data_fim);
             });
-          created++;
+            allDates.sort();
+            const newMinDate = allDates[0];
+            const newMaxDate = allDates[allDates.length - 1];
+
+            const { error: updateError } = await supabase
+              .from('alocacoes_blocos')
+              .update({
+                data_inicio: newMinDate,
+                data_fim: newMaxDate,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingBlocks[0].id);
+            
+            if (updateError) {
+              console.error('Error updating block:', updateError);
+            } else {
+              updated++;
+            }
+
+            // Delete duplicate overlapping blocks
+            if (existingBlocks.length > 1) {
+              const idsToDelete = existingBlocks.slice(1).map(b => b.id);
+              await supabase
+                .from('alocacoes_blocos')
+                .delete()
+                .in('id', idsToDelete);
+            }
+          } else {
+            // Create new realizado block
+            const { error: insertError } = await supabase
+              .from('alocacoes_blocos')
+              .insert({
+                colaborador_id: group.colaborador_id,
+                projeto_id: group.projeto_id,
+                data_inicio: minDate,
+                data_fim: maxDate,
+                tipo: 'realizado',
+                observacao: 'Criado via puxar apontamentos',
+              });
+            
+            if (insertError) {
+              console.error('Error creating block:', insertError);
+            } else {
+              created++;
+            }
+          }
         }
       }
 

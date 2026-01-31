@@ -110,6 +110,37 @@ export function isWithinEmployment(
   return true;
 }
 
+/**
+ * Groups an array of sorted date strings into clusters of consecutive dates.
+ * Consecutive means difference of exactly 1 day between dates.
+ * 
+ * @example
+ * Input: ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-15", "2026-01-29", "2026-01-30"]
+ * Output: [["2026-01-05", "2026-01-06", "2026-01-07"], ["2026-01-15"], ["2026-01-29", "2026-01-30"]]
+ */
+export function groupConsecutiveDates(sortedDates: string[]): string[][] {
+  if (sortedDates.length === 0) return [];
+  
+  const groups: string[][] = [];
+  let currentGroup: string[] = [sortedDates[0]];
+  
+  for (let i = 1; i < sortedDates.length; i++) {
+    const prevDate = parseISO(sortedDates[i - 1]);
+    const currDate = parseISO(sortedDates[i]);
+    const diff = differenceInDays(currDate, prevDate);
+    
+    if (diff === 1) {
+      currentGroup.push(sortedDates[i]);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [sortedDates[i]];
+    }
+  }
+  groups.push(currentGroup);
+  
+  return groups;
+}
+
 // Stacked blocks for multiple projects on same day
 export interface Block {
   id: string;
