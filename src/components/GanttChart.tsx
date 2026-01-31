@@ -67,6 +67,9 @@ export default function GanttChart({
   } | null>(null);
 
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  
+  // Flag to prevent click event immediately after drag/resize
+  const [justFinishedDrag, setJustFinishedDrag] = useState(false);
 
   const allProjectIds = useMemo(() => {
     return [...new Set(blocks.map((b) => b.projeto_id))];
@@ -138,6 +141,9 @@ export default function GanttChart({
 
     const { type, colaboradorId, blockId, startDayIndex, currentDayIndex, originalStart, originalEnd } = dragState;
     
+    // Check if there was actual movement (drag/resize)
+    const hasMoved = startDayIndex !== currentDayIndex;
+    
     if (type === 'create') {
       const minIndex = Math.min(startDayIndex, currentDayIndex);
       const maxIndex = Math.max(startDayIndex, currentDayIndex);
@@ -161,6 +167,12 @@ export default function GanttChart({
       if (newEnd >= originalStart) {
         onResizeBlock(blockId, originalStart, newEnd);
       }
+    }
+
+    // If there was movement (drag/resize on existing block), set flag to prevent immediate click
+    if (hasMoved && type !== 'create') {
+      setJustFinishedDrag(true);
+      setTimeout(() => setJustFinishedDrag(false), 300);
     }
 
     setDragState(null);
@@ -431,7 +443,8 @@ export default function GanttChart({
                                   handleBlockMouseDown(e, block, 'move', row);
                                 }}
                                 onClick={(e) => {
-                                  if (!dragState) {
+                                  // Only open modal if not in drag state AND not just finished a drag
+                                  if (!dragState && !justFinishedDrag) {
                                     e.stopPropagation();
                                     onEditBlock(block);
                                   }
