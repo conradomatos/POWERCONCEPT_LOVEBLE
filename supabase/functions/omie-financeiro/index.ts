@@ -9,8 +9,12 @@ const corsHeaders = {
 const OMIE_FINANCAS_URL = "https://app.omie.com.br/api/v1/financas/contareceber/";
 const OMIE_CONTAS_PAGAR_URL = "https://app.omie.com.br/api/v1/financas/contapagar/";
 
+// Valid sync types
+const VALID_TIPOS = ['CONTAS_RECEBER', 'CONTAS_PAGAR', 'TODOS'] as const;
+type SyncTipo = typeof VALID_TIPOS[number];
+
 interface SyncRequest {
-  tipo: 'CONTAS_RECEBER' | 'CONTAS_PAGAR' | 'TODOS';
+  tipo: SyncTipo;
   data_inicio?: string;
   data_fim?: string;
   apenas_modificados?: boolean;
@@ -82,6 +86,35 @@ interface OmieContaPagar {
   };
 }
 
+// Input validation helpers
+function isValidTipo(tipo: unknown): tipo is SyncTipo {
+  return typeof tipo === 'string' && VALID_TIPOS.includes(tipo as SyncTipo);
+}
+
+function isValidDate(dateStr: unknown): boolean {
+  if (typeof dateStr !== 'string') return false;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateStr)) return false;
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+}
+
+function sanitizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+      return 'Tempo limite excedido ao conectar com Omie';
+    }
+    if (msg.includes('network') || msg.includes('fetch')) {
+      return 'Erro de conexão com API Omie';
+    }
+    if (msg.includes('json')) {
+      return 'Resposta inválida da API Omie';
+    }
+  }
+  return 'Erro ao processar sincronização';
+}
+
 function mapOmieStatus(status: string): 'ABERTO' | 'PAGO' | 'ATRASADO' | 'CANCELADO' | 'PARCIAL' {
   const statusLower = status?.toLowerCase() || '';
   if (statusLower.includes('liquid') || statusLower.includes('pago') || statusLower.includes('receb')) {
@@ -130,10 +163,42 @@ serve(async (req) => {
       );
     }
 
-    const body: SyncRequest = await req.json();
-    console.log("Sync request:", JSON.stringify(body, null, 2));
+    // Parse and validate request body
+    let body: SyncRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Dados de requisição inválidos" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const { tipo = 'TODOS' } = body;
+    console.log("Sync request type:", body.tipo);
+
+    // Validate tipo
+    const tipo = body.tipo || 'TODOS';
+    if (!isValidTipo(tipo)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Tipo de sincronização inválido" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate date fields if provided
+    if (body.data_inicio && !isValidDate(body.data_inicio)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Data de início inválida" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (body.data_fim && !isValidDate(body.data_fim)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Data de fim inválida" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Create sync log entry
     const { data: syncLog, error: syncLogError } = await supabase
@@ -199,7 +264,7 @@ serve(async (req) => {
         const data: OmiePaginatedResponse = await response.json();
 
         if (data.faultstring) {
-          errors.push(`AR Error: ${data.faultstring}`);
+          errors.push("Erro ao buscar contas a receber");
           console.error("AR API Error:", data.faultstring);
           break;
         }
@@ -334,7 +399,7 @@ serve(async (req) => {
         const data: OmiePaginatedResponse = await response.json();
 
         if (data.faultstring) {
-          errors.push(`AP Error: ${data.faultstring}`);
+          errors.push("Erro ao buscar contas a pagar");
           console.error("AP API Error:", data.faultstring);
           break;
         }
@@ -474,9 +539,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error in omie-financeiro function:", error);
-    const errorMessage = error instanceof Error ? error.message : "Erro interno ao processar requisição";
     return new Response(
-      JSON.stringify({ ok: false, error: errorMessage }),
+      JSON.stringify({ ok: false, error: sanitizeErrorMessage(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
