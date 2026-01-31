@@ -1929,6 +1929,7 @@ export type Database = {
           id: string
           phone: string | null
           position: string | null
+          regiao: Database["public"]["Enums"]["regiao_colaborador"] | null
           status: Database["public"]["Enums"]["employee_status"]
           termination_date: string | null
           updated_at: string
@@ -1948,6 +1949,7 @@ export type Database = {
           id?: string
           phone?: string | null
           position?: string | null
+          regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
           status?: Database["public"]["Enums"]["employee_status"]
           termination_date?: string | null
           updated_at?: string
@@ -1967,6 +1969,7 @@ export type Database = {
           id?: string
           phone?: string | null
           position?: string | null
+          regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
           status?: Database["public"]["Enums"]["employee_status"]
           termination_date?: string | null
           updated_at?: string
@@ -4622,6 +4625,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          regiao: Database["public"]["Enums"]["regiao_colaborador"] | null
           updated_at: string
           user_id: string
         }
@@ -4631,6 +4635,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
           updated_at?: string
           user_id: string
         }
@@ -4640,6 +4645,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
           updated_at?: string
           user_id?: string
         }
@@ -5800,6 +5806,7 @@ export type Database = {
         | "APONTAMENTO_SEM_CUSTO"
         | "OUTRO"
       pricebook_type: "MATERIAIS" | "MO"
+      regiao_colaborador: "Campos Gerais" | "Paranaguá"
       revision_status: "DRAFT" | "SENT" | "APPROVED" | "REJECTED" | "CANCELED"
       status_projeto: "ATIVO" | "CONCLUIDO" | "SUSPENSO" | "CANCELADO"
       supply_type: "CONCEPT" | "CLIENTE" | "TERCEIRO" | "A_DEFINIR"
@@ -5987,6 +5994,7 @@ export const Constants = {
         "OUTRO",
       ],
       pricebook_type: ["MATERIAIS", "MO"],
+      regiao_colaborador: ["Campos Gerais", "Paranaguá"],
       revision_status: ["DRAFT", "SENT", "APPROVED", "REJECTED", "CANCELED"],
       status_projeto: ["ATIVO", "CONCLUIDO", "SUSPENSO", "CANCELADO"],
       supply_type: ["CONCEPT", "CLIENTE", "TERCEIRO", "A_DEFINIR"],
