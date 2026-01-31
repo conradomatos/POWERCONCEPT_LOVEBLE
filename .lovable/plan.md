@@ -1,129 +1,179 @@
 
 
-# Correcao: Remover Restricoes de Status no Apontamento
+# Integracao: Apontamentos Diarios na View Consolidada e Gantt
 
 ## Problema Identificado
 
-O salvamento de apontamentos esta falhando devido a restricoes no banco de dados que bloqueiam edicoes quando o `apontamento_dia` tem status diferente de `'RASCUNHO'`.
+Os apontamentos lancados no modulo "Apontamento Diario" (salvos em `apontamento_dia` + `apontamento_item`) nao aparecem em:
 
-### Componentes Bloqueadores Encontrados
+1. **Tela Apontamentos** - le da view `vw_apontamentos_consolidado` que nao inclui dados de `apontamento_item`
+2. **Tela Planejamento Gantt** - botao "Puxar Apontamentos" le de `apontamentos_horas_dia` (tem apenas 1 registro)
 
-| Componente | Tipo | Restricao |
-|------------|------|-----------|
-| `trg_validar_limite_rateio_apontamento_item` | Trigger | Bloqueia INSERT/UPDATE se `status != 'RASCUNHO'` |
-| `apontamento_item_insert` | RLS Policy | Requer `status = 'RASCUNHO'` |
-| `apontamento_item_update` | RLS Policy | Requer `status = 'RASCUNHO'` para usuario comum |
-| `apontamento_item_delete` | RLS Policy | Requer `status = 'RASCUNHO'` para usuario comum |
+### Dados Encontrados
 
-### Dados Afetados
-
-- 1 registro com `status = 'ENVIADO'`
-- 1 registro com `status = 'APROVADO'`
-- 6 registros com `status = 'RASCUNHO'` (funcionam normalmente)
+| Tabela | Registros |
+|--------|-----------|
+| `apontamento_item` | 6 registros com horas > 0 |
+| `apontamentos_horas_dia` | 1 registro (quase vazia) |
+| `apontamentos_consolidado` | Dados de importacao/manual antigos |
 
 ---
 
-## Solucao: Migration SQL
+## Solucao em 2 Partes
 
-A migration devera:
+### Parte 1: Atualizar View `vw_apontamentos_consolidado`
 
-1. **Remover o trigger** que bloqueia edicao por status
-2. **Recriar a funcao** de validacao sem a checagem de status
-3. **Atualizar RLS policies** para permitir edicao independente do status
-4. **Normalizar dados** existentes para `'RASCUNHO'`
-
-### Detalhes da Migration
+Adicionar um terceiro UNION ALL para incluir dados de `apontamento_item`:
 
 ```sql
--- 1. Dropar trigger existente
-DROP TRIGGER IF EXISTS trg_validar_limite_rateio_apontamento_item 
-  ON apontamento_item;
+DROP VIEW IF EXISTS public.vw_apontamentos_consolidado;
 
--- 2. Recriar funcao SEM validacao de status
---    (manter apenas validacao de limite de horas se necessario)
-CREATE OR REPLACE FUNCTION validar_limite_rateio_apontamento_item()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $function$
-declare
-  v_dia_id uuid;
-begin
-  v_dia_id := new.apontamento_dia_id;
-  
-  -- Apenas validar que horas >= 0 (ja tem constraint)
-  -- Remover toda logica de status e base do dia
-  
-  return new;
-end $function$;
+CREATE VIEW public.vw_apontamentos_consolidado 
+WITH (security_invoker = true) AS
 
--- 3. Recriar trigger apenas para recalcular totais (opcional)
-CREATE TRIGGER trg_validar_limite_rateio_apontamento_item
-  BEFORE INSERT OR UPDATE ON apontamento_item
-  FOR EACH ROW EXECUTE FUNCTION validar_limite_rateio_apontamento_item();
+-- Part A: Apontamentos existentes (importados/manuais antigos)
+SELECT 
+  id, origem, arquivo_importacao_id, linha_arquivo, data_importacao,
+  usuario_lancamento, projeto_id, projeto_nome, os_numero, tarefa_id,
+  tarefa_nome, centro_custo, funcionario_id, cpf, nome_funcionario,
+  data_apontamento, horas, tipo_hora, descricao, observacao,
+  status_apontamento, status_integracao, motivo_erro, gantt_atualizado,
+  data_atualizacao_gantt, created_at, updated_at,
+  false AS is_pending
+FROM apontamentos_consolidado
 
--- 4. Atualizar RLS policies para apontamento_item
-DROP POLICY IF EXISTS "apontamento_item_insert" ON apontamento_item;
-DROP POLICY IF EXISTS "apontamento_item_update" ON apontamento_item;
-DROP POLICY IF EXISTS "apontamento_item_delete" ON apontamento_item;
+UNION ALL
 
--- Policies permissivas (sem restricao de status)
-CREATE POLICY "apontamento_item_insert" ON apontamento_item
-FOR INSERT TO authenticated
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM apontamento_dia ad
-    WHERE ad.id = apontamento_item.apontamento_dia_id
-    AND (
-      ad.created_by = auth.uid() 
-      OR has_role(auth.uid(), 'admin'::app_role) 
-      OR has_role(auth.uid(), 'super_admin'::app_role)
-    )
+-- Part B: Apontamentos do modulo diario (apontamento_dia + apontamento_item)
+SELECT 
+  ai.id,
+  'MANUAL'::apontamento_origem AS origem,
+  NULL::uuid AS arquivo_importacao_id,
+  NULL::integer AS linha_arquivo,
+  NULL::timestamp with time zone AS data_importacao,
+  ad.created_by AS usuario_lancamento,
+  ai.projeto_id,
+  p.nome AS projeto_nome,
+  p.os AS os_numero,
+  ai.atividade_id AS tarefa_id,
+  NULL::text AS tarefa_nome,
+  NULL::text AS centro_custo,
+  ad.colaborador_id AS funcionario_id,
+  c.cpf,
+  c.full_name AS nome_funcionario,
+  ad.data AS data_apontamento,
+  ai.horas,
+  ai.tipo_hora,
+  ai.descricao,
+  ad.observacao,
+  'LANCADO'::apontamento_status AS status_apontamento,
+  'OK'::integracao_status AS status_integracao,
+  NULL::text AS motivo_erro,
+  false AS gantt_atualizado,
+  NULL::timestamp with time zone AS data_atualizacao_gantt,
+  ai.created_at,
+  ai.updated_at,
+  false AS is_pending
+FROM apontamento_item ai
+JOIN apontamento_dia ad ON ad.id = ai.apontamento_dia_id
+JOIN collaborators c ON c.id = ad.colaborador_id
+JOIN projetos p ON p.id = ai.projeto_id
+WHERE ai.horas > 0
+
+UNION ALL
+
+-- Part C: Expectativas pendentes (alocacoes planejadas sem apontamento)
+SELECT 
+  ab.id,
+  'SISTEMA'::apontamento_origem AS origem,
+  NULL::uuid AS arquivo_importacao_id,
+  NULL::integer AS linha_arquivo,
+  NULL::timestamp with time zone AS data_importacao,
+  NULL::uuid AS usuario_lancamento,
+  ab.projeto_id,
+  p.nome AS projeto_nome,
+  p.os AS os_numero,
+  NULL::uuid AS tarefa_id,
+  NULL::text AS tarefa_nome,
+  NULL::text AS centro_custo,
+  ab.colaborador_id AS funcionario_id,
+  c.cpf,
+  c.full_name AS nome_funcionario,
+  d.date_val AS data_apontamento,
+  0::numeric AS horas,
+  'NORMAL'::tipo_hora AS tipo_hora,
+  NULL::text AS descricao,
+  ab.observacao,
+  'NAO_LANCADO'::apontamento_status AS status_apontamento,
+  'PENDENTE'::integracao_status AS status_integracao,
+  NULL::text AS motivo_erro,
+  false AS gantt_atualizado,
+  NULL::timestamp with time zone AS data_atualizacao_gantt,
+  ab.created_at,
+  ab.updated_at,
+  true AS is_pending
+FROM alocacoes_blocos ab
+CROSS JOIN LATERAL (
+  SELECT generate_series(ab.data_inicio::timestamp, ab.data_fim::timestamp, '1 day'::interval)::date AS date_val
+) d
+JOIN collaborators c ON c.id = ab.colaborador_id
+JOIN projetos p ON p.id = ab.projeto_id
+WHERE ab.tipo = 'planejado'
+  -- Excluir dias que ja tem apontamento em apontamentos_consolidado
+  AND NOT EXISTS (
+    SELECT 1 FROM apontamentos_consolidado ac
+    WHERE ac.funcionario_id = ab.colaborador_id
+      AND ac.projeto_id = ab.projeto_id
+      AND ac.data_apontamento = d.date_val
   )
-);
+  -- Excluir dias que ja tem apontamento em apontamento_item
+  AND NOT EXISTS (
+    SELECT 1 FROM apontamento_item ai2
+    JOIN apontamento_dia ad2 ON ad2.id = ai2.apontamento_dia_id
+    WHERE ad2.colaborador_id = ab.colaborador_id
+      AND ai2.projeto_id = ab.projeto_id
+      AND ad2.data = d.date_val
+      AND ai2.horas > 0
+  );
 
-CREATE POLICY "apontamento_item_update" ON apontamento_item
-FOR UPDATE TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM apontamento_dia ad
-    WHERE ad.id = apontamento_item.apontamento_dia_id
-    AND (
-      ad.created_by = auth.uid() 
-      OR has_role(auth.uid(), 'admin'::app_role) 
-      OR has_role(auth.uid(), 'super_admin'::app_role)
+GRANT SELECT ON public.vw_apontamentos_consolidado TO authenticated;
+```
+
+### Parte 2: Atualizar `handlePullApontamentos` em Planejamento.tsx
+
+Mudar a query de `apontamentos_horas_dia` para ler de `apontamento_item`:
+
+```typescript
+// Linha 438-443 atual:
+const { data: apontamentos, error: aptError } = await supabase
+  .from('apontamentos_horas_dia')
+  .select('colaborador_id, projeto_id, data')
+  ...
+
+// Mudar para:
+const { data: rawApontamentos, error: aptError } = await supabase
+  .from('apontamento_item')
+  .select(`
+    id,
+    projeto_id,
+    horas,
+    apontamento_dia!inner (
+      colaborador_id,
+      data
     )
-  )
-);
+  `)
+  .gt('horas', 0)
+  .gte('apontamento_dia.data', format(period.start, 'yyyy-MM-dd'))
+  .lte('apontamento_dia.data', format(period.end, 'yyyy-MM-dd'));
 
-CREATE POLICY "apontamento_item_delete" ON apontamento_item
-FOR DELETE TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM apontamento_dia ad
-    WHERE ad.id = apontamento_item.apontamento_dia_id
-    AND (
-      ad.created_by = auth.uid() 
-      OR has_role(auth.uid(), 'admin'::app_role) 
-      OR has_role(auth.uid(), 'super_admin'::app_role)
-    )
-  )
-);
+if (aptError) throw aptError;
 
--- 5. Atualizar RLS para apontamento_dia (UPDATE)
-DROP POLICY IF EXISTS "apontamento_dia_update" ON apontamento_dia;
-
-CREATE POLICY "apontamento_dia_update" ON apontamento_dia
-FOR UPDATE TO authenticated
-USING (
-  created_by = auth.uid() 
-  OR has_role(auth.uid(), 'admin'::app_role) 
-  OR has_role(auth.uid(), 'super_admin'::app_role)
-);
-
--- 6. Normalizar dados existentes
-UPDATE apontamento_dia 
-SET status = 'RASCUNHO' 
-WHERE status IN ('ENVIADO', 'APROVADO');
+// Transformar para formato esperado
+const apontamentos = (rawApontamentos || []).map(item => ({
+  colaborador_id: item.apontamento_dia.colaborador_id,
+  projeto_id: item.projeto_id,
+  data: item.apontamento_dia.data,
+}));
 ```
 
 ---
@@ -132,31 +182,23 @@ WHERE status IN ('ENVIADO', 'APROVADO');
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| **Supabase Migration** | Nova migration SQL com as alteracoes acima |
-| `src/hooks/useApontamentoSimplificado.ts` | Nenhuma alteracao necessaria (codigo ja esta correto) |
+| **Supabase Migration** | Recriar view `vw_apontamentos_consolidado` com 3 UNIONs |
+| `src/pages/Planejamento.tsx` | Alterar query na funcao `handlePullApontamentos` (linhas 438-464) |
 
 ---
 
-## Testes Apos Aplicar Migration
+## Resultado Esperado
 
-| Cenario | Resultado Esperado |
-|---------|-------------------|
-| Adicionar projeto a dia novo | Sucesso |
-| Adicionar projeto a dia existente (antigo status ENVIADO) | Sucesso |
-| Editar horas de item existente | Sucesso |
-| Excluir item existente | Sucesso |
-| Adicionar 2+ projetos e salvar | Todos persistem |
+| Tela | Comportamento Apos Correcao |
+|------|----------------------------|
+| Apontamentos | Mostra lancamentos do modulo diario com origem="MANUAL", status="LANCADO" |
+| Planejamento Gantt | Botao "Puxar Apontamentos" cria blocos verdes baseados em `apontamento_item` |
 
 ---
 
-## Resumo Executivo
+## Testes
 
-**Problema:** Trigger e RLS policies bloqueiam edicao quando `status != 'RASCUNHO'`
-
-**Solucao:** 
-1. Remover/simplificar trigger de validacao
-2. Recriar policies sem restricao de status
-3. Normalizar dados existentes
-
-**Impacto:** Zero alteracoes no codigo frontend. Apenas migration no banco de dados.
+1. Lancar horas no Apontamento Diario (colaborador X, projeto Y, 4 horas)
+2. Ir em Apontamentos → Verificar linha com origem "MANUAL", status "LANCADO", 4h
+3. Ir em Planejamento Gantt → Clicar "Puxar Apontamentos" → Barra verde criada para colaborador X
 
