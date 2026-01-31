@@ -1,4 +1,4 @@
-import { addDays, differenceInDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isSameDay } from 'date-fns';
+import { addDays, differenceInDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export type PeriodType = 'week' | 'fortnight' | 'month';
@@ -108,4 +108,77 @@ export function isWithinEmployment(
   if (date < hireDate) return false;
   if (terminationDate && date > terminationDate) return false;
   return true;
+}
+
+// Stacked blocks for multiple projects on same day
+export interface Block {
+  id: string;
+  colaborador_id: string;
+  projeto_id: string;
+  projeto_nome: string;
+  projeto_os: string;
+  empresa_nome: string;
+  data_inicio: string;
+  data_fim: string;
+  observacao?: string | null;
+  tipo: 'planejado' | 'realizado';
+}
+
+export interface StackedBlock extends Block {
+  stackIndex: number;
+  stackTotal: number;
+}
+
+export function calculateStackedBlocks(
+  blocks: Block[],
+  colaboradorId: string,
+  periodDays: Date[]
+): StackedBlock[] {
+  const colBlocks = blocks.filter(b => b.colaborador_id === colaboradorId);
+  
+  if (colBlocks.length === 0) return [];
+  
+  // For each day, find which blocks are active
+  const dayBlocksMap = new Map<string, Block[]>();
+  
+  for (const day of periodDays) {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const activeBlocks = colBlocks.filter(block => {
+      const start = parseISO(block.data_inicio);
+      const end = parseISO(block.data_fim);
+      return day >= start && day <= end;
+    });
+    if (activeBlocks.length > 0) {
+      dayBlocksMap.set(dayStr, activeBlocks);
+    }
+  }
+  
+  // Assign consistent stackIndex for each block
+  const blockStackInfo = new Map<string, { index: number; total: number }>();
+  
+  for (const [, dayBlocks] of dayBlocksMap) {
+    if (dayBlocks.length <= 1) continue;
+    
+    // Sort by projeto_id for consistency
+    const sorted = [...dayBlocks].sort((a, b) => 
+      a.projeto_id.localeCompare(b.projeto_id)
+    );
+    
+    sorted.forEach((block, idx) => {
+      const existing = blockStackInfo.get(block.id);
+      // Update if this day has more overlapping blocks
+      if (!existing || dayBlocks.length > existing.total) {
+        blockStackInfo.set(block.id, {
+          index: idx,
+          total: dayBlocks.length
+        });
+      }
+    });
+  }
+  
+  return colBlocks.map(block => ({
+    ...block,
+    stackIndex: blockStackInfo.get(block.id)?.index ?? 0,
+    stackTotal: blockStackInfo.get(block.id)?.total ?? 1,
+  }));
 }

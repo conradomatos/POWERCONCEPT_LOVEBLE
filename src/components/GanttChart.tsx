@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { format, isWeekend, isToday, parseISO, addDays, differenceInDays, isMonday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,9 @@ import {
   getBlockPosition,
   getProjectColor,
   GanttPeriod,
+  calculateStackedBlocks,
+  type Block,
+  type StackedBlock,
 } from '@/lib/gantt-utils';
 import {
   Tooltip,
@@ -20,19 +23,6 @@ import {
 } from '@/components/ui/context-menu';
 import { Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Block {
-  id: string;
-  colaborador_id: string;
-  projeto_id: string;
-  projeto_nome: string;
-  projeto_os: string;
-  empresa_nome: string;
-  data_inicio: string;
-  data_fim: string;
-  observacao?: string | null;
-  tipo: 'planejado' | 'realizado';
-}
 
 interface Collaborator {
   id: string;
@@ -300,17 +290,24 @@ export default function GanttChart({
           </div>
         ) : (
           collaborators.map((col) => {
-            const colBlocks = blocks.filter((b) => b.colaborador_id === col.id);
+            const colBlocks = calculateStackedBlocks(blocks, col.id, period.days);
             const previewPosition = dragState?.colaboradorId === col.id ? getPreviewPosition() : null;
             const isHovered = hoveredRow === col.id;
+            
+            // Calculate max stacks for dynamic row height
+            const maxStacks = colBlocks.length > 0 
+              ? Math.max(1, ...colBlocks.map(b => b.stackTotal))
+              : 1;
+            const rowHeight = 40 + (maxStacks - 1) * 28; // Base 40px + 28px per additional stack
 
             return (
               <div 
                 key={col.id} 
                 className={cn(
-                  'flex h-14 transition-colors',
+                  'flex transition-all',
                   isHovered && 'bg-accent/20'
                 )}
+                style={{ minHeight: `${rowHeight}px` }}
                 onMouseEnter={() => setHoveredRow(col.id)}
                 onMouseLeave={() => setHoveredRow(null)}
               >
@@ -327,6 +324,7 @@ export default function GanttChart({
                 {/* Timeline area */}
                 <div 
                   className="flex-1 relative"
+                  style={{ minHeight: `${rowHeight}px` }}
                   onMouseDown={(e) => handleMouseDown(e, col.id, e.currentTarget)}
                   onMouseMove={(e) => handleMouseMove(e, e.currentTarget)}
                 >
@@ -362,10 +360,12 @@ export default function GanttChart({
                   {/* Preview bar when creating */}
                   {previewPosition && dragState?.type === 'create' && (
                     <div
-                      className="absolute top-2 bottom-2 rounded-lg bg-primary/30 border-2 border-primary border-dashed z-20 pointer-events-none"
+                      className="absolute rounded-lg bg-primary/30 border-2 border-primary border-dashed z-20 pointer-events-none"
                       style={{
                         left: `${previewPosition.left}%`,
                         width: `${previewPosition.width}%`,
+                        top: '4px',
+                        height: `${rowHeight - 8}px`,
                       }}
                     />
                   )}
@@ -390,8 +390,13 @@ export default function GanttChart({
                     const isDragging = dragState?.blockId === block.id;
                     const duration = differenceInDays(blockEnd, blockStart) + 1;
                     const isLarge = duration > 3;
-                    const isMedium = duration > 1;
                     const isRealized = block.tipo === 'realizado';
+                    
+                    // Calculate stacked position
+                    const blockHeight = maxStacks > 1 
+                      ? (rowHeight - 8) / maxStacks 
+                      : rowHeight - 8;
+                    const blockTop = 4 + (block.stackIndex * blockHeight);
 
                     return (
                       <ContextMenu key={block.id}>
@@ -400,7 +405,7 @@ export default function GanttChart({
                             <TooltipTrigger asChild>
                               <div
                                 className={cn(
-                                  'absolute top-2 bottom-2 rounded-lg cursor-grab transition-all z-10 flex flex-col justify-center overflow-hidden group',
+                                  'absolute rounded-lg cursor-grab transition-all z-10 flex flex-col justify-center overflow-hidden group',
                                   'shadow-md hover:shadow-xl hover:scale-[1.02]',
                                   isDragging && 'opacity-80 cursor-grabbing shadow-xl scale-[1.02]',
                                   isRealized && 'border-2 border-dashed border-white/50'
@@ -408,6 +413,8 @@ export default function GanttChart({
                                 style={{
                                   left: `${position.left}%`,
                                   width: `${position.width}%`,
+                                  top: `${blockTop}px`,
+                                  height: `${blockHeight - 2}px`,
                                   backgroundColor: color,
                                   minWidth: '28px',
                                 }}
@@ -445,7 +452,7 @@ export default function GanttChart({
                                     <div className="text-white font-bold text-xs drop-shadow-sm truncate leading-tight">
                                       {block.projeto_os}
                                     </div>
-                                    {isLarge && (
+                                    {isLarge && blockHeight > 30 && (
                                       <div className="text-white/80 text-[10px] truncate leading-tight">
                                         {block.projeto_nome}
                                       </div>
