@@ -68,6 +68,49 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+
+    // Check for admin, financeiro, or super_admin role
+    const { data: roles } = await userClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId);
+
+    const hasPermission = roles?.some(r => 
+      r.role === 'admin' || r.role === 'financeiro' || r.role === 'super_admin'
+    );
+    if (!hasPermission) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Sem permissão para sincronizar dados Omie' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const OMIE_APP_KEY = Deno.env.get('OMIE_APP_KEY');
     const OMIE_APP_SECRET = Deno.env.get('OMIE_APP_SECRET');
 
