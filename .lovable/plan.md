@@ -1,132 +1,123 @@
 
-# Plano: Modulo Conciliacao Financeira (Fase 1)
+# Plano: Fase 2 - Motor de Conciliacao Financeira
 
 ## Resumo
 
-Criar a estrutura do modulo de Conciliacao Financeira: rota, menu, tipos TypeScript e pagina com UI de upload de 3 arquivos Excel/CSV. O parsing real dos arquivos funcionara via `xlsx` (ja instalado). A logica de conciliacao sera placeholder (toast informando Fase 2).
+Implementar o motor de conciliacao real que cruza extrato bancario (Sicredi), extrato Omie e fatura de cartao de credito. O motor executa matching em 4 camadas (A/B/C/D) com niveis de confianca decrescentes, classifica divergencias e atualiza os KPIs na pagina existente.
 
 ---
 
-## Arquivos a Criar
+## Arquivos a Criar (6 arquivos)
 
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/lib/conciliacao/types.ts` | Tipos TypeScript (interfaces para lancamentos, matches, divergencias, resultado) |
-| `src/pages/Conciliacao.tsx` | Pagina completa com header, 3 cards de upload, botao de acao e area de resultados |
+| `src/lib/conciliacao/categorias.ts` | Mapeamento de fornecedores para categorias do cartao |
+| `src/lib/conciliacao/utils.ts` | Funcoes utilitarias: normalizacao CNPJ/CPF, parsing de datas/valores, comparacao de nomes |
+| `src/lib/conciliacao/parsers.ts` | Parsers para Banco Sicredi (XLS), Omie (XLSX) e Cartao (CSV) usando `xlsx` |
+| `src/lib/conciliacao/matcher.ts` | Motor de matching em 4 camadas (A=exato, B=provavel, C=agrupamento, D=scoring) |
+| `src/lib/conciliacao/classifier.ts` | Classificador de divergencias (A-I) e deteccao de duplicidades |
+| `src/lib/conciliacao/engine.ts` | Orquestrador que executa o pipeline completo e retorna `ResultadoConciliacao` |
 
-## Arquivos a Modificar
+## Arquivos a Modificar (2 arquivos)
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/App.tsx` | Adicionar rota `/conciliacao` |
-| `src/components/AppSidebar.tsx` | Adicionar item "Conciliacao" na area `relatorios` com icone `ArrowLeftRight` |
-| `src/components/Layout.tsx` | Adicionar mapeamento `'/conciliacao': 'relatorios'` no `routeToArea` |
+| `src/lib/conciliacao/types.ts` | Substituir interfaces da Fase 1 pelas novas (com campos idx, dataStr, matchCamada, etc.) |
+| `src/pages/Conciliacao.tsx` | Integrar motor, estados de resultado/loading, KPIs reais, resumo de camadas |
 
 ---
 
-## Detalhes de Implementacao
+## Detalhes Tecnicos
 
-### 1. Tipos (`src/lib/conciliacao/types.ts`)
+### 1. `categorias.ts`
+- Objeto `CATEGORIAS_CONFIG` com mapeamento de palavras-chave de fornecedores para categorias contabeis
+- Funcao `suggestCategoria(descricao)` que faz match parcial case-insensitive
 
-Criar todas as interfaces conforme especificado:
-- `LancamentoBanco`, `LancamentoOmie`, `TransacaoCartao`, `CartaoInfo`
-- `Divergencia` com `TipoDivergencia`
-- `Match` com `TipoMatch`
-- `ResultadoConciliacao` com resumo
-- `CategoriaMap`
+### 2. `utils.ts`
+- `normalizeCnpjCpf`: remove caracteres nao-numericos
+- `formatCnpj`/`formatCpf`: formatacao para exibicao
+- `extractCnpjCpf`: extrai CNPJ/CPF de descricoes bancarias via regex
+- `extractNomeBanco`: limpa prefixos (PIX, TED, BOLETO) da descricao
+- `classifyBanco`: classifica tipo do lancamento (PIX_ENVIADO, BOLETO, FOLHA, etc.)
+- `nomeCompativel`/`nomeCompativelCartao`: comparacao fuzzy de nomes ignorando stop words
+- `formatBRL`, `daysDiff`, `parseDate`, `parseValorBRL`: utilitarios gerais
 
-### 2. Pagina (`src/pages/Conciliacao.tsx`)
+### 3. `parsers.ts`
+- `parseBanco(rows)`: Parser especifico para extrato Sicredi (dados a partir da linha 10, colunas A-E)
+- `parseOmie(rows)`: Parser para extrato Omie (cabecalho linha 2, dados a partir da linha 3, ~20 colunas)
+- `parseCartaoFromText(text)`: Parser para fatura CSV do cartao Sicredi (header + transacoes por titular)
+- `workbookToRows(file)`: Helper que converte File -> rows[][] via xlsx
+- `csvToText(file)`: Helper que le File como texto UTF-8
 
-**Estrutura:**
-- Wrapper `<Layout>` com autenticacao (mesmo padrao de Dashboard/Home)
-- Estado local para os 3 arquivos e dados parseados
+### 4. `matcher.ts`
+Pipeline de matching em camadas com confianca decrescente:
+- **Camada A** (ALTA): CNPJ identico + valor identico + data +-1 dia; ou observacoes Omie contendo descricao banco
+- **Camada B** (MEDIA): Valor + data +-3 dias + nome compativel; CNPJ + valor proximo (<5%)
+- **Camada C** (MEDIA): Agrupamento de multiplos lancamentos Omie que somam para 1 lancamento banco (mesmo CNPJ)
+- **Camada D** (BAIXA): Sistema de scoring (CNPJ=3pts, valor=3pts, data=2pts, nome=2pts) com threshold >= 4
+- **Fatura Cartao**: Match de DEB.CTA.FATURA no banco com transferencia no Omie
+- **Cartao x NF**: Cruzamento de transacoes do cartao contra conta "CARTAO DE CREDITO" no Omie
 
-**Zona 1 - Header:**
-- Titulo "Conciliacao Financeira"
-- Subtitulo explicativo
-- Badge com mes/ano de referencia (detectado do primeiro arquivo carregado, ou "--")
+### 5. `classifier.ts`
+Classificacao de divergencias apos matching:
+- **A**: Faltando no Omie (lancamento banco sem match)
+- **B**: A mais no Omie (lancamento Omie sem match)
+- **B***: Conta em atraso (Omie com situacao "Atrasado")
+- **C**: Valor divergente entre match banco/Omie
+- **D**: Data divergente (>3 dias) entre match
+- **E**: Duplicidade detectada no Omie
+- **G**: Previsto nao realizado (previsao atrasada)
+- **H**: Cartao coberto por NF (ja existe no Omie)
+- **I**: Cartao faltando no Omie (para importar)
 
-**Zona 2 - Upload (3 Cards em grid):**
+### 6. `engine.ts`
+Funcao `executarConciliacao(bancoFile, omieFile, cartaoFile?)` que:
+1. Parseia os 3 arquivos
+2. Separa Omie por conta corrente (CONCEPT_SICREDI vs CARTAO DE CREDITO)
+3. Executa matching em sequencia (A -> B -> C -> D -> FaturaCartao -> CartaoNF)
+4. Detecta duplicidades
+5. Classifica divergencias
+6. Calcula metricas e detecta mes/ano de referencia
+7. Retorna `ResultadoConciliacao`
 
-Cada card tera:
-- Header colorido (azul/verde/roxo) com icone
-- Area de drag & drop usando `onDragOver`/`onDrop` nativos + `<input type="file">`
-- Estado vazio: texto "Arraste ou clique para carregar"
-- Estado carregado: nome do arquivo, contagens parseadas, botao X para remover
-- Parsing real com `xlsx` (read workbook, extrair linhas, detectar periodo)
+### 7. `types.ts` (substituicao)
+Interfaces atualizadas com campos adicionais necessarios para o motor:
+- `LancamentoBanco`: adiciona `idx`, `dataStr`, `documento`, `matchType`, `matchCamada`, `matchOmieIdx`
+- `LancamentoOmie`: adiciona `idx`, `dataStr`, `contaCorrente`, `tipoDoc`, `notaFiscal`, `parcela`, `origem`, `projeto`, `razaoSocial`, `observacoes`, `matchBancoIdx`
+- `TransacaoCartao`: adiciona `dataStr`, `titular`, `cartao`, `isPagamentoFatura`, `isEstorno`, `matchedNf`, campos de match
+- `CartaoInfo`: campos de fatura (vencimento, valores, situacao)
+- `Match`: `camada` + `tipo` em vez de `confianca`/`detalhe`
+- `Divergencia`: campos flexiveis para diferentes tipos
+- `ResultadoConciliacao`: resultado completo com arrays, contagens por camada e metricas
 
-Detalhes por card:
-- **Extrato Bancario**: icone `Building2`, cor azul, aceita xlsx/xls/csv, mostra quantidade de lancamentos e periodo
-- **Extrato Omie**: icone `FileSpreadsheet`, cor verde, aceita xlsx/xls, mostra lancamentos e contas correntes encontradas
-- **Fatura Cartao**: icone `CreditCard`, cor roxa, aceita xlsx/xls/csv, mostra transacoes e valor total
-
-**Zona 3 - Acao + Resultados:**
-- Botao "Executar Conciliacao" desabilitado ate Banco + Omie carregados (Cartao opcional)
-- Ao clicar: toast "Processamento sera implementado na Fase 2"
-- Area de resultados com placeholder (4 KPI cards zerados + 3 botoes de download desabilitados)
-
-### 3. Rota (`src/App.tsx`)
-
-```typescript
-import Conciliacao from "./pages/Conciliacao";
-// Adicionar junto com rotas de relatorios:
-<Route path="/conciliacao" element={<Conciliacao />} />
-```
-
-### 4. Sidebar (`src/components/AppSidebar.tsx`)
-
-No `areaNavItems.relatorios.items`, apos "Custos & Margem":
-```typescript
-{ title: 'Conciliacao', url: '/conciliacao', icon: ArrowLeftRight }
-```
-Importar `ArrowLeftRight` do lucide-react.
-
-### 5. Layout (`src/components/Layout.tsx`)
-
-No `routeToArea`:
-```typescript
-'/conciliacao': 'relatorios',
-```
-
----
-
-## Logica de Parsing dos Arquivos
-
-O parsing usara a lib `xlsx` ja instalada:
-
-```typescript
-import * as XLSX from 'xlsx';
-
-// Ao receber arquivo via drop/input:
-const reader = new FileReader();
-reader.onload = (e) => {
-  const data = new Uint8Array(e.target.result);
-  const workbook = XLSX.read(data, { type: 'array' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
-  // Extrair contagens e periodo
-};
-```
-
-Para cada tipo de arquivo:
-- **Banco**: contar linhas, detectar mes/ano da coluna de data
-- **Omie**: contar linhas, extrair valores unicos da coluna "conta_corrente"
-- **Cartao**: contar linhas, somar coluna de valor
-
----
-
-## Responsividade
-
-- Cards de upload: `grid-cols-1 md:grid-cols-3`
-- KPI cards: `grid-cols-2 md:grid-cols-4`
-- Conteudo centralizado com `max-w-6xl mx-auto`
+### 8. `Conciliacao.tsx` (modificacoes)
+- Importar `executarConciliacao` e `ResultadoConciliacao`
+- Adicionar estados: `resultado` (ResultadoConciliacao | null), `processando` (boolean)
+- Substituir handler placeholder por chamada real ao motor
+- KPIs mostram dados reais: `resultado?.totalConciliados`, `totalDivergencias`, `contasAtraso`, `cartaoImportaveis`
+- Badge Ref atualizado com `resultado.mesLabel/anoLabel`
+- Botao com loading state (icone Loader2 animado)
+- Novo card "Resultado do Matching" com contagens por camada (A/B/C/D)
+- Botoes de download permanecem desabilitados (Fase 3)
+- Importar `Loader2` do lucide-react
 
 ---
 
 ## Ordem de Implementacao
 
-1. Criar `src/lib/conciliacao/types.ts`
-2. Criar `src/pages/Conciliacao.tsx`
-3. Modificar `src/App.tsx` (rota)
-4. Modificar `src/components/Layout.tsx` (routeToArea)
-5. Modificar `src/components/AppSidebar.tsx` (menu item)
+1. `src/lib/conciliacao/types.ts` (substituir)
+2. `src/lib/conciliacao/categorias.ts` (criar)
+3. `src/lib/conciliacao/utils.ts` (criar)
+4. `src/lib/conciliacao/parsers.ts` (criar)
+5. `src/lib/conciliacao/matcher.ts` (criar)
+6. `src/lib/conciliacao/classifier.ts` (criar)
+7. `src/lib/conciliacao/engine.ts` (criar)
+8. `src/pages/Conciliacao.tsx` (modificar)
+
+---
+
+## Nao incluso nesta fase
+
+- Geracao dos arquivos de download (Fase 3)
+- Tabelas no banco de dados
+- Edge Functions
