@@ -54,41 +54,85 @@ export function parseBanco(rows: any[][]): { lancamentos: LancamentoBanco[], sal
 // PARSER OMIE (XLSX)
 // ============================================================
 export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldoAnterior: number | null } {
+  // DETECT HEADER DYNAMICALLY
+  let headerRowIdx = -1;
+  let colMap: Record<string, number> = {};
+
+  for (let i = 0; i <= 5; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const rowStr = row.map((c: any) => String(c || '').toUpperCase()).join('|');
+    if (rowStr.includes('SITUAÇ') || rowStr.includes('SITUACAO') || (rowStr.includes('CLIENTE') && rowStr.includes('DATA'))) {
+      headerRowIdx = i;
+      for (let j = 0; j < row.length; j++) {
+        const cn = String(row[j] || '').toUpperCase().trim();
+        if (cn.includes('SITUAÇ') || cn === 'SITUACAO') colMap['situacao'] = j;
+        else if (cn === 'DATA' || cn.includes('DATA LANÇ') || cn.includes('DATA LANC')) colMap['data'] = j;
+        else if (cn.includes('CLIENTE') || cn.includes('FORNECEDOR')) colMap['cliente'] = j;
+        else if (cn.includes('CONTA CORRENTE') || cn === 'CONTA') colMap['conta'] = j;
+        else if (cn.includes('CATEGORIA')) colMap['categoria'] = j;
+        else if (cn === 'VALOR' || cn.includes('VALOR')) colMap['valor'] = j;
+        else if (cn.includes('SALDO')) colMap['saldo'] = j;
+        else if (cn.includes('TIPO DOC') || cn.includes('TIPO DE DOC')) colMap['tipoDoc'] = j;
+        else if (cn === 'DOCUMENTO' || cn === 'DOC') colMap['documento'] = j;
+        else if (cn.includes('NOTA FISCAL') || cn === 'NF') colMap['notaFiscal'] = j;
+        else if (cn.includes('PARCELA')) colMap['parcela'] = j;
+        else if (cn.includes('ORIGEM')) colMap['origem'] = j;
+        else if (cn.includes('PROJETO')) colMap['projeto'] = j;
+        else if (cn.includes('RAZÃO') || cn.includes('RAZAO')) colMap['razaoSocial'] = j;
+        else if (cn.includes('CNPJ') || cn.includes('CPF')) colMap['cnpjCpf'] = j;
+        else if (cn.includes('OBSERV')) colMap['observacoes'] = j;
+      }
+      break;
+    }
+  }
+
+  console.log('[parseOmie] Header na linha:', headerRowIdx, 'colMap:', JSON.stringify(colMap));
+
+  // FALLBACK to default indices
+  if (Object.keys(colMap).length === 0) {
+    headerRowIdx = 2;
+    colMap = {
+      situacao: 0, data: 1, cliente: 2, conta: 3, categoria: 4,
+      valor: 5, saldo: 6, tipoDoc: 9, documento: 10, notaFiscal: 11,
+      parcela: 12, origem: 14, projeto: 17, razaoSocial: 18, cnpjCpf: 19, observacoes: 20
+    };
+  }
+
   let saldoAnterior: number | null = null;
   const lancamentos: LancamentoOmie[] = [];
+  const dataStart = headerRowIdx + 1;
 
-  for (let i = 3; i < rows.length; i++) {
+  for (let i = dataStart; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
 
-    const cliente = row[2] != null ? String(row[2]) : '';
+    const col = (key: string) => {
+      const idx = colMap[key];
+      if (idx === undefined || idx >= row.length) return '';
+      return row[idx] != null ? String(row[idx]) : '';
+    };
+    const colNum = (key: string) => {
+      const idx = colMap[key];
+      if (idx === undefined || idx >= row.length) return 0;
+      return row[idx] != null ? parseFloat(row[idx]) || 0 : 0;
+    };
+
+    const cliente = col('cliente');
 
     if (cliente.toUpperCase().includes('SALDO')) {
       if ((cliente.toUpperCase().includes('ANTERIOR') || cliente.toUpperCase().includes('INICIAL')) && saldoAnterior === null) {
-        saldoAnterior = row[6] != null ? parseFloat(row[6]) : null;
+        saldoAnterior = colNum('saldo') || null;
       }
       continue;
     }
 
-    const situacao = row[0] != null ? String(row[0]).trim() : '';
+    const situacao = col('situacao').trim();
     if (!situacao) continue;
 
-    const dataVal = row[1];
+    const dataVal = colMap['data'] !== undefined ? row[colMap['data']] : null;
     const data = parseDate(dataVal);
     if (!data) continue;
-
-    const valor = row[5] != null ? parseFloat(row[5]) : 0;
-    const contaCorrente = row[3] != null ? String(row[3]) : '';
-    const categoria = row[4] != null ? String(row[4]) : '';
-    const tipoDoc = row[9] != null ? String(row[9]) : '';
-    const documento = row[10] != null ? String(row[10]) : '';
-    const notaFiscal = row[11] != null ? String(row[11]) : '';
-    const parcela = row[12] != null ? String(row[12]) : '';
-    const origem = row[14] != null ? String(row[14]) : '';
-    const projeto = row[17] != null ? String(row[17]) : '';
-    const razaoSocial = row[18] != null ? String(row[18]) : '';
-    const cnpjCpf = row[19] != null ? String(row[19]) : '';
-    const observacoes = row[20] != null ? String(row[20]) : '';
 
     lancamentos.push({
       idx: i,
@@ -96,18 +140,18 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
       data,
       dataStr: data.toLocaleDateString('pt-BR'),
       clienteFornecedor: cliente,
-      contaCorrente,
-      categoria,
-      valor,
-      tipoDoc,
-      documento,
-      notaFiscal,
-      parcela,
-      origem,
-      projeto,
-      razaoSocial,
-      cnpjCpf,
-      observacoes,
+      contaCorrente: col('conta'),
+      categoria: col('categoria'),
+      valor: colNum('valor'),
+      tipoDoc: col('tipoDoc'),
+      documento: col('documento'),
+      notaFiscal: col('notaFiscal'),
+      parcela: col('parcela'),
+      origem: col('origem'),
+      projeto: col('projeto'),
+      razaoSocial: col('razaoSocial'),
+      cnpjCpf: col('cnpjCpf'),
+      observacoes: col('observacoes'),
       matched: false,
       matchType: null,
       matchCamada: null,

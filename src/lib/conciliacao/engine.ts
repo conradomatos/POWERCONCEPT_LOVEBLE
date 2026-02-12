@@ -35,18 +35,53 @@ export async function executarConciliacao(
     }
   }
 
-  // 2. Separar Omie por conta corrente
-  const omieSicredi = omie.filter(o => o.contaCorrente === 'CONCEPT_SICREDI');
-  const omieCartao = omie.filter(o => o.contaCorrente === 'CARTAO DE CREDITO');
+  // === DIAGNÓSTICO BANCO ===
+  console.log('=== DIAGNÓSTICO BANCO ===');
+  console.log('Total lançamentos banco:', banco.length);
+  const bancoComCnpj = banco.filter(b => b.cnpjCpf && b.cnpjCpf.length > 0);
+  console.log('Banco com CNPJ:', bancoComCnpj.length);
+  if (banco.length > 0) {
+    console.log('Amostra banco[0]:', JSON.stringify({ desc: banco[0].descricao, cnpj: banco[0].cnpjCpf, nome: banco[0].nome, tipo: banco[0].tipo, valor: banco[0].valor, data: banco[0].dataStr }));
+    if (banco[5]) console.log('Amostra banco[5]:', JSON.stringify({ desc: banco[5].descricao, cnpj: banco[5].cnpjCpf, nome: banco[5].nome, tipo: banco[5].tipo }));
+  }
+
+  // === DIAGNÓSTICO OMIE ===
+  console.log('=== DIAGNÓSTICO OMIE ===');
+  console.log('Total lançamentos Omie:', omie.length);
+  const omieComCnpj = omie.filter(o => o.cnpjCpf && o.cnpjCpf.length > 0);
+  console.log('Omie com CNPJ:', omieComCnpj.length);
+  const contas = [...new Set(omie.map(o => o.contaCorrente))];
+  console.log('Contas encontradas no Omie:', contas);
+  if (omie.length > 0) {
+    console.log('Amostra omie[0]:', JSON.stringify({ cliente: omie[0].clienteFornecedor, cnpj: omie[0].cnpjCpf, valor: omie[0].valor, conta: omie[0].contaCorrente, obs: omie[0].observacoes?.substring(0, 100), situacao: omie[0].situacao }));
+  }
+
+  // 2. Separar Omie por conta corrente (filtro flexível)
+  const contaCartaoKeywords = ['CARTAO', 'CARTÃO', 'CREDIT CARD'];
+  const omieSicredi = omie.filter(o =>
+    !contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
+  );
+  const omieCartao = omie.filter(o =>
+    contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
+  );
+  console.log('Omie Sicredi:', omieSicredi.length, 'Omie Cartão:', omieCartao.length);
 
   // 3. Executar matching em camadas
   const matches: Match[] = [];
   const divergencias: Divergencia[] = [];
 
   matchCamadaA(banco, omieSicredi, matches);
+  console.log('=== APÓS CAMADA A === Matches:', matches.length, 'Banco matched:', banco.filter(b => b.matched).length);
+
   matchCamadaB(banco, omieSicredi, matches);
+  console.log('=== APÓS CAMADA B === Matches:', matches.length, 'Banco matched:', banco.filter(b => b.matched).length);
+
   matchCamadaC(banco, omieSicredi, matches);
+  console.log('=== APÓS CAMADA C === Matches:', matches.length);
+
   matchCamadaD(banco, omieSicredi, matches);
+  console.log('=== APÓS CAMADA D === Matches:', matches.length);
+
   matchFaturaCartao(banco, omie, matches);
 
   // 4. Conciliação do cartão

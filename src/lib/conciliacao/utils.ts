@@ -136,10 +136,25 @@ export function daysDiff(d1: Date, d2: Date): number {
 // ---- Parsear data ----
 export function parseDate(val: any): Date | null {
   if (!val) return null;
-  if (val instanceof Date) return val;
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
+
+  // Excel serial date (days since 1/1/1900)
+  if (typeof val === 'number') {
+    const excelEpoch = new Date(1900, 0, 1);
+    const date = new Date(excelEpoch.getTime() + (val - 2) * 86400000);
+    if (!isNaN(date.getTime())) return date;
+  }
+
   const str = String(val).trim();
-  const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+
+  // dd/mm/yyyy
+  const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brMatch) return new Date(parseInt(brMatch[3]), parseInt(brMatch[2]) - 1, parseInt(brMatch[1]));
+
+  // yyyy-mm-dd or ISO
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
+
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
