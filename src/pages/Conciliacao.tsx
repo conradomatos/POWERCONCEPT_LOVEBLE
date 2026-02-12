@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import {
   Building2,
@@ -19,8 +18,11 @@ import {
   AlertTriangle,
   Clock,
   ArrowLeftRight,
+  Loader2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { executarConciliacao } from '@/lib/conciliacao/engine';
+import type { ResultadoConciliacao } from '@/lib/conciliacao/types';
 
 interface ParsedFileInfo {
   file: File;
@@ -47,7 +49,6 @@ function parseExcelDate(value: unknown): Date | null {
   if (typeof value === 'string') {
     const parsed = new Date(value);
     if (!isNaN(parsed.getTime())) return parsed;
-    // Try DD/MM/YYYY
     const parts = value.split('/');
     if (parts.length === 3) {
       const [dd, mm, yyyy] = parts;
@@ -70,7 +71,6 @@ function detectPeriod(rows: Record<string, unknown>[]): string {
         }
       }
     }
-    // Try first key that looks like a date
     for (const [, val] of Object.entries(row)) {
       const d = parseExcelDate(val);
       if (d && d.getFullYear() > 2000) {
@@ -78,7 +78,7 @@ function detectPeriod(rows: Record<string, unknown>[]): string {
         return `${month}/${d.getFullYear()}`;
       }
     }
-    break; // only check first row
+    break;
   }
   return '--';
 }
@@ -128,6 +128,9 @@ export default function Conciliacao() {
     omie: null,
     cartao: null,
   });
+
+  const [resultado, setResultado] = useState<ResultadoConciliacao | null>(null);
+  const [processando, setProcessando] = useState(false);
 
   const bancoRef = useRef<HTMLInputElement>(null);
   const omieRef = useRef<HTMLInputElement>(null);
@@ -190,24 +193,42 @@ export default function Conciliacao() {
 
   const removeFile = useCallback((type: FileType) => {
     setFiles((prev) => ({ ...prev, [type]: null }));
-  }, []);
+    if (resultado) setResultado(null);
+  }, [resultado]);
 
   const mesReferencia = useMemo(() => {
+    if (resultado) return `${resultado.mesLabel}/${resultado.anoLabel}`;
     const period = files.banco?.period || files.omie?.period || files.cartao?.period;
     if (!period || period === '--') return null;
     const [mm, yyyy] = period.split('/');
     return `${MONTHS[Number(mm) - 1]} ${yyyy}`;
-  }, [files]);
+  }, [files, resultado]);
 
   if (!user) {
     navigate('/auth');
     return null;
   }
 
-  const canExecute = files.banco && files.omie;
+  const canExecute = files.banco && files.omie && !processando;
 
-  const handleExecute = () => {
-    toast.info('Processamento será implementado na Fase 2');
+  const handleExecute = async () => {
+    if (!files.banco?.file || !files.omie?.file) return;
+    setProcessando(true);
+    setResultado(null);
+    try {
+      const result = await executarConciliacao(
+        files.banco.file,
+        files.omie.file,
+        files.cartao?.file || null
+      );
+      setResultado(result);
+      toast.success(`Conciliação concluída: ${result.totalConciliados} matches, ${result.totalDivergencias} divergências`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro na conciliação: ' + (err.message || 'erro desconhecido'));
+    } finally {
+      setProcessando(false);
+    }
   };
 
   const cardConfigs: {
@@ -225,7 +246,7 @@ export default function Conciliacao() {
   return (
     <Layout>
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Zona 1 - Header */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -241,7 +262,7 @@ export default function Conciliacao() {
           </Badge>
         </div>
 
-        {/* Zona 2 - Upload Cards */}
+        {/* Upload Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {cardConfigs.map(({ type, title, icon: Icon, headerClass, iconClass }) => {
             const info = files[type];
@@ -301,7 +322,7 @@ export default function Conciliacao() {
           })}
         </div>
 
-        {/* Zona 3 - Ação + Resultados */}
+        {/* Action + Results */}
         <div className="space-y-4">
           <Button
             onClick={handleExecute}
@@ -309,43 +330,69 @@ export default function Conciliacao() {
             className="gap-2"
             size="lg"
           >
-            <Play className="h-4 w-4" />
-            Executar Conciliação
+            {processando ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processando...
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Executar Conciliação
+              </>
+            )}
           </Button>
 
-          {/* KPI Cards placeholder */}
+          {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
                 <CheckCircle2 className="h-5 w-5 mx-auto text-green-500 mb-1" />
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{resultado?.totalConciliados ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Conciliados</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
                 <AlertTriangle className="h-5 w-5 mx-auto text-yellow-500 mb-1" />
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{resultado?.totalDivergencias ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Divergências</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
                 <Clock className="h-5 w-5 mx-auto text-red-500 mb-1" />
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{resultado?.contasAtraso ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Em Atraso</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
                 <CreditCard className="h-5 w-5 mx-auto text-purple-500 mb-1" />
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{resultado?.cartaoImportaveis ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Cartão Importáveis</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Download buttons placeholder */}
+          {/* Matching Summary */}
+          {resultado && (
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="text-sm font-semibold mb-3">Resultado do Matching</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {['A', 'B', 'C', 'D'].map(cam => (
+                    <div key={cam} className="text-center p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Camada {cam}</p>
+                      <p className="text-lg font-bold">{resultado.camadaCounts[cam] || 0}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Download buttons */}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" disabled className="gap-2">
               <Download className="h-4 w-4" /> Relatório (.md)

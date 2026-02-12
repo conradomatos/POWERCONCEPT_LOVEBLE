@@ -1,103 +1,122 @@
 export interface LancamentoBanco {
+  idx: number;
   data: Date;
+  dataStr: string;
   descricao: string;
+  documento: string;
   valor: number;
-  saldo: number;
-  tipo: 'credito' | 'debito';
-  cnpj_cpf: string;
-  nome_pagador: string;
-  classificacao: string;
+  saldo: number | null;
+  cnpjCpf: string;
+  nome: string;
+  tipo: string;
   matched: boolean;
-  match_id?: string;
+  matchType: string | null;
+  matchCamada: string | null;
+  matchOmieIdx: number | null;
 }
 
 export interface LancamentoOmie {
-  data: Date;
-  data_vencimento: Date;
-  descricao: string;
-  valor: number;
-  cliente_fornecedor: string;
-  cnpj_cpf: string;
-  razao_social: string;
-  categoria: string;
-  conta_corrente: string;
-  numero_documento: string;
-  natureza: 'receber' | 'pagar';
+  idx: number;
   situacao: string;
+  data: Date;
+  dataStr: string;
+  clienteFornecedor: string;
+  contaCorrente: string;
+  categoria: string;
+  valor: number;
+  tipoDoc: string;
+  documento: string;
+  notaFiscal: string;
+  parcela: string;
+  origem: string;
+  projeto: string;
+  razaoSocial: string;
+  cnpjCpf: string;
+  observacoes: string;
   matched: boolean;
-  match_id?: string;
+  matchType: string | null;
+  matchCamada: string | null;
+  matchBancoIdx: number | null;
 }
 
 export interface TransacaoCartao {
   data: Date;
+  dataStr: string;
   descricao: string;
-  valor: number;
   parcela: string;
-  categoria_sugerida: string;
-  matched: boolean;
-  match_id?: string;
-  omie_match?: {
-    cliente_fornecedor: string;
-    cnpj_cpf: string;
-    numero_documento: string;
-  };
+  valor: number;
+  titular: string;
+  cartao: string;
+  isPagamentoFatura: boolean;
+  isEstorno: boolean;
+  matchedNf: boolean;
+  matchOmieIdx: number | null;
+  matchFornecedorOmie: string;
+  matchTipoDoc: string;
+  matchNf: string;
+  categoriaSugerida: string;
 }
 
 export interface CartaoInfo {
-  banco: string;
-  bandeira: string;
-  numero_cartao: string;
-  titular: string;
-  vencimento_fatura: Date | null;
-  valor_fatura: number;
-  mes_referencia: string;
-}
-
-export type TipoDivergencia = 'A' | 'B' | 'B*' | 'C' | 'D' | 'E' | 'H' | 'I';
-
-export interface Divergencia {
-  tipo: TipoDivergencia;
-  descricao_tipo: string;
-  origem: 'banco' | 'omie' | 'cartao';
-  data: Date | null;
-  descricao: string;
-  valor: number;
-  nome: string;
-  cnpj_cpf: string;
-  documento: string;
-  categoria: string;
+  vencimento: string;
+  valorTotal: number;
   situacao: string;
-  acao_sugerida: string;
-  detalhe: string;
+  despesasBrasil: number;
+  despesasExterior: number;
+  pagamentos: number;
 }
-
-export type TipoMatch = 'A' | 'B' | 'C' | 'D';
 
 export interface Match {
-  tipo: TipoMatch;
+  camada: string;
+  tipo: string;
   banco: LancamentoBanco;
   omie: LancamentoOmie;
-  confianca: string;
-  detalhe: string;
+}
+
+export interface Divergencia {
+  tipo: string;
+  tipoNome: string;
+  fonte: string;
+  data: string;
+  valor: number;
+  descricao?: string;
+  cnpjCpf?: string;
+  nome?: string;
+  situacao?: string;
+  origem?: string;
+  acao?: string;
+  valorBanco?: number;
+  valorOmie?: number;
+  diferenca?: number;
+  dataBanco?: string;
+  dataOmie?: string;
+  diasDiferenca?: number;
+  titular?: string;
+  fornecedorOmie?: string;
+  tipoDoc?: string;
+  nf?: string;
+  categoriaSugerida?: string;
+  parcela?: string;
+  banco?: LancamentoBanco | null;
+  omie?: LancamentoOmie | null;
 }
 
 export interface ResultadoConciliacao {
   matches: Match[];
   divergencias: Divergencia[];
-  resumo: {
-    total_banco: number;
-    total_omie: number;
-    total_cartao: number;
-    conciliados: number;
-    pct_conciliados: number;
-    divergencias_count: number;
-    contas_atraso: number;
-    cartao_importaveis: number;
-  };
-  mes_referencia: string;
-  ano_referencia: number;
-}
-
-export interface CategoriaMap {
-  [keyword: string]: string;
+  banco: LancamentoBanco[];
+  omieSicredi: LancamentoOmie[];
+  omieCartao: LancamentoOmie[];
+  cartaoTransacoes: TransacaoCartao[];
+  cartaoInfo: CartaoInfo;
+  saldoBanco: number | null;
+  saldoOmie: number | null;
+  camadaCounts: Record<string, number>;
+  divCounts: Record<string, number>;
+  totalConciliados: number;
+  totalDivergencias: number;
+  contasAtraso: number;
+  cartaoImportaveis: number;
+  mesLabel: string;
+  anoLabel: string;
 }
