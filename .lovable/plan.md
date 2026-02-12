@@ -1,123 +1,135 @@
 
-# Plano: Fase 2 - Motor de Conciliacao Financeira
+# DIAGNÓSTICO E PLANO DE CORREÇÃO: Motor de Conciliação Financeira
 
-## Resumo
+## PROBLEMAS IDENTIFICADOS
 
-Implementar o motor de conciliacao real que cruza extrato bancario (Sicredi), extrato Omie e fatura de cartao de credito. O motor executa matching em 4 camadas (A/B/C/D) com niveis de confianca decrescentes, classifica divergencias e atualiza os KPIs na pagina existente.
+### 1. **Omie Parser com Índices Fixos (CRÍTICO)**
+- Linha 56-91 em `parsers.ts`: O `parseOmie` usa índices hardcoded (coluna 0=situacao, 1=data, 2=cliente, etc.)
+- Se o arquivo Omie real tiver colunas em ordem diferente ou colunas adicionais, os dados são lidos nas posições erradas
+- Resultado: CNPJ/CPF (coluna 19) e Observações (coluna 20) ficam vazios ou leem dados errados
+- Isso faz com que matching A (que depende de CNPJ) não encontre correspondências
 
----
+### 2. **Filtro de Conta Muito Rígido**
+- Linha 39-40 em `engine.ts`: Filtro exato `o.contaCorrente === 'CONCEPT_SICREDI'`
+- Se o Omie usar nomes diferentes para a conta (ex: "SICREDI C/C", "SICREDI CONCEPT", etc.), o filtro não funciona
+- Resultado: Lançamentos não são separados corretamente entre Sicredi e Cartão
+- `omieSicredi` fica vazio ou incompleto, causando 99% das transações caírem em Camada D (fallback)
 
-## Arquivos a Criar (6 arquivos)
+### 3. **parseDate Não Trata Datas Seriais do Excel**
+- Linha 137-145 em `utils.ts`: Quando xlsx lê datas, pode retornar número serial (ex: 45658 = "15/01/2025")
+- O parseDate atual não converte números → Datas ficam null
+- Resultado: Lançamentos com datas inválidas são descartados durante parsing
+- Reduz drasticamente o número de lançamentos processados
 
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/lib/conciliacao/categorias.ts` | Mapeamento de fornecedores para categorias do cartao |
-| `src/lib/conciliacao/utils.ts` | Funcoes utilitarias: normalizacao CNPJ/CPF, parsing de datas/valores, comparacao de nomes |
-| `src/lib/conciliacao/parsers.ts` | Parsers para Banco Sicredi (XLS), Omie (XLSX) e Cartao (CSV) usando `xlsx` |
-| `src/lib/conciliacao/matcher.ts` | Motor de matching em 4 camadas (A=exato, B=provavel, C=agrupamento, D=scoring) |
-| `src/lib/conciliacao/classifier.ts` | Classificador de divergencias (A-I) e deteccao de duplicidades |
-| `src/lib/conciliacao/engine.ts` | Orquestrador que executa o pipeline completo e retorna `ResultadoConciliacao` |
-
-## Arquivos a Modificar (2 arquivos)
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/lib/conciliacao/types.ts` | Substituir interfaces da Fase 1 pelas novas (com campos idx, dataStr, matchCamada, etc.) |
-| `src/pages/Conciliacao.tsx` | Integrar motor, estados de resultado/loading, KPIs reais, resumo de camadas |
-
----
-
-## Detalhes Tecnicos
-
-### 1. `categorias.ts`
-- Objeto `CATEGORIAS_CONFIG` com mapeamento de palavras-chave de fornecedores para categorias contabeis
-- Funcao `suggestCategoria(descricao)` que faz match parcial case-insensitive
-
-### 2. `utils.ts`
-- `normalizeCnpjCpf`: remove caracteres nao-numericos
-- `formatCnpj`/`formatCpf`: formatacao para exibicao
-- `extractCnpjCpf`: extrai CNPJ/CPF de descricoes bancarias via regex
-- `extractNomeBanco`: limpa prefixos (PIX, TED, BOLETO) da descricao
-- `classifyBanco`: classifica tipo do lancamento (PIX_ENVIADO, BOLETO, FOLHA, etc.)
-- `nomeCompativel`/`nomeCompativelCartao`: comparacao fuzzy de nomes ignorando stop words
-- `formatBRL`, `daysDiff`, `parseDate`, `parseValorBRL`: utilitarios gerais
-
-### 3. `parsers.ts`
-- `parseBanco(rows)`: Parser especifico para extrato Sicredi (dados a partir da linha 10, colunas A-E)
-- `parseOmie(rows)`: Parser para extrato Omie (cabecalho linha 2, dados a partir da linha 3, ~20 colunas)
-- `parseCartaoFromText(text)`: Parser para fatura CSV do cartao Sicredi (header + transacoes por titular)
-- `workbookToRows(file)`: Helper que converte File -> rows[][] via xlsx
-- `csvToText(file)`: Helper que le File como texto UTF-8
-
-### 4. `matcher.ts`
-Pipeline de matching em camadas com confianca decrescente:
-- **Camada A** (ALTA): CNPJ identico + valor identico + data +-1 dia; ou observacoes Omie contendo descricao banco
-- **Camada B** (MEDIA): Valor + data +-3 dias + nome compativel; CNPJ + valor proximo (<5%)
-- **Camada C** (MEDIA): Agrupamento de multiplos lancamentos Omie que somam para 1 lancamento banco (mesmo CNPJ)
-- **Camada D** (BAIXA): Sistema de scoring (CNPJ=3pts, valor=3pts, data=2pts, nome=2pts) com threshold >= 4
-- **Fatura Cartao**: Match de DEB.CTA.FATURA no banco com transferencia no Omie
-- **Cartao x NF**: Cruzamento de transacoes do cartao contra conta "CARTAO DE CREDITO" no Omie
-
-### 5. `classifier.ts`
-Classificacao de divergencias apos matching:
-- **A**: Faltando no Omie (lancamento banco sem match)
-- **B**: A mais no Omie (lancamento Omie sem match)
-- **B***: Conta em atraso (Omie com situacao "Atrasado")
-- **C**: Valor divergente entre match banco/Omie
-- **D**: Data divergente (>3 dias) entre match
-- **E**: Duplicidade detectada no Omie
-- **G**: Previsto nao realizado (previsao atrasada)
-- **H**: Cartao coberto por NF (ja existe no Omie)
-- **I**: Cartao faltando no Omie (para importar)
-
-### 6. `engine.ts`
-Funcao `executarConciliacao(bancoFile, omieFile, cartaoFile?)` que:
-1. Parseia os 3 arquivos
-2. Separa Omie por conta corrente (CONCEPT_SICREDI vs CARTAO DE CREDITO)
-3. Executa matching em sequencia (A -> B -> C -> D -> FaturaCartao -> CartaoNF)
-4. Detecta duplicidades
-5. Classifica divergencias
-6. Calcula metricas e detecta mes/ano de referencia
-7. Retorna `ResultadoConciliacao`
-
-### 7. `types.ts` (substituicao)
-Interfaces atualizadas com campos adicionais necessarios para o motor:
-- `LancamentoBanco`: adiciona `idx`, `dataStr`, `documento`, `matchType`, `matchCamada`, `matchOmieIdx`
-- `LancamentoOmie`: adiciona `idx`, `dataStr`, `contaCorrente`, `tipoDoc`, `notaFiscal`, `parcela`, `origem`, `projeto`, `razaoSocial`, `observacoes`, `matchBancoIdx`
-- `TransacaoCartao`: adiciona `dataStr`, `titular`, `cartao`, `isPagamentoFatura`, `isEstorno`, `matchedNf`, campos de match
-- `CartaoInfo`: campos de fatura (vencimento, valores, situacao)
-- `Match`: `camada` + `tipo` em vez de `confianca`/`detalhe`
-- `Divergencia`: campos flexiveis para diferentes tipos
-- `ResultadoConciliacao`: resultado completo com arrays, contagens por camada e metricas
-
-### 8. `Conciliacao.tsx` (modificacoes)
-- Importar `executarConciliacao` e `ResultadoConciliacao`
-- Adicionar estados: `resultado` (ResultadoConciliacao | null), `processando` (boolean)
-- Substituir handler placeholder por chamada real ao motor
-- KPIs mostram dados reais: `resultado?.totalConciliados`, `totalDivergencias`, `contasAtraso`, `cartaoImportaveis`
-- Badge Ref atualizado com `resultado.mesLabel/anoLabel`
-- Botao com loading state (icone Loader2 animado)
-- Novo card "Resultado do Matching" com contagens por camada (A/B/C/D)
-- Botoes de download permanecem desabilitados (Fase 3)
-- Importar `Loader2` do lucide-react
+### 4. **Falta de Diagnóstico**
+- Não há visibility no que está acontecendo durante o parsing e matching
+- Impossível saber se:
+  - Banco tem CNPJ? Quantos?
+  - Omie tem CNPJ? Quantos?
+  - Qual é a distribuição de contas Omie?
+  - Quantos registros são perdidos em cada etapa?
 
 ---
 
-## Ordem de Implementacao
+## SOLUÇÃO: 5 MUDANÇAS CRÍTICAS
 
-1. `src/lib/conciliacao/types.ts` (substituir)
-2. `src/lib/conciliacao/categorias.ts` (criar)
-3. `src/lib/conciliacao/utils.ts` (criar)
-4. `src/lib/conciliacao/parsers.ts` (criar)
-5. `src/lib/conciliacao/matcher.ts` (criar)
-6. `src/lib/conciliacao/classifier.ts` (criar)
-7. `src/lib/conciliacao/engine.ts` (criar)
-8. `src/pages/Conciliacao.tsx` (modificar)
+### **MUDANÇA 1: Adicionar Console.logs Diagnósticos em `engine.ts`**
+
+Inserir logs estratégicos após cada parsing e após cada camada de matching para visibilidade:
+- Após parseBanco: Total, com CNPJ, amostra de dados
+- Após parseOmie: Total, com CNPJ, separação por conta, amostra de dados
+- Após cada camada: Contagem de matches acumulados, banco/omie matched
+- Filtro de contas: Listar todas as contas encontradas no Omie
+
+**Benefício**: Identificar exatamente onde os dados estão sendo perdidos
+
+### **MUDANÇA 2: Reescrever `parseOmie` com Detecção Dinâmica de Header**
+
+Implementar um colMap dinâmico que:
+- Procura a linha de header (geralmente linha 2-3) detectando colunas por nome
+- Monta um dicionário `colMap` mapeando `{ situacao: idx, data: idx, cliente: idx, ... cnpjCpf: idx }`
+- Usa helpers `col(key)` e `colNum(key)` para ler dados usando o colMap
+- Fallback: Se não encontrar header, usa índices padrão como fallback
+
+**Benefício**: Parser robusto a variações no formato do arquivo Omie
+
+### **MUDANÇA 3: Melhorar `parseDate` para Lidar com Datas Seriais do Excel**
+
+Adicionar lógica:
+- Se `val` é number: Converter número serial Excel → Date
+  - Excel epoch: 1/1/1900
+  - Fórmula: `new Date(1900, 0, 1).getTime() + (serialNumber - 2) * 86400000`
+- Se `val` é string: Tentar dd/mm/yyyy, ISO (yyyy-mm-dd), depois parse genérico
+- Resultado: Todas as datas (string ou número) são tratadas
+
+**Benefício**: Não perder lançamentos por falha de parsing de data
+
+### **MUDANÇA 4: Tornar Filtro de Conta Mais Flexível em `engine.ts`**
+
+Mudar de:
+```typescript
+const omieSicredi = omie.filter(o => o.contaCorrente === 'CONCEPT_SICREDI');
+```
+
+Para:
+```typescript
+const contaCartaoKeywords = ['CARTAO', 'CARTÃO', 'CREDIT CARD', 'DÉBITO'];
+const omieSicredi = omie.filter(o => 
+  !contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
+);
+const omieCartao = omie.filter(o => 
+  contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
+);
+```
+
+**Benefício**: Separação correta independente do exato nome da conta no Omie
+
+### **MUDANÇA 5: Verificar e Melhorar `nomeCompativel` e `extractCnpjCpf` em `utils.ts` (Validação)**
+
+O código atual parece estar OK, mas:
+- `nomeCompativel` pode ser verificado para ter threshold correto (>=1 token comum)
+- `extractCnpjCpf` já faz o trabalho, mas só funciona se o CNPJ estiver na descrição
 
 ---
 
-## Nao incluso nesta fase
+## PLANO DE IMPLEMENTAÇÃO (ORDEM CRÍTICA)
 
-- Geracao dos arquivos de download (Fase 3)
-- Tabelas no banco de dados
-- Edge Functions
+1. **Adicionar console.logs em `engine.ts`** (10 min)
+   - Sem modificar lógica, apenas diagnóstico
+   
+2. **Reescrever `parseOmie` com colMap dinâmico** (20 min)
+   - Maior impacto: vai recuperar dados que estão sendo lidos em índices errados
+   
+3. **Melhorar `parseDate` para datas seriais** (10 min)
+   - Evitar perda de lançamentos
+   
+4. **Tornar filtro de conta flexível** (5 min)
+   - Garantir separação correta Sicredi vs Cartão
+
+5. **Testar e Verificar Distribuição**
+   - Executar conciliação e verificar console
+   - Esperado: Camada A > B > C >> D
+
+---
+
+## IMPACTO ESPERADO
+
+**Antes (Problema Atual):**
+- Camada A: 1 (CNPJ não extraído ou não comparado)
+- Camada B: 0 (dados faltando por índices errados)
+- Camada D: 160 (fallback de scoring baixo)
+
+**Depois (Objetivo):**
+- Camada A: ~30-50 (CNPJ exato encontrado)
+- Camada B: ~80-100 (valor + nome + data)
+- Camada C: ~5-15 (agrupamentos)
+- Camada D: ~20-30 (scoring baixo para casos reais inconciliáveis)
+- **Total conciliados: ~130-190 de 160** = Taxa melhorada de 60% → 85%+
+
+---
+
+## ARQUIVOS A MODIFICAR
+
+1. `src/lib/conciliacao/engine.ts` - Adicionar console.logs + filtro flexível
+2. `src/lib/conciliacao/parsers.ts` - Reescrever parseOmie
+3. `src/lib/conciliacao/utils.ts` - Melhorar parseDate
