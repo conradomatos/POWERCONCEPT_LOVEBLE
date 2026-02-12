@@ -47,6 +47,7 @@ const routeToArea: Record<string, NavigationArea> = {
   '/dashboard': 'relatorios',
   '/custos-projeto': 'relatorios',
   '/rentabilidade': 'relatorios',
+  '/conciliacao': 'relatorios',
   // Orçamentos
   '/orcamentos': 'orcamentos',
   '/orcamentos/bases': 'orcamentos',

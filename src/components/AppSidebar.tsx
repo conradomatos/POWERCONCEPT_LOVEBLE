@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Shield,
   Home,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 import {
@@ -91,6 +92,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
       { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
       { title: 'Rentabilidade', url: '/rentabilidade', icon: DollarSign },
       { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
+      { title: 'Conciliação', url: '/conciliacao', icon: ArrowLeftRight },
     ],
   },
   orcamentos: {
