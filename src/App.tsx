@@ -41,6 +41,7 @@ import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
 import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
 import ApontamentoDiario from "./pages/ApontamentoDiario";
+import Conciliacao from "./pages/Conciliacao";
 // Global bases pages
 import BasesGlobais from "./pages/orcamentos/BasesGlobais";
 import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
@@ -85,6 +86,7 @@ const App = () => (
             <Route path="/rentabilidade/mapeamento" element={<MapeamentoOmie />} />
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
+            <Route path="/conciliacao" element={<Conciliacao />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
             {/* Redirects for common wrong routes */}
             <Route path="/orcamentos/ba/*" element={<Navigate to="/orcamentos/bases" replace />} />
