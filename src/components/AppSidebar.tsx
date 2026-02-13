@@ -30,6 +30,7 @@ import {
   Home,
   ArrowLeftRight,
   Tags,
+  BarChart3,
 } from 'lucide-react';
 
 import {
@@ -100,6 +101,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     items: [
       { title: 'Conciliação', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
       { title: 'Categorias', url: '/financeiro/categorias', icon: Tags },
+      { title: 'DRE', url: '/financeiro/dre', icon: BarChart3 },
     ],
   },
   orcamentos: {
