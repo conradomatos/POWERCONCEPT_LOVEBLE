@@ -1,87 +1,141 @@
 
+# FASE 3.2 — Correções na Exportação + Tipo T (Transferências) + PDF
 
-# FASE 3.1 — Correções nos Downloads + Nova Aba "Financeiro"
+## PROBLEMAS E SOLUÇÕES
 
-## TAREFA 1: Correções no `outputs.ts`
+### 1. FORMATO CONTÁBIL COM CORES NOS VALORES (Excel Divergências)
+**Local:** `src/lib/conciliacao/outputs.ts` na função `gerarExcelDivergencias` (após linha 374)
 
-Quatro correções pontuais no arquivo `src/lib/conciliacao/outputs.ts`:
+**Problema:** As colunas numéricas não têm formatação contábil; valores negativos aparecem sem parênteses e sem cores.
 
-### 1.1 Fornecedor fixo "CARTAO DE CREDITO" (linha 433)
-Trocar `t.descricao.trim()` por `'CARTAO DE CREDITO'` na coluna C (Fornecedor) do Excel de importacao.
+**Solução:** Iterar sobre as células de valor após criar a worksheet e aplicar o `numFmt` do SheetJS:
+- Colunas: F (Valor=5), K (Valor Banco=10), L (Valor Omie=11), M (Diferença=12)
+- Formato: `[Blue]#,##0.00;[Red](#,##0.00);0.00` (positivos azuis, negativos vermelhos com parênteses)
+- Aplicar via `ws[cellRef].z` para cada célula
 
-### 1.2 Juros, Multa, Desconto = 0 (linha 436)
-Trocar as 3 strings vazias `''` nas posicoes de Juros/Multa/Desconto por `0`.
+### 2. TIPO T — TRANSFERÊNCIAS ENTRE CONTAS
+**Locais:** 
+- `src/lib/conciliacao/classifier.ts` (detectar DEB.CTA.FATURA)
+- `src/lib/conciliacao/types.ts` (adicionar campo `obs`)
+- `src/lib/conciliacao/outputs.ts` (adicionar tipo T em MD, Excel, descricoes)
 
-### 1.3 Observacoes com descricao original (linhas 429-430)
-Mudar a construcao do campo `obs` para incluir `t.descricao` e usar separador `|`:
-```
-let obs = t.titular || '';
-if (t.descricao) obs += ` | ${t.descricao.trim()}`;
-if (t.parcela) obs += ` | ${t.parcela}`;
-```
+**Problema:** Lançamento "DEB.CTA.FATURA" no banco (pagamento da fatura do cartão) está sendo classificado como Tipo A (faltando no Omie), quando na verdade é uma transferência entre contas próprias.
 
-### 1.4 BOM UTF-8 no relatorio .md (linha 318)
-Adicionar `'\uFEFF'` antes do conteudo na funcao `gerarRelatorioMD`:
-```
-const content = '\uFEFF' + lines.join('\n');
-```
+**Solução:**
+- No `classifier.ts`: Antes de classificar lançamento banco como Tipo A, detectar se contém "DEB.CTA.FATURA" ou "FATURA CARTAO" → classificar como Tipo T
+- No `types.ts`: Adicionar campo `obs?: string;` à interface `Divergencia`
+- No `outputs.ts`: 
+  - Adicionar `'T': 'TRANSFERÊNCIA ENTRE CONTAS'` em `tipoDescricoes`
+  - Adicionar seção de tipo T no relatório MD
 
----
+### 3. MAIS INFORMAÇÕES NAS DIVERGÊNCIAS
+**Locais:**
+- `src/lib/conciliacao/classifier.ts` (melhorar população de descrição)
+- `src/lib/conciliacao/outputs.ts` (adicionar coluna de observação no Excel)
 
-## TAREFA 2: Nova Aba "Financeiro"
+**Problemas:**
+- Coluna G (Descrição/Fornecedor) no Excel frequentemente mostra apenas CNPJ ou está vazia
+- Não há informação de Observações do Omie original para contexto
 
-### Arquivos a modificar
+**Solução:**
+- No `classifier.ts`: Garantir que `divergencia.descricao` contém SEMPRE a informação completa:
+  - Para banco: descrição do extrato (ex: "LIQUIDACAO BOLETO...")
+  - Para Omie: use `observacoes` (se disponível), senão `clienteFornecedor`, senão CNPJ
+- No `outputs.ts`:
+  - Adicionar coluna 19 "Observação" nos headers do Excel divergências
+  - Preencher com `d.obs || ''` (que virá do campo `omie.observacoes`)
+  - Aumentar autofilter para incluir coluna S
+  - Adicionar coluna width `{ wch: 50 }`
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/components/Layout.tsx` | Adicionar `'financeiro'` ao tipo `NavigationArea`, ao `routeToArea`, ao `topNavAreas`, e ao `firstRoutes` |
-| `src/components/AppSidebar.tsx` | Adicionar area `financeiro` ao `areaNavItems` com item "Conciliacao" apontando para `/financeiro/conciliacao`. Remover "Conciliacao" da area `relatorios` |
-| `src/App.tsx` | Trocar rota `/conciliacao` por `/financeiro/conciliacao`. Adicionar redirect `/conciliacao` -> `/financeiro/conciliacao` e `/financeiro` -> `/financeiro/conciliacao` |
+### 4. RELATÓRIO PDF COM JSPDF
+**Local:** `src/lib/conciliacao/outputs.ts` (nova função `gerarRelatorioPDF`)
 
-### Detalhes tecnicos
+**Problema:** Relatório está apenas em Markdown e Excel; usuários precisam de um PDF formatado e pronto para compartilhar/imprimir.
 
-**Layout.tsx**:
-- Linha 23: Expandir tipo `NavigationArea` para incluir `'financeiro'`
-- Linhas 47-50: Remover `/conciliacao: 'relatorios'` e adicionar `/financeiro: 'financeiro'` e `/financeiro/conciliacao: 'financeiro'`
-- Linha 94: Adicionar `financeiro: '/financeiro/conciliacao'` ao `firstRoutes`
-- Linha 105: Adicionar `{ id: 'financeiro', label: 'Financeiro', icon: Wallet }` ao array `topNavAreas` (importar `Wallet` do lucide-react)
+**Solução:**
+- Instalar dependências: `jspdf` e `jspdf-autotable`
+- Nova função `gerarRelatorioPDF(resultado)` que:
+  - Cria documento PDF A4 em português
+  - Header azul com título, período e data
+  - KPIs em 4 cards coloridos (Conciliados/verde, Divergências/laranja, Atraso/vermelho, Cartão/azul)
+  - Tabela de Fontes (Banco/Omie/Cartão)
+  - Tabela de Matching por camada (A/B/C/D)
+  - Seção de Divergências com subtabelas por tipo (A, T, B*, B, C, E, G)
+    - Cada tipo com cor de fundo alternada
+    - Colunas: #, Data, Valor, Descrição, CNPJ, Ação
+    - Total por tipo na última linha
+  - Seção Cartão: resumo por titular + total importação
+  - Seção Checklist: lista de ações pendentes com checkboxes
+  - Footer com data/hora geração
+  - Arquivo: `relatorio_conciliacao_{mes}{ano}.pdf`
 
-**AppSidebar.tsx**:
-- Linha 95: Remover o item `{ title: 'Conciliacao', url: '/conciliacao', icon: ArrowLeftRight }` da area `relatorios`
-- Linha 101: Adicionar nova area `financeiro` com label "Financeiro" e item `{ title: 'Conciliacao', url: '/financeiro/conciliacao', icon: ArrowLeftRight }`
-
-**App.tsx**:
-- Linha 89: Trocar `<Route path="/conciliacao" ...>` por `<Route path="/financeiro/conciliacao" ...>`
-- Adicionar redirect: `<Route path="/financeiro" element={<Navigate to="/financeiro/conciliacao" replace />} />`
-- Adicionar redirect legado: `<Route path="/conciliacao" element={<Navigate to="/financeiro/conciliacao" replace />} />`
-
-### Resultado visual
-
-Menu principal (top bar):
-```
-[Recursos] [Projetos] [Orcamentos] [Relatorios] [Financeiro]
-```
-
-Sidebar quando "Financeiro" esta ativo:
-```
-Financeiro
-  - Conciliacao (unico item por enquanto)
-```
-
-Sidebar de "Relatorios" (sem Conciliacao):
-```
-Relatorios
-  - Dashboard
-  - Rentabilidade
-  - Custos & Margem
-```
+- No `Conciliacao.tsx`:
+  - Importar `gerarRelatorioPDF`
+  - Handler: `handleDownloadPDF`
+  - Botão: "Relatório (.pdf)" com ícone `FileText` ao lado do .md
 
 ---
 
-## Ordem de implementacao
+## ORDEM DE IMPLEMENTAÇÃO
 
-1. Corrigir `outputs.ts` (4 alteracoes pontuais)
-2. Atualizar `Layout.tsx` (tipo, rotas, top nav)
-3. Atualizar `AppSidebar.tsx` (mover Conciliacao para financeiro)
-4. Atualizar `App.tsx` (rotas + redirects)
+1. **Adicionar tipo T em `classifier.ts`** (~20 linhas)
+   - Detectar DEB.CTA.FATURA antes de classificar Tipo A
+   - Marcar como Tipo T
+
+2. **Atualizar `types.ts`** (1 linha)
+   - Adicionar `obs?: string;` à interface Divergencia
+
+3. **Melhorar descrição em `classifier.ts`** (~5 linhas)
+   - Garantir que `divergencia.descricao` está preenchida corretamente
+
+4. **Atualizar Excel divergências em `outputs.ts`** (~20 linhas)
+   - Aplicar formato contábil nas 4 colunas de valor
+   - Adicionar coluna "Observação" com dados de `omie.observacoes`
+   - Aumentar autofilter para coluna S
+
+5. **Adicionar tipo T no MD em `outputs.ts`** (~10 linhas)
+   - Adicionar seção "Tipo T — Transferências entre contas"
+   - Adicionar T em `tipoDescricoes`
+
+6. **Criar `gerarRelatorioPDF` em `outputs.ts`** (~350 linhas)
+   - Função completa com header, KPIs, tabelas, divergências coloridas, checklist
+
+7. **Atualizar `Conciliacao.tsx`** (~15 linhas)
+   - Importar `gerarRelatorioPDF`
+   - Handler + botão PDF
+
+8. **Instalar dependências**
+   - `npm install jspdf jspdf-autotable`
+
+---
+
+## DECISÕES DE DESIGN
+
+### Tipo T (Transferências)
+- Separar transferências entre contas próprias de "divergências reais"
+- Usuário sabe que precisa lançar transferência, não investigar
+- Ação: "Lançar transferência Sicredi → Cartão de Crédito no Omie"
+
+### Formato Contábil
+- Padrão Excel/contabilidade: azul positivos, vermelho negativo com parênteses
+- Melhora legibilidade sem precisar colorir coluna inteira
+- Aplicável também no PDF (cores nos valores)
+
+### Coluna Observação
+- Campo `omie.observacoes` frequentemente tem contexto importante (ex: "Nota fiscal XYZ", "Referência cliente")
+- Ajuda a validar se uma divergência é realmente um erro ou falsa correspondência
+
+### PDF vs Markdown
+- Markdown é texto puro (versionável), bom para archive/git
+- PDF é visual (tabelas, cores), bom para compartilhar/imprimir
+- Oferecer ambos: usuários escolhem conforme necessidade
+
+---
+
+## IMPACTO
+
+- **Usuário vê melhor:** Excel com cores, descrições completas, observações de contexto
+- **Transferências separadas:** Menu mais limpo, ações mais claras
+- **PDF profissional:** Pode ser enviado direto para cliente/auditoria/contador
+- **Sem mudança em:** Lógica de parsing, matching, engine — só outputs refinados
 
