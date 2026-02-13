@@ -407,8 +407,37 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(
+        JSON.stringify({ error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub as string;
+
+    // Use user-scoped client for data queries (respects RLS)
+    const supabase = userClient;
+    // Service role client only for admin operations (document record insert)
+    const adminClient = createClient(supabaseUrl, serviceKey);
 
     // Parse and validate request body
     let body: { revision_id?: unknown; return_html?: unknown };
@@ -522,31 +551,22 @@ Deno.serve(async (req) => {
     // For PDF: we'll return HTML that can be printed as PDF client-side
     const fileName = `${revision.budget.budget_number}-R${revision.revision_number}.html`;
 
-    // Get user from auth header
-    const authHeader = req.headers.get('Authorization');
-    let userId: string | null = null;
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
+    // Create document record using admin client (service role) since budget_documents
+    // may have restrictive RLS; the user is already authenticated above
+    const { error: docError } = await adminClient
+      .from('budget_documents')
+      .insert({
+        revision_id,
+        tipo: 'PROPOSTA',
+        nome_arquivo: fileName,
+        storage_path: `proposals/${fileName}`,
+        created_by: userId,
+      });
+
+    if (docError) {
+      console.error('Document record error:', docError);
     }
 
-    // Create document record
-    if (userId) {
-      const { error: docError } = await supabase
-        .from('budget_documents')
-        .insert({
-          revision_id,
-          tipo: 'PROPOSTA',
-          nome_arquivo: fileName,
-          storage_path: `proposals/${fileName}`,
-          created_by: userId,
-        });
-
-      if (docError) {
-        console.error('Document record error:', docError);
-      }
-    }
 
     return new Response(
       JSON.stringify({ 
