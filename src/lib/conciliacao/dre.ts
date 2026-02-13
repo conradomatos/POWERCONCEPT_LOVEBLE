@@ -1,5 +1,7 @@
 import { loadCategoriasStorage } from './categorias';
-import type { DRERelatorio, DRESecao, DRELinha } from './types';
+import type { DRERelatorio, DRESecao, DRELinha, DREAnual } from './types';
+
+const MESES_LABEL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 export function buildDREEstrutura(periodo: string): DRERelatorio {
   const storage = loadCategoriasStorage();
@@ -29,6 +31,8 @@ export function buildDREEstrutura(periodo: string): DRERelatorio {
     valor: 0,
     categorias: tipo === 'conta' ? getCategoriasPorDRE(contaDRE) : undefined,
   });
+
+  const resultadoLinha = linha('5', 'RESULTADO LÍQUIDO DO EXERCÍCIO', '', '+', 'total', 0);
 
   const secoes: DRESecao[] = [
     {
@@ -72,21 +76,13 @@ export function buildDREEstrutura(periodo: string): DRERelatorio {
     },
     {
       id: crypto.randomUUID(),
-      titulo: 'IMPOSTOS',
+      titulo: 'IMPOSTOS E CONTRIBUIÇÕES',
       linhas: [
         linha('5.1', 'Impostos', '(-) - Impostos', '-'),
         linha('5.2', 'Outros Tributos', '(-) - Outros Tributos', '-'),
         linha('5.3', 'Outras Deduções de Receita', '(-) - Outras Deduções de Receita', '-'),
       ],
-      subtotal: linha('5', 'RESULTADO LÍQUIDO', '', '+', 'subtotal', 0),
-    },
-    {
-      id: crypto.randomUUID(),
-      titulo: 'INVESTIMENTOS E ATIVOS',
-      linhas: [
-        linha('6.1', 'Ativos / Investimentos', '(-) - Ativos', '-'),
-      ],
-      subtotal: linha('6', 'RESULTADO FINAL', '', '+', 'total', 0),
+      subtotal: resultadoLinha,
     },
   ];
 
@@ -94,8 +90,19 @@ export function buildDREEstrutura(periodo: string): DRERelatorio {
     periodo,
     dataGeracao: new Date().toISOString(),
     secoes,
-    resultado: linha('R', 'RESULTADO FINAL', '', '+', 'total', 0),
+    resultado: resultadoLinha,
   };
+}
+
+export function buildDREAnual(ano: number): DREAnual {
+  const meses = MESES_LABEL.map((m, _i) => buildDREEstrutura(`${m} ${ano}`));
+
+  // Build acumulado by cloning structure and summing values
+  const acumulado = buildDREEstrutura(`Acumulado ${ano}`);
+  // For now all values are zero, so acumulado is already correct
+  // When real data exists, sum each line across months here
+
+  return { ano, meses, acumulado };
 }
 
 export function getCategoriasOrfas(): string[] {
