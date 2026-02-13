@@ -8,6 +8,7 @@ import {
   aplicarImportacao,
   getCategoriaUsageCount,
   transferirLancamentos,
+  gerarTemplateXlsx,
 } from '@/lib/conciliacao/categorias';
 import type { ImportPreview } from '@/lib/conciliacao/categorias';
 import type { CategoriaGrupo, CategoriaItem, CategoriasStorage } from '@/lib/conciliacao/types';
@@ -49,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Plus, Pencil, Trash2, X, AlertTriangle, Upload, Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, AlertTriangle, Upload, Download, TrendingUp, TrendingDown, FileDown, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function FinanceiroCategorias() {
@@ -67,6 +68,8 @@ export default function FinanceiroCategorias() {
   const [transferDialog, setTransferDialog] = useState<{ open: boolean; catId: string; catNome: string; usageCount: number; targetCat: string }>({ open: false, catId: '', catNome: '', usageCount: 0, targetCat: '' });
   // Import dialog
   const [importDialog, setImportDialog] = useState<{ open: boolean; preview: ImportPreview | null; fileName: string }>({ open: false, preview: null, fileName: '' });
+  // Import wizard (step 1: template/select file)
+  const [importWizardOpen, setImportWizardOpen] = useState(false);
   // Keyword input
   const [kwInput, setKwInput] = useState('');
   // File input ref
@@ -392,7 +395,7 @@ export default function FinanceiroCategorias() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Button variant="outline" size="sm" onClick={() => setImportWizardOpen(true)}>
               <Upload className="h-4 w-4 mr-1" /> Importar
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport}>
@@ -696,7 +699,37 @@ export default function FinanceiroCategorias() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== IMPORT PREVIEW DIALOG ===== */}
+      {/* ===== IMPORT WIZARD DIALOG (step 1: template or file) ===== */}
+      <Dialog open={importWizardOpen} onOpenChange={setImportWizardOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar Categorias</DialogTitle>
+            <DialogDescription>
+              Importe categorias a partir de uma planilha Excel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm mb-2">1. Baixe o modelo padrão com a estrutura esperada:</p>
+              <Button variant="outline" size="sm" onClick={() => { gerarTemplateXlsx(); toast.success('Modelo baixado'); }}>
+                <FileDown className="h-4 w-4 mr-1" /> Baixar modelo em branco
+              </Button>
+              <p className="text-xs text-muted-foreground mt-1">O modelo já vem com os headers corretos e exemplos.</p>
+            </div>
+            <div>
+              <p className="text-sm mb-2">2. Ou selecione uma planilha preenchida:</p>
+              <Button variant="outline" size="sm" onClick={() => { setImportWizardOpen(false); fileInputRef.current?.click(); }}>
+                <FolderOpen className="h-4 w-4 mr-1" /> Selecionar arquivo .xlsx
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportWizardOpen(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== IMPORT PREVIEW DIALOG (step 2) ===== */}
       <Dialog open={importDialog.open} onOpenChange={(open) => { if (!open) setImportDialog({ open: false, preview: null, fileName: '' }); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>

@@ -122,6 +122,36 @@ export interface ResultadoConciliacao {
   anoLabel: string;
 }
 
+// ===== DRE =====
+
+export type DREContaSinal = '+' | '-';
+
+export interface DRELinha {
+  id: string;
+  codigo: string;
+  nome: string;
+  contaDRE: string;
+  sinal: DREContaSinal;
+  tipo: 'conta' | 'subtotal' | 'total';
+  nivel: number;
+  valor: number;
+  categorias?: string[];
+}
+
+export interface DRESecao {
+  id: string;
+  titulo: string;
+  linhas: DRELinha[];
+  subtotal?: DRELinha;
+}
+
+export interface DRERelatorio {
+  periodo: string;
+  dataGeracao: string;
+  secoes: DRESecao[];
+  resultado: DRELinha;
+}
+
 // ===== CATEGORIAS CONTÁBEIS =====
 
 export interface CategoriaGrupo {

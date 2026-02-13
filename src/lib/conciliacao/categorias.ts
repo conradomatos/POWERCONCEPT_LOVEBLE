@@ -87,6 +87,23 @@ export interface ImportPreview {
   dados: ImportRow[];
 }
 
+export function gerarTemplateXlsx(): void {
+  const rows: string[][] = [
+    ['Grupo', 'Tipo', 'Nome da Categoria', 'Conta do DRE', 'Tipo de Gasto', 'Keywords', 'Observações', 'Ativa'],
+    ['Despesas Diretas', 'Despesa', 'COMBUSTIVEIS', '(-) - Custo dos Serviços Prestados', 'Compras', 'POSTO, SHELL, IPIRANGA', '', 'Sim'],
+    ['Receitas Diretas', 'Receita', 'RECEITAS DE SERVIÇOS', '(+) - Receita Bruta de Vendas', '', '', '', 'Sim'],
+    ['Despesas Administrativas', 'Despesa', 'ALUGUEL', '(-) - Despesas Administrativas', '', '', '', 'Sim'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 30 }, { wch: 10 }, { wch: 45 }, { wch: 40 },
+    { wch: 45 }, { wch: 50 }, { wch: 30 }, { wch: 6 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
+  XLSX.writeFile(wb, 'modelo_categorias.xlsx');
+}
+
 export function exportarCategoriasXlsx(storage: CategoriasStorage): void {
   
   const sortedGrupos = [...storage.grupos].sort((a, b) => a.ordem - b.ordem);

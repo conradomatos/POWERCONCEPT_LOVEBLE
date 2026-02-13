@@ -1,0 +1,106 @@
+import { loadCategoriasStorage } from './categorias';
+import type { DRERelatorio, DRESecao, DRELinha } from './types';
+
+export function buildDREEstrutura(periodo: string): DRERelatorio {
+  const storage = loadCategoriasStorage();
+  const categorias = storage.categorias.filter(c => c.ativa);
+
+  const getCategoriasPorDRE = (contaDRE: string): string[] => {
+    return categorias
+      .filter(c => c.contaDRE === contaDRE)
+      .map(c => c.nome);
+  };
+
+  const linha = (
+    codigo: string,
+    nome: string,
+    contaDRE: string,
+    sinal: '+' | '-',
+    tipo: 'conta' | 'subtotal' | 'total' = 'conta',
+    nivel: number = 1
+  ): DRELinha => ({
+    id: crypto.randomUUID(),
+    codigo,
+    nome,
+    contaDRE,
+    sinal,
+    tipo,
+    nivel,
+    valor: 0,
+    categorias: tipo === 'conta' ? getCategoriasPorDRE(contaDRE) : undefined,
+  });
+
+  const secoes: DRESecao[] = [
+    {
+      id: crypto.randomUUID(),
+      titulo: 'RECEITA OPERACIONAL',
+      linhas: [
+        linha('1.1', 'Receita Bruta de Vendas', '(+) - Receita Bruta de Vendas', '+'),
+        linha('1.2', 'Deduções de Receita', '(-) - Deduções de Receita', '-'),
+      ],
+      subtotal: linha('1', 'RECEITA LÍQUIDA', '', '+', 'subtotal', 0),
+    },
+    {
+      id: crypto.randomUUID(),
+      titulo: 'CUSTOS',
+      linhas: [
+        linha('2.1', 'Custo dos Serviços Prestados', '(-) - Custo dos Serviços Prestados', '-'),
+        linha('2.2', 'Outros Custos', '(-) - Outros Custos', '-'),
+      ],
+      subtotal: linha('2', 'LUCRO BRUTO', '', '+', 'subtotal', 0),
+    },
+    {
+      id: crypto.randomUUID(),
+      titulo: 'DESPESAS OPERACIONAIS',
+      linhas: [
+        linha('3.1', 'Despesas com Pessoal', '(-) - Despesas com Pessoal', '-'),
+        linha('3.2', 'Despesas Administrativas', '(-) - Despesas Administrativas', '-'),
+        linha('3.3', 'Despesas de Vendas e Marketing', '(-) - Despesas de Vendas e Marketing', '-'),
+        linha('3.4', 'Despesas Variáveis', '(-) - Despesas Variáveis', '-'),
+      ],
+      subtotal: linha('3', 'RESULTADO OPERACIONAL (EBITDA)', '', '+', 'subtotal', 0),
+    },
+    {
+      id: crypto.randomUUID(),
+      titulo: 'RESULTADO FINANCEIRO',
+      linhas: [
+        linha('4.1', 'Despesas Financeiras', '(-) - Despesas Financeiras', '-'),
+        linha('4.2', 'Outras Receitas', '(+) - Outras Receitas', '+'),
+        linha('4.3', 'Recuperação de Despesas Variáveis', '(+) - Recuperação de Despesas Variáveis', '+'),
+      ],
+      subtotal: linha('4', 'RESULTADO ANTES DOS IMPOSTOS', '', '+', 'subtotal', 0),
+    },
+    {
+      id: crypto.randomUUID(),
+      titulo: 'IMPOSTOS',
+      linhas: [
+        linha('5.1', 'Impostos', '(-) - Impostos', '-'),
+        linha('5.2', 'Outros Tributos', '(-) - Outros Tributos', '-'),
+        linha('5.3', 'Outras Deduções de Receita', '(-) - Outras Deduções de Receita', '-'),
+      ],
+      subtotal: linha('5', 'RESULTADO LÍQUIDO', '', '+', 'subtotal', 0),
+    },
+    {
+      id: crypto.randomUUID(),
+      titulo: 'INVESTIMENTOS E ATIVOS',
+      linhas: [
+        linha('6.1', 'Ativos / Investimentos', '(-) - Ativos', '-'),
+      ],
+      subtotal: linha('6', 'RESULTADO FINAL', '', '+', 'total', 0),
+    },
+  ];
+
+  return {
+    periodo,
+    dataGeracao: new Date().toISOString(),
+    secoes,
+    resultado: linha('R', 'RESULTADO FINAL', '', '+', 'total', 0),
+  };
+}
+
+export function getCategoriasOrfas(): string[] {
+  const storage = loadCategoriasStorage();
+  return storage.categorias
+    .filter(c => c.ativa && (!c.contaDRE || c.contaDRE.trim() === ''))
+    .map(c => c.nome);
+}
