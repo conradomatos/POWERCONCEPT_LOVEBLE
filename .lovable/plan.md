@@ -1,135 +1,203 @@
 
-# DIAGNÓSTICO E PLANO DE CORREÇÃO: Motor de Conciliação Financeira
+# PLANO: FASE 3 — Geração de Downloads (Relatório, Divergências, Importação Cartão)
 
-## PROBLEMAS IDENTIFICADOS
+## RESUMO EXECUTIVO
 
-### 1. **Omie Parser com Índices Fixos (CRÍTICO)**
-- Linha 56-91 em `parsers.ts`: O `parseOmie` usa índices hardcoded (coluna 0=situacao, 1=data, 2=cliente, etc.)
-- Se o arquivo Omie real tiver colunas em ordem diferente ou colunas adicionais, os dados são lidos nas posições erradas
-- Resultado: CNPJ/CPF (coluna 19) e Observações (coluna 20) ficam vazios ou leem dados errados
-- Isso faz com que matching A (que depende de CNPJ) não encontre correspondências
+Implementar a geração dos 3 arquivos de download que são o output final da conciliação financeira:
+1. **Relatório Markdown (.md)** — Resumo executivo, matching por camada, divergências organizadas por tipo, checklist de ações
+2. **Excel de Divergências (.xlsx)** — Tabela completa com todos os 18 tipos de divergências (A-I) em formato importável
+3. **Excel de Importação Cartão (.xlsx)** — Template no formato Omie para importar transações de cartão faltantes
 
-### 2. **Filtro de Conta Muito Rígido**
-- Linha 39-40 em `engine.ts`: Filtro exato `o.contaCorrente === 'CONCEPT_SICREDI'`
-- Se o Omie usar nomes diferentes para a conta (ex: "SICREDI C/C", "SICREDI CONCEPT", etc.), o filtro não funciona
-- Resultado: Lançamentos não são separados corretamente entre Sicredi e Cartão
-- `omieSicredi` fica vazio ou incompleto, causando 99% das transações caírem em Camada D (fallback)
-
-### 3. **parseDate Não Trata Datas Seriais do Excel**
-- Linha 137-145 em `utils.ts`: Quando xlsx lê datas, pode retornar número serial (ex: 45658 = "15/01/2025")
-- O parseDate atual não converte números → Datas ficam null
-- Resultado: Lançamentos com datas inválidas são descartados durante parsing
-- Reduz drasticamente o número de lançamentos processados
-
-### 4. **Falta de Diagnóstico**
-- Não há visibility no que está acontecendo durante o parsing e matching
-- Impossível saber se:
-  - Banco tem CNPJ? Quantos?
-  - Omie tem CNPJ? Quantos?
-  - Qual é a distribuição de contas Omie?
-  - Quantos registros são perdidos em cada etapa?
+A implementação usa apenas **cliente-side** (browser) com a lib `xlsx` (SheetJS) que já está instalada. Sem Node.js, sem API, sem Edge Functions.
 
 ---
 
-## SOLUÇÃO: 5 MUDANÇAS CRÍTICAS
+## ARQUITETURA
 
-### **MUDANÇA 1: Adicionar Console.logs Diagnósticos em `engine.ts`**
+### Novo arquivo: `src/lib/conciliacao/outputs.ts` (355 linhas)
+Módulo de geração de outputs com 3 funções principais:
 
-Inserir logs estratégicos após cada parsing e após cada camada de matching para visibilidade:
-- Após parseBanco: Total, com CNPJ, amostra de dados
-- Após parseOmie: Total, com CNPJ, separação por conta, amostra de dados
-- Após cada camada: Contagem de matches acumulados, banco/omie matched
-- Filtro de contas: Listar todas as contas encontradas no Omie
+1. **`gerarRelatorioMD(resultado)`**
+   - Gera markdown com seções: Resumo Executivo → Matching → Divergências → Cartão → Checklist
+   - Agrupa divergências por tipo (A, B, B*, C, D, E, G, H, I)
+   - Calcula totais, períodos, saldos, contabiliza métricas
+   - Faz download via `downloadFile()` helper (cria Blob → ObjectURL → simula clique em `<a>`)
+   - Nomeia arquivo: `relatorio_conciliacao_{mes}{ano}.md`
 
-**Benefício**: Identificar exatamente onde os dados estão sendo perdidos
+2. **`gerarExcelDivergencias(resultado)`**
+   - Cria XLSX com cabeçalhos: #, Tipo, Descrição Tipo, Fonte, Data, Valor, Descrição/Fornecedor, CNPJ/CPF, Situação, Origem, etc.
+   - Uma linha por divergência do array `resultado.divergencias`
+   - Aplica largura de colunas dinâmica (coluna fornecedor = 42ch, etc.)
+   - Ativa auto-filtro (row/column filters) na primeira linha
+   - Usa `XLSX.utils.aoa_to_sheet()` para converter array-of-arrays → Sheet
+   - Nomeia arquivo: `divergencias_{mes}{ano}.xlsx`
 
-### **MUDANÇA 2: Reescrever `parseOmie` com Detecção Dinâmica de Header**
+3. **`gerarExcelImportacaoCartao(resultado)`**
+   - Cria XLSX no **formato Omie** com template de Contas a Pagar
+   - Header informativo (3 linhas): "IMPORTAÇÃO", "Fatura Cartão — Venc. {data}", "Gerado em: {data}"
+   - Colunas Omie: Código Integração, Fornecedor, Categoria, Conta Corrente, Valor, Datas, etc.
+   - Filtra transações válidas: `!isPagamentoFatura && !isEstorno && !matchedNf`
+   - Para cada transação:
+     - Usa categoria sugerida (de `categoriaSugerida` ou via `suggestCategoria()` fallback)
+     - Data Registro = data compra, Data Vencimento = data fatura
+     - Observações = titular + parcela (se houver)
+   - Nomeia arquivo: `importacao_cartao_{mes}{ano}.xlsx`
 
-Implementar um colMap dinâmico que:
-- Procura a linha de header (geralmente linha 2-3) detectando colunas por nome
-- Monta um dicionário `colMap` mapeando `{ situacao: idx, data: idx, cliente: idx, ... cnpjCpf: idx }`
-- Usa helpers `col(key)` e `colNum(key)` para ler dados usando o colMap
-- Fallback: Se não encontrar header, usa índices padrão como fallback
+### Helper `downloadFile(content, filename, mimeType)`
+- Cria Blob a partir de string ou Blob
+- Cria ObjectURL temporário
+- Simula clique em `<a>` tag (appendChild → click → removeChild)
+- Revoga URL para libertar memória
 
-**Benefício**: Parser robusto a variações no formato do arquivo Omie
+### Utilitários
+- `formatBRL(valor)` → "R$ 1.234,56" ou "-R$ 567,89"
+- `formatDateBR(date)` → "15/01/2025"
 
-### **MUDANÇA 3: Melhorar `parseDate` para Lidar com Datas Seriais do Excel**
+---
 
-Adicionar lógica:
-- Se `val` é number: Converter número serial Excel → Date
-  - Excel epoch: 1/1/1900
-  - Fórmula: `new Date(1900, 0, 1).getTime() + (serialNumber - 2) * 86400000`
-- Se `val` é string: Tentar dd/mm/yyyy, ISO (yyyy-mm-dd), depois parse genérico
-- Resultado: Todas as datas (string ou número) são tratadas
+## MODIFICAÇÕES EM `src/pages/Conciliacao.tsx`
 
-**Benefício**: Não perder lançamentos por falha de parsing de data
-
-### **MUDANÇA 4: Tornar Filtro de Conta Mais Flexível em `engine.ts`**
-
-Mudar de:
+### 1. Novo import (linha 25)
 ```typescript
-const omieSicredi = omie.filter(o => o.contaCorrente === 'CONCEPT_SICREDI');
+import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao } from '@/lib/conciliacao/outputs';
 ```
 
-Para:
+### 2. Três funções handler (antes do return, ~linha 330)
 ```typescript
-const contaCartaoKeywords = ['CARTAO', 'CARTÃO', 'CREDIT CARD', 'DÉBITO'];
-const omieSicredi = omie.filter(o => 
-  !contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
-);
-const omieCartao = omie.filter(o => 
-  contaCartaoKeywords.some(k => o.contaCorrente.toUpperCase().includes(k))
-);
+const handleDownloadRelatorio = () => {
+  if (!resultado) return;
+  try {
+    gerarRelatorioMD(resultado);
+    toast({ title: "Relatório gerado", description: "Download do relatório .md iniciado" });
+  } catch (error) {
+    // erro handling
+  }
+};
+
+const handleDownloadDivergencias = () => {
+  if (!resultado) return;
+  try {
+    gerarExcelDivergencias(resultado);
+    toast({ title: "Divergências geradas", description: "Download do Excel iniciado" });
+  } catch (error) { /* ... */ }
+};
+
+const handleDownloadImportacao = () => {
+  if (!resultado) return;
+  try {
+    gerarExcelImportacaoCartao(resultado);
+    toast({ title: "Importação gerada", description: "Download do Excel de importação iniciado" });
+  } catch (error) { /* ... */ }
+};
 ```
 
-**Benefício**: Separação correta independente do exato nome da conta no Omie
+### 3. Atualizar 3 botões (linhas 397-405)
+Mudar de `disabled` para `onClick={handler}` e habilitar condicionalmente:
 
-### **MUDANÇA 5: Verificar e Melhorar `nomeCompativel` e `extractCnpjCpf` em `utils.ts` (Validação)**
+```tsx
+<Button 
+  variant="outline" 
+  disabled={!resultado} 
+  onClick={handleDownloadRelatorio} 
+  className="gap-2"
+>
+  <Download className="h-4 w-4" /> Relatório (.md)
+</Button>
 
-O código atual parece estar OK, mas:
-- `nomeCompativel` pode ser verificado para ter threshold correto (>=1 token comum)
-- `extractCnpjCpf` já faz o trabalho, mas só funciona se o CNPJ estiver na descrição
+<Button 
+  variant="outline" 
+  disabled={!resultado} 
+  onClick={handleDownloadDivergencias} 
+  className="gap-2"
+>
+  <Download className="h-4 w-4" /> Divergências (.xlsx)
+</Button>
 
----
-
-## PLANO DE IMPLEMENTAÇÃO (ORDEM CRÍTICA)
-
-1. **Adicionar console.logs em `engine.ts`** (10 min)
-   - Sem modificar lógica, apenas diagnóstico
-   
-2. **Reescrever `parseOmie` com colMap dinâmico** (20 min)
-   - Maior impacto: vai recuperar dados que estão sendo lidos em índices errados
-   
-3. **Melhorar `parseDate` para datas seriais** (10 min)
-   - Evitar perda de lançamentos
-   
-4. **Tornar filtro de conta flexível** (5 min)
-   - Garantir separação correta Sicredi vs Cartão
-
-5. **Testar e Verificar Distribuição**
-   - Executar conciliação e verificar console
-   - Esperado: Camada A > B > C >> D
-
----
-
-## IMPACTO ESPERADO
-
-**Antes (Problema Atual):**
-- Camada A: 1 (CNPJ não extraído ou não comparado)
-- Camada B: 0 (dados faltando por índices errados)
-- Camada D: 160 (fallback de scoring baixo)
-
-**Depois (Objetivo):**
-- Camada A: ~30-50 (CNPJ exato encontrado)
-- Camada B: ~80-100 (valor + nome + data)
-- Camada C: ~5-15 (agrupamentos)
-- Camada D: ~20-30 (scoring baixo para casos reais inconciliáveis)
-- **Total conciliados: ~130-190 de 160** = Taxa melhorada de 60% → 85%+
+<Button 
+  variant="outline" 
+  disabled={!resultado} 
+  onClick={handleDownloadImportacao} 
+  className="gap-2"
+>
+  <Download className="h-4 w-4" /> Importação Cartão (.xlsx)
+</Button>
+```
 
 ---
 
-## ARQUIVOS A MODIFICAR
+## FLUXO DE USO
 
-1. `src/lib/conciliacao/engine.ts` - Adicionar console.logs + filtro flexível
-2. `src/lib/conciliacao/parsers.ts` - Reescrever parseOmie
-3. `src/lib/conciliacao/utils.ts` - Melhorar parseDate
+1. **Upload** → Usuário faz upload de 3 arquivos (Banco, Omie, Cartão)
+2. **Executa Conciliação** → Motor processa e retorna `ResultadoConciliacao`
+3. **KPIs atualizam** → Mostram 357 conciliados, 323 divergências, etc.
+4. **Botões de Download** → Agora habilitados (`disabled={!resultado}`)
+5. **Usuário clica em Relatório** → Browser faz download de `relatorio_conciliacao_jan2026.md`
+6. **Usuário clica em Divergências** → Browser faz download de `divergencias_jan2026.xlsx`
+7. **Usuário clica em Importação Cartão** → Browser faz download de `importacao_cartao_jan2026.xlsx`
+
+---
+
+## DECISÕES DE DESIGN
+
+### Markdown vs XLSX para Relatório
+- Markdown é mais legível em editores de texto/GitHub e pode ser versionado no git
+- Contém seções bem estruturadas: Resumo → Matching → Divergências → Checklist
+- Ideal para documentar o processo de conciliação
+
+### Excel de Divergências vs MD
+- Excel oferece sorting/filtering (auto-filtro) nativo
+- Dados estruturados em colunas (tipo, valor, ação) são mais fáceis de revisar em planilha
+- Permite marcar como "Resolvido" em coluna adicional (se necessário em futuro)
+
+### Importação Cartão em Formato Omie
+- Template segue exatamente as colunas que Omie espera
+- Linhas de instrução no topo (informativo, não processado)
+- Data Registro = data da compra, Data Vencimento = vencimento fatura
+- Categoria sugerida via `suggestCategoria()` para facilitar entrada rápida
+
+### Browser-side só (sem servidor)
+- XLSX (SheetJS) suporta geração de Excel direto no browser
+- Evita overhead de servidor, latência, autenticação extra
+- Dados não saem do navegador (privado)
+
+---
+
+## VALIDAÇÕES E TESTES
+
+Após implementação:
+1. **Upload 3 arquivos** → Executa conciliação
+2. **Clica Relatório (.md)** → Download .md abre em editor/browser, verifica formato Markdown
+3. **Clica Divergências (.xlsx)** → Download .xlsx abre em Excel, verifica colunas, auto-filtro, dados completos
+4. **Clica Importação Cartão (.xlsx)** → Download .xlsx no formato Omie
+   - Verifica se categorias sugeridas fazem sentido
+   - Verifica se datas estão corretas
+   - Confirma que filtrou as transações de "Pagamento de Fatura"
+5. **Testa sem resultado** → Botões desabilitados
+6. **Verifica nomes de arquivos** → Formato `{relatorio|divergencias|importacao}_{mes}{ano}.{md|xlsx}`
+
+---
+
+## IMPACTO E DEPENDÊNCIAS
+
+- **Nenhuma dependência nova** — usa `xlsx` que já está instalado
+- **Sem mudanças em parsers, matcher, classifier, engine** — apenas leitura de `ResultadoConciliacao`
+- **Sem mudança em tipos** — usa tipos já existentes em `types.ts`
+- **Sem Edge Functions** — tudo é browser-side
+- **Sem Supabase** — não precisa de tabelas ou storage
+
+---
+
+## ORDEM DE IMPLEMENTAÇÃO
+
+1. **Criar `src/lib/conciliacao/outputs.ts`** — Copiar código completo (355 linhas)
+2. **Atualizar `src/pages/Conciliacao.tsx`** — Adicionar import, 3 handlers, atualizar 3 botões
+3. **Testar** — Upload, Executar, Download cada arquivo
+
+---
+
+## ENTREGA
+
+- Fase 3 completa: Usuário pode baixar 3 arquivos de output prontos para análise e ação
+- Relatório pode ser arquivado/compartilhado
+- Excel de divergências é pronto para trabalhar (filtros, sorting)
+- Excel de importação Cartão é pronto para copiar/colar no Omie
