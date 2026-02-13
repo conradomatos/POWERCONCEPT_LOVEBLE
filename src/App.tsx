@@ -86,7 +86,9 @@ const App = () => (
             <Route path="/rentabilidade/mapeamento" element={<MapeamentoOmie />} />
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
-            <Route path="/conciliacao" element={<Conciliacao />} />
+            <Route path="/financeiro/conciliacao" element={<Conciliacao />} />
+            <Route path="/financeiro" element={<Navigate to="/financeiro/conciliacao" replace />} />
+            <Route path="/conciliacao" element={<Navigate to="/financeiro/conciliacao" replace />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
             {/* Redirects for common wrong routes */}
             <Route path="/orcamentos/ba/*" element={<Navigate to="/orcamentos/bases" replace />} />
