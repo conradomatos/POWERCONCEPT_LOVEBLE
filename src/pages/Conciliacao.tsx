@@ -19,11 +19,12 @@ import {
   Clock,
   ArrowLeftRight,
   Loader2,
+  FileText,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { executarConciliacao } from '@/lib/conciliacao/engine';
 import type { ResultadoConciliacao } from '@/lib/conciliacao/types';
-import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao } from '@/lib/conciliacao/outputs';
+import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
 
 interface ParsedFileInfo {
   file: File;
@@ -245,6 +246,17 @@ export default function Conciliacao() {
     }
   };
 
+  const handleDownloadPDF = () => {
+    if (!resultado) return;
+    try {
+      gerarRelatorioPDF(resultado);
+      toast.success('Download do relatório PDF iniciado');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Falha ao gerar PDF');
+    }
+  };
+
   const handleExecute = async () => {
     if (!files.banco?.file || !files.omie?.file) return;
     setProcessando(true);
@@ -430,6 +442,9 @@ export default function Conciliacao() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" disabled={!resultado} onClick={handleDownloadRelatorio} className="gap-2">
               <Download className="h-4 w-4" /> Relatório (.md)
+            </Button>
+            <Button variant="outline" disabled={!resultado} onClick={handleDownloadPDF} className="gap-2">
+              <FileText className="h-4 w-4" /> Relatório (.pdf)
             </Button>
             <Button variant="outline" disabled={!resultado} onClick={handleDownloadDivergencias} className="gap-2">
               <Download className="h-4 w-4" /> Divergências (.xlsx)

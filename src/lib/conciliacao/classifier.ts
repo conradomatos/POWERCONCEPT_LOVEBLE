@@ -52,18 +52,22 @@ export function classifyDivergencias(
   divergencias: Divergencia[],
   matches: Match[]
 ) {
-  // A — FALTANDO NO OMIE
+  // A — FALTANDO NO OMIE / T — TRANSFERÊNCIAS ENTRE CONTAS
   for (const b of banco) {
     if (!b.matched) {
+      const descUpper = (b.descricao || '').toUpperCase();
+      const isTransferencia = descUpper.includes('DEB.CTA.FATURA') || descUpper.includes('FATURA CARTAO') || descUpper.includes('FATURA CARTÃO');
+
       divergencias.push({
-        tipo: 'A',
-        tipoNome: 'FALTANDO NO OMIE',
+        tipo: isTransferencia ? 'T' : 'A',
+        tipoNome: isTransferencia ? 'TRANSFERÊNCIA ENTRE CONTAS' : 'FALTANDO NO OMIE',
         fonte: 'Banco',
         data: b.dataStr,
         valor: b.valor,
-        descricao: b.descricao,
+        descricao: b.descricao || '',
         cnpjCpf: b.cnpjCpf,
         nome: b.nome,
+        acao: isTransferencia ? 'Lançar transferência Sicredi → Cartão de Crédito no Omie' : undefined,
         banco: b,
         omie: null,
       });
@@ -107,12 +111,13 @@ export function classifyDivergencias(
       fonte: 'Omie',
       data: o.dataStr,
       valor: o.valor,
-      descricao: o.clienteFornecedor,
+      descricao: o.observacoes || o.clienteFornecedor || o.cnpjCpf || '',
       cnpjCpf: o.cnpjCpf,
       nome: o.clienteFornecedor,
       situacao: o.situacao,
       origem: o.origem,
       acao,
+      obs: o.observacoes || '',
       banco: null,
       omie: o,
     });
