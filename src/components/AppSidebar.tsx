@@ -29,6 +29,7 @@ import {
   Shield,
   Home,
   ArrowLeftRight,
+  Tags,
 } from 'lucide-react';
 
 import {
@@ -98,6 +99,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     label: 'Financeiro',
     items: [
       { title: 'Conciliação', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
+      { title: 'Categorias', url: '/financeiro/categorias', icon: Tags },
     ],
   },
   orcamentos: {

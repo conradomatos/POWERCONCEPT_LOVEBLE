@@ -121,3 +121,52 @@ export interface ResultadoConciliacao {
   mesLabel: string;
   anoLabel: string;
 }
+
+// ===== CATEGORIAS CONTÁBEIS =====
+
+export interface CategoriaGrupo {
+  id: string;
+  nome: string;
+  tipo: 'Receita' | 'Despesa';
+  ordem: number;
+  ativa: boolean;
+}
+
+export interface CategoriaItem {
+  id: string;
+  grupoId: string;
+  nome: string;
+  tipo: 'Receita' | 'Despesa';
+  contaDRE: string;
+  tipoGasto: string;
+  keywords: string[];
+  observacoes: string;
+  ativa: boolean;
+  ordem: number;
+}
+
+export interface CategoriasStorage {
+  version: number;
+  grupos: CategoriaGrupo[];
+  categorias: CategoriaItem[];
+  categoriaPadrao: string;
+  contaCorrente: string;
+}
+
+export const CONTAS_DRE = [
+  '(+) - Receita Bruta de Vendas',
+  '(+) - Outras Receitas',
+  '(+) - Recuperação de Despesas Variáveis',
+  '(-) - Deduções de Receita',
+  '(-) - Outras Deduções de Receita',
+  '(-) - Custo dos Serviços Prestados',
+  '(-) - Outros Custos',
+  '(-) - Despesas Variáveis',
+  '(-) - Despesas com Pessoal',
+  '(-) - Despesas Administrativas',
+  '(-) - Despesas de Vendas e Marketing',
+  '(-) - Despesas Financeiras',
+  '(-) - Impostos',
+  '(-) - Outros Tributos',
+  '(-) - Ativos',
+] as const;
