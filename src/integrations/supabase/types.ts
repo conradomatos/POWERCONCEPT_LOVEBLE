@@ -1883,6 +1883,54 @@ export type Database = {
           },
         ]
       }
+      categorias_contabeis: {
+        Row: {
+          ativa: boolean
+          conta_dre: string
+          created_at: string | null
+          grupo_nome: string
+          grupo_ordem: number
+          grupo_tipo: string
+          id: string
+          keywords: string[] | null
+          nome: string
+          observacoes: string | null
+          ordem: number
+          tipo_gasto: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativa?: boolean
+          conta_dre?: string
+          created_at?: string | null
+          grupo_nome: string
+          grupo_ordem?: number
+          grupo_tipo: string
+          id?: string
+          keywords?: string[] | null
+          nome: string
+          observacoes?: string | null
+          ordem?: number
+          tipo_gasto?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativa?: boolean
+          conta_dre?: string
+          created_at?: string | null
+          grupo_nome?: string
+          grupo_ordem?: number
+          grupo_tipo?: string
+          id?: string
+          keywords?: string[] | null
+          nome?: string
+          observacoes?: string | null
+          ordem?: number
+          tipo_gasto?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       collaborator_history: {
         Row: {
           changed_at: string
@@ -4237,9 +4285,52 @@ export type Database = {
           },
         ]
       }
+      omie_categoria_mapeamento: {
+        Row: {
+          ativo: boolean | null
+          categoria_contabil_id: string | null
+          codigo_omie: string
+          conta_dre_override: string | null
+          created_at: string | null
+          descricao_omie: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          categoria_contabil_id?: string | null
+          codigo_omie: string
+          conta_dre_override?: string | null
+          created_at?: string | null
+          descricao_omie?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria_contabil_id?: string | null
+          codigo_omie?: string
+          conta_dre_override?: string | null
+          created_at?: string | null
+          descricao_omie?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omie_categoria_mapeamento_categoria_contabil_id_fkey"
+            columns: ["categoria_contabil_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_contabeis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omie_contas_pagar: {
         Row: {
           categoria: string | null
+          categorias_rateio: Json | null
+          codigo_tipo_documento: string | null
           created_at: string
           data_emissao: string
           data_pagamento: string | null
@@ -4247,21 +4338,31 @@ export type Database = {
           fornecedor: string | null
           fornecedor_cnpj: string | null
           id: string
+          id_conta_corrente: number | null
           id_omie_titulo: number
           numero_documento: string | null
           observacoes: string | null
           omie_projeto_codigo: number | null
           parcela: string | null
           projeto_id: string | null
+          raw_data: Json | null
           status: Database["public"]["Enums"]["titulo_status"]
           sync_id: string | null
           updated_at: string
           valor: number
+          valor_cofins: number | null
+          valor_csll: number | null
+          valor_inss: number | null
+          valor_ir: number | null
+          valor_iss: number | null
           valor_pago: number
+          valor_pis: number | null
           vencimento: string
         }
         Insert: {
           categoria?: string | null
+          categorias_rateio?: Json | null
+          codigo_tipo_documento?: string | null
           created_at?: string
           data_emissao: string
           data_pagamento?: string | null
@@ -4269,21 +4370,31 @@ export type Database = {
           fornecedor?: string | null
           fornecedor_cnpj?: string | null
           id?: string
+          id_conta_corrente?: number | null
           id_omie_titulo: number
           numero_documento?: string | null
           observacoes?: string | null
           omie_projeto_codigo?: number | null
           parcela?: string | null
           projeto_id?: string | null
+          raw_data?: Json | null
           status?: Database["public"]["Enums"]["titulo_status"]
           sync_id?: string | null
           updated_at?: string
           valor?: number
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
           valor_pago?: number
+          valor_pis?: number | null
           vencimento: string
         }
         Update: {
           categoria?: string | null
+          categorias_rateio?: Json | null
+          codigo_tipo_documento?: string | null
           created_at?: string
           data_emissao?: string
           data_pagamento?: string | null
@@ -4291,17 +4402,25 @@ export type Database = {
           fornecedor?: string | null
           fornecedor_cnpj?: string | null
           id?: string
+          id_conta_corrente?: number | null
           id_omie_titulo?: number
           numero_documento?: string | null
           observacoes?: string | null
           omie_projeto_codigo?: number | null
           parcela?: string | null
           projeto_id?: string | null
+          raw_data?: Json | null
           status?: Database["public"]["Enums"]["titulo_status"]
           sync_id?: string | null
           updated_at?: string
           valor?: number
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
           valor_pago?: number
+          valor_pis?: number | null
           vencimento?: string
         }
         Relationships: [
@@ -4331,67 +4450,97 @@ export type Database = {
       omie_contas_receber: {
         Row: {
           categoria: string | null
+          categorias_rateio: Json | null
           cliente: string | null
           cliente_cnpj: string | null
+          codigo_tipo_documento: string | null
           created_at: string
           data_emissao: string
           data_recebimento: string | null
           descricao: string | null
           id: string
+          id_conta_corrente: number | null
           id_omie_titulo: number
           numero_documento: string | null
           observacoes: string | null
           omie_projeto_codigo: number | null
           parcela: string | null
           projeto_id: string | null
+          raw_data: Json | null
           status: Database["public"]["Enums"]["titulo_status"]
           sync_id: string | null
           updated_at: string
           valor: number
+          valor_cofins: number | null
+          valor_csll: number | null
+          valor_inss: number | null
+          valor_ir: number | null
+          valor_iss: number | null
+          valor_pis: number | null
           valor_recebido: number
           vencimento: string
         }
         Insert: {
           categoria?: string | null
+          categorias_rateio?: Json | null
           cliente?: string | null
           cliente_cnpj?: string | null
+          codigo_tipo_documento?: string | null
           created_at?: string
           data_emissao: string
           data_recebimento?: string | null
           descricao?: string | null
           id?: string
+          id_conta_corrente?: number | null
           id_omie_titulo: number
           numero_documento?: string | null
           observacoes?: string | null
           omie_projeto_codigo?: number | null
           parcela?: string | null
           projeto_id?: string | null
+          raw_data?: Json | null
           status?: Database["public"]["Enums"]["titulo_status"]
           sync_id?: string | null
           updated_at?: string
           valor?: number
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
+          valor_pis?: number | null
           valor_recebido?: number
           vencimento: string
         }
         Update: {
           categoria?: string | null
+          categorias_rateio?: Json | null
           cliente?: string | null
           cliente_cnpj?: string | null
+          codigo_tipo_documento?: string | null
           created_at?: string
           data_emissao?: string
           data_recebimento?: string | null
           descricao?: string | null
           id?: string
+          id_conta_corrente?: number | null
           id_omie_titulo?: number
           numero_documento?: string | null
           observacoes?: string | null
           omie_projeto_codigo?: number | null
           parcela?: string | null
           projeto_id?: string | null
+          raw_data?: Json | null
           status?: Database["public"]["Enums"]["titulo_status"]
           sync_id?: string | null
           updated_at?: string
           valor?: number
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
+          valor_pis?: number | null
           valor_recebido?: number
           vencimento?: string
         }

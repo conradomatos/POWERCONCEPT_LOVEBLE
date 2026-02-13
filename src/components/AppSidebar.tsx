@@ -102,6 +102,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
       { title: 'Conciliação', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
       { title: 'Categorias', url: '/financeiro/categorias', icon: Tags },
       { title: 'DRE', url: '/financeiro/dre', icon: BarChart3 },
+      { title: 'Mapeamento Omie', url: '/financeiro/mapeamento-categorias', icon: ArrowLeftRight },
     ],
   },
   orcamentos: {
