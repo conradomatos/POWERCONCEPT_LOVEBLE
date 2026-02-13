@@ -1,166 +1,225 @@
 
 
-# FASE 6 — Refinamento DRE (Documento Tecnico)
+# FASE 7 -- DRE com Dados Reais do Omie
 
 ## Visao Geral
 
-Transformar a tela DRE de um layout basico para um relatorio contabil profissional com: expand/collapse global, estrutura corrigida (sem Ativos), analise vertical (AV%), margens gerenciais, visao anual com 12 colunas, toggles AV%/AH%, e dialog de exportacao PDF.
+Conectar a DRE existente aos dados financeiros reais sincronizados do Omie, migrando categorias do localStorage para o banco de dados e criando o pipeline de mapeamento Omie -> contas DRE.
 
 ---
+
+## Etapas de Implementacao
+
+### ETAPA 1: Migration SQL
+
+Criar uma unica migration com:
+
+1. **Tabela `categorias_contabeis`** -- substitui localStorage
+   - Campos: id, grupo_nome, grupo_tipo, grupo_ordem, nome (UNIQUE), conta_dre, tipo_gasto, keywords (TEXT[]), observacoes, ativa, ordem, created_at, updated_at
+   - RLS: leitura para autenticados, escrita para admin/financeiro/super_admin
+
+2. **Tabela `omie_categoria_mapeamento`** -- liga codigos Omie a contas DRE
+   - Campos: id, codigo_omie (UNIQUE), descricao_omie, categoria_contabil_id (FK), conta_dre_override, ativo, created_at, updated_at
+   - RLS: mesma politica
+
+3. **ALTER TABLE** nas tabelas existentes (apenas ADD COLUMN):
+   - `omie_contas_receber`: valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, categorias_rateio (JSONB), codigo_tipo_documento, id_conta_corrente, raw_data (JSONB)
+   - `omie_contas_pagar`: mesmas colunas
+
+4. **Indices** para performance (conta_dre, ativa, codigo_omie, nome)
+
+---
+
+### ETAPA 2: Hook de Categorias (Supabase)
+
+**Novo arquivo: `src/hooks/useCategorias.ts`**
+
+- `useCategorias()` -- query de todas categorias ativas, ordenadas por grupo_ordem + ordem
+- `useCreateCategoria()` -- mutation insert
+- `useUpdateCategoria()` -- mutation update
+- `useDeleteCategoria()` -- mutation delete
+- `useMigrarCategorias()` -- mutation que le localStorage e faz bulk insert no Supabase
+- `useCheckMigration()` -- query que verifica se Supabase tem categorias (count > 0)
+
+Todas com invalidation de cache via queryClient.
+
+---
+
+### ETAPA 3: Atualizar FinanceiroCategorias.tsx
+
+**Mudancas no arquivo existente (764 linhas):**
+
+- Substituir `useState<CategoriasStorage>(() => loadCategoriasStorage())` por `useCategorias()` do hook
+- Substituir todas chamadas `persist()` / `saveCategoriasStorage()` por mutations Supabase
+- Adicionar botao "Migrar para nuvem" no header quando detectar dados no localStorage e Supabase vazio
+- Manter mesma UI (accordions, CRUD de grupos/categorias, import/export Excel)
+- Import Excel: converter para insert no Supabase (em vez de localStorage)
+- Export Excel: continua funcionando (le dados do hook)
+- Loading state com skeleton enquanto carrega
+
+**Compatibilidade:**
+- `suggestCategoria()` em categorias.ts continua lendo localStorage como fallback para a tela de Conciliacao
+- A migracao copia os dados para Supabase; localStorage nao e apagado (backup read-only)
+
+---
+
+### ETAPA 4: Aprimorar Edge Function `omie-financeiro`
+
+**Modificar: `supabase/functions/omie-financeiro/index.ts`**
+
+Adicionar aos interfaces `OmieContaReceber` e `OmieContaPagar`:
+- Campos de impostos retidos: valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll
+- Campo categorias (array de rateio)
+- codigo_tipo_documento, id_conta_corrente
+
+Adicionar ao mapeamento arRecord/apRecord:
+- Os novos campos extraidos do titulo Omie
+- `raw_data: JSON.stringify(titulo)` para auditoria
+
+Adicionar logica de auto-popular mapeamento:
+- Coletar todos `codigo_categoria` unicos encontrados durante a sync
+- Apos processar titulos, fazer upsert em `omie_categoria_mapeamento` para codigos novos (ignoreDuplicates)
+
+---
+
+### ETAPA 5: Hook useDREData
+
+**Novo arquivo: `src/hooks/useDREData.ts`**
+
+```text
+useDREData(ano: number) -> { data: DREDadosMes[], isLoading }
+
+Fluxo:
+1. Buscar mapeamentos (omie_categoria_mapeamento + join categorias_contabeis)
+2. Montar mapa: codigo_omie -> conta_dre
+3. Buscar AR do ano (excluindo CANCELADO), por data_emissao
+4. Buscar AP do ano (excluindo CANCELADO), por data_emissao
+5. Agregar por conta_dre + mes (regime de competencia)
+6. Impostos retidos -> "(-) - Deducoes de Receita"
+7. Retornar array DREDadosMes[]
+```
+
+Interface DREDadosMes: { conta_dre, mes, ano, total }
+
+Cache: staleTime 5 minutos.
+
+---
+
+### ETAPA 6: Motor DRE com Dados Reais
+
+**Modificar: `src/lib/conciliacao/dre.ts`**
+
+Manter funcoes existentes (`buildDREEstrutura`, `buildDREAnual`) como fallback.
+
+Adicionar novas funcoes:
+
+- `buildDREComDados(periodo, dadosMes[], mes, categorias[])` -- mesma estrutura de secoes, mas popula valores reais:
+  - Para cada DRELinha com contaDRE, buscar total em dadosMes onde conta_dre === contaDRE e mes === mesAtual
+  - Calcular subtotais cascateando (Receita Liquida = Bruta - Deducoes, Lucro Bruto = RL - Custos, etc.)
+  - Categorias vem do Supabase (nomes das categorias vinculadas a cada conta DRE)
+
+- `buildDREAnualComDados(ano, dados[], categorias[])` -- chama buildDREComDados para cada mes (1-12), calcula acumulado somando por conta_dre
+
+---
+
+### ETAPA 7: Pagina de Mapeamento Categorias Omie
+
+**Novo arquivo: `src/pages/MapeamentoCategorias.tsx`**
+
+**Novo hook: `src/hooks/useCategoriaMapeamento.ts`**
+- `useMapeamentos()` -- lista todos os mapeamentos
+- `useUpdateMapeamento()` -- salvar conta_dre_override e categoria_contabil_id
+- `useMapeamentoStats()` -- count de titulos por codigo_omie (AR + AP)
+
+**Layout da pagina:**
+- Tabela com colunas: Codigo Omie | Qtd Titulos | Valor Total | Conta DRE (select) | Status
+- Filtros: Todos / Mapeados / Nao mapeados
+- Sugestao automatica por prefixo (1.01 -> Receita Bruta, 2.05 -> Despesas com Pessoal, etc.)
+- Badge: verde "Mapeado", amarelo "Pendente"
+- Botao "Salvar" por linha ou em lote
+
+---
+
+### ETAPA 8: Atualizar FinanceiroDRE.tsx
+
+**Mudancas no arquivo existente (752 linhas):**
+
+- Importar `useDREData` e `useCategorias`
+- Substituir `buildDREEstrutura(periodo)` por `buildDREComDados(periodo, dreData, mesNum, categorias)` com fallback
+- Substituir `buildDREAnual(ano)` por `buildDREAnualComDados(ano, dreData, categorias)` com fallback
+- Adicionar loading state (skeleton nos KPIs e tabela)
+- Adicionar badge "Dados Omie" verde quando dados reais presentes
+- Adicionar alerta quando sem dados sincronizados
+
+---
+
+### ETAPA 9: Painel de Sincronizacao
+
+**Novo arquivo: `src/components/financeiro/OmieSyncPanel.tsx`**
+
+- Reaproveitar logica do `SyncButton.tsx` existente
+- Adicionar filtros: data_inicio, data_fim, tipo (AR/AP/Todos)
+- Tabela de historico de sincronizacoes (lendo `omie_sync_log`)
+- Cards de estatisticas: total AR, total AP, categorias nao mapeadas, ultima sync
+- Acessivel via pagina Financeiro (adicionar como sub-rota ou componente na pagina DRE)
+
+---
+
+### ETAPA 10: Navegacao
+
+**Modificar: `src/components/AppSidebar.tsx`**
+- Adicionar item "Mapeamento Omie" no menu Financeiro (url: `/financeiro/mapeamento-categorias`)
+
+**Modificar: `src/components/Layout.tsx`**
+- Adicionar rota `/financeiro/mapeamento-categorias` ao mapeamento `routeToArea`
+
+**Modificar: `src/App.tsx`**
+- Adicionar rota `<Route path="/financeiro/mapeamento-categorias" element={<MapeamentoCategorias />} />`
+
+---
+
+## Arquivos a Criar
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/hooks/useCategorias.ts` | CRUD categorias via Supabase |
+| `src/hooks/useDREData.ts` | Agregacao AR/AP por conta DRE e mes |
+| `src/hooks/useCategoriaMapeamento.ts` | CRUD mapeamento Omie -> DRE |
+| `src/pages/MapeamentoCategorias.tsx` | Tela de mapeamento |
+| `src/components/financeiro/OmieSyncPanel.tsx` | Painel de sincronizacao |
 
 ## Arquivos a Modificar
 
-| Arquivo | Acao | Descricao |
-|---------|------|-----------|
-| `src/lib/conciliacao/types.ts` | MODIFICAR | Adicionar interface `DREAnual` |
-| `src/lib/conciliacao/dre.ts` | MODIFICAR | Remover secao Ativos, remover duplicidade resultado, renomear secao Impostos, adicionar `buildDREAnual()` |
-| `src/pages/FinanceiroDRE.tsx` | REESCREVER | Expand/collapse global, AV%, margens, visao mensal/anual, toggles, dialog PDF, KPIs corrigidos, tabela anual com scroll |
+| Arquivo | Mudanca |
+|---------|---------|
+| `supabase/functions/omie-financeiro/index.ts` | Novos campos, auto-popular mapeamento |
+| `src/lib/conciliacao/dre.ts` | Adicionar buildDREComDados/buildDREAnualComDados |
+| `src/pages/FinanceiroDRE.tsx` | Conectar ao useDREData, loading, badge |
+| `src/pages/FinanceiroCategorias.tsx` | Migrar localStorage -> Supabase |
+| `src/components/AppSidebar.tsx` | Link mapeamento categorias |
+| `src/components/Layout.tsx` | routeToArea |
+| `src/App.tsx` | Nova rota |
+
+## Arquivos NAO Alterados
+
+- `src/lib/conciliacao/categorias.ts` -- mantido como fallback/compatibilidade
+- `src/pages/Conciliacao.tsx` -- sem mudancas
+- `src/lib/conciliacao/parsers.ts`, `matcher.ts`, `classifier.ts`, `engine.ts`, `outputs.ts`
 
 ---
 
-## Detalhes Tecnicos
+## Consideracoes de Seguranca
 
-### 1. types.ts — Adicionar DREAnual (apos linha 153)
+- Todas tabelas novas com RLS habilitada
+- Leitura: `has_any_role(auth.uid())`
+- Escrita: `has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'financeiro') OR has_role(auth.uid(), 'super_admin')`
+- Edge Function mantem autenticacao JWT existente
+- Dados sensíveis protegidos pelas mesmas politicas das tabelas Omie existentes
 
-```typescript
-export interface DREAnual {
-  ano: number;
-  meses: DRERelatorio[];      // [0]=Jan ... [11]=Dez
-  acumulado: DRERelatorio;    // Soma
-}
-```
+## Compatibilidade
 
-Nenhuma outra mudanca em types.ts. A interface `DRELinha` ja tem `valor` e `categorias` — o AV% sera calculado na UI, nao armazenado no modelo.
-
-### 2. dre.ts — Correcoes Estruturais
-
-**Remover secao "INVESTIMENTOS E ATIVOS"** (linhas 83-90):
-- Categorias com `contaDRE: '(-) - Ativos'` ficam de fora da DRE
-- Serao tratadas no futuro (Balanco Patrimonial)
-
-**Renomear secao IMPOSTOS** para "IMPOSTOS E CONTRIBUICOES"
-
-**Ultimo subtotal**: Mudar de "RESULTADO LIQUIDO" para "RESULTADO LIQUIDO DO EXERCICIO" com tipo `'total'` em vez de `'subtotal'`
-
-**Remover `resultado` duplicado** do return: O campo `resultado` do `DRERelatorio` passa a apontar para o subtotal da ultima secao (Impostos), eliminando a linha duplicada na UI
-
-**Adicionar `buildDREAnual(ano: number): DREAnual`**:
-- Chama `buildDREEstrutura` para cada mes (Jan-Dez do ano)
-- Calcula `acumulado` somando valores (por enquanto tudo zero)
-- Retorna `{ ano, meses: [...], acumulado }`
-
-### 3. FinanceiroDRE.tsx — Reescrita Major
-
-**Novos estados:**
-```typescript
-const [visao, setVisao] = useState<'mensal' | 'anual'>('mensal');
-const [expandAll, setExpandAll] = useState(false);
-const [showAV, setShowAV] = useState(true);
-const [showAH, setShowAH] = useState(false);
-const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
-// PDF dialog options
-const [pdfTipo, setPdfTipo] = useState<'sintetico' | 'analitico'>('analitico');
-const [pdfVisao, setPdfVisao] = useState<'mensal' | 'anual'>('mensal');
-const [pdfIncludeAV, setPdfIncludeAV] = useState(true);
-const [pdfIncludeMargens, setPdfIncludeMargens] = useState(true);
-const [pdfIncludeAH, setPdfIncludeAH] = useState(false);
-```
-
-**Toolbar (periodo + controles):**
-- Periodo: Select mes + Select ano (existente)
-- Visao: Toggle `Mensal | Anual` (dois botoes ou Tabs)
-- Toggles: `AV%` (default ON), `AH%` (default OFF, disabled quando mensal)
-- Botoes: `Expandir tudo`, `Recolher tudo`
-- Botao: `Exportar PDF` (abre dialog)
-- No modo anual, mes selector fica desabilitado
-
-**Componente DRELinhaRow refatorado:**
-- Recebe `expandAll: boolean` — se true, forca expansao
-- Recebe `showAV: boolean` e `receitaLiquida: number` para coluna AV%
-- Layout com 3 colunas: nome | valor (w-32 text-right) | AV% (w-16 text-right, condicional)
-- AV% = `(valor / receitaLiquida * 100).toFixed(1)%` ou `—` se receita = 0
-
-**Componente DRESubtotalRow refatorado:**
-- Recebe `showAV`, `receitaLiquida`
-- Mostra AV% na mesma coluna
-- Linha de margem abaixo dos subtotais relevantes (Lucro Bruto, EBITDA, Resultado Liquido)
-- Margem: texto xs italic muted, cor verde/vermelho conforme sinal
-
-**Visao Mensal:**
-- Header de colunas discreto: `Valor` e `AV%` (text-xs muted)
-- Corpo do DRE como atual mas com AV% e expand/collapse global
-- Resultado final como ultima linha da ultima secao (sem duplicidade)
-
-**Visao Anual:**
-- Tabela com scroll horizontal via `<ScrollArea>`
-- Coluna fixa esquerda: nome da conta (sticky, min-w-[250px])
-- 12 colunas de meses: Jan-Dez (min-w-[80px] cada)
-- Coluna ACUM. (acumulado, sticky right se possivel, senao normal)
-- Coluna AV% (sobre acumulado, condicional ao toggle)
-- Valores abreviados: `formatAbrev(valor)` — ex: 12.5k, 1.2M — tooltip com valor completo
-- AH%: Quando toggle ON, cada celula de mes mostra variacao vs mes anterior em texto menor abaixo do valor
-  - `(+20%)` verde, `(-15%)` vermelho
-  - Para despesas: logica inversa (aumento = vermelho)
-  - Primeiro mes (Jan): sem variacao (`—`)
-- Drill-down: No modo anual, clicar na linha expande as categorias abaixo mostrando uma sub-linha por categoria com os 12 valores
-- Margens: Aparecem como linhas extras apos subtotais relevantes
-
-**KPIs corrigidos (4 cards):**
-
-| Card | Valor | Margem abaixo | Cor |
-|------|-------|---------------|-----|
-| Receita Liquida | Receita Bruta - Deducoes | `100% s/RB` | emerald |
-| Custos Totais | CSP + Outros Custos | `% s/RL` | red |
-| EBITDA | Resultado Operacional | `Margem EBITDA %` | condicional |
-| Resultado Liquido | Resultado final | `Margem Liquida %` | condicional |
-
-No modo anual: KPIs mostram acumulado do ano.
-
-**Dialog Exportar PDF:**
-- Radio: Sintetico / Analitico
-- Radio: Mensal / Anual
-- Checkboxes: AV%, Margens, AH% (AH% disabled se mensal)
-- Periodo exibido
-- Botao "Exportar PDF": mostra toast "Exportacao disponivel apos importar dados financeiros."
-- Usa `Dialog`, `RadioGroup`, `Checkbox`, `Button`
-
-**Novos imports necessarios:**
-- `Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter` 
-- `RadioGroup, RadioGroupItem`
-- `Checkbox`
-- `ScrollArea`
-- `Tooltip, TooltipContent, TooltipProvider, TooltipTrigger`
-- `Maximize2, Minimize2` (icones expand/collapse) do lucide-react
-- `Tabs, TabsList, TabsTrigger` (toggle mensal/anual)
-
----
-
-## Funcao helper para valores abreviados (modo anual)
-
-```typescript
-function formatAbrev(valor: number): string {
-  const abs = Math.abs(valor);
-  if (abs >= 1_000_000) return `${(valor / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${(valor / 1_000).toFixed(1)}k`;
-  return valor.toFixed(0);
-}
-```
-
----
-
-## Ordem de Implementacao
-
-1. Adicionar `DREAnual` em types.ts
-2. Corrigir estrutura em dre.ts (remover Ativos, renomear, adicionar buildDREAnual)
-3. Reescrever FinanceiroDRE.tsx com todos os novos recursos
-
----
-
-## O que NAO muda
-
-- `categorias.ts` — sem mudancas
-- `FinanceiroCategorias.tsx` — sem mudancas
-- `parsers.ts`, `matcher.ts`, `classifier.ts`, `engine.ts`, `outputs.ts`
-- `Conciliacao.tsx`
-- Rotas e sidebar (ja configurados)
+- Se Supabase vazio: DRE funciona como antes (estrutura com zeros)
+- Se localStorage tem dados e Supabase vazio: mostra opcao "Migrar"
+- Funcoes existentes mantidas como fallback
+- Nenhuma coluna existente alterada ou removida
 
