@@ -1,64 +1,174 @@
 
-# PLANO: FIX — PDF: Tabela estourando + Checklist formatação
 
-## PROBLEMA 1: Coluna "Ação" estourando a tabela
+# FASE 5 — Tela de Categorias Contábeis
 
-**Causa**: 
-- Nem todas as `autoTable` calls têm `overflow: 'linebreak'` em styles
-- A coluna "Ação" (coluna 5) tem largura de 38mm, mas texto como "Lançar transferência Sicredi → Cartão de Crédito no Omie" é muito longo e ultrapassa
-- Outras tabelas (Fontes, Matching, Titular) não têm este setting, causando potenciais estouros também
+## Visao Geral
 
-**Solução**:
-1. Adicionar `overflow: 'linebreak'` em TODAS as chamadas de `autoTable` dentro de `gerarRelatorioPDF` (4 chamadas: linhas 573, 591, 657, 709)
-2. Revisar columnStyles da tabela de divergências para garantir que coluna "Ação" (index 5) tem espaço suficiente com wrap forçado
-3. Aplicar padrão consistente: `fontSize: 8` (já tem), `cellPadding: 3` para respiração, `overflow: 'linebreak'` global
-
-**Mudanças específicas em `outputs.ts`**:
-- Linha 585: Adicionar `overflow: 'linebreak'` ao styles da tabela Fontes
-- Linha 605: Adicionar `overflow: 'linebreak'` ao styles da tabela Matching
-- Linha 666: Já tem, mas garantir que está ativo
-- Linha 720: Adicionar `overflow: 'linebreak'` ao styles da tabela Titular
-- Linhas 667-674: Verificar se columnStyles está adequado (possivelmente aumentar coluna 5 para 50-55)
+Criar a tela de gestao de categorias contabeis em `/financeiro/categorias`, com estrutura hierarquica (grupos + categorias) persistida em localStorage, CRUD completo, e busca. A funcao `suggestCategoria` continua funcionando para o motor de conciliacao.
 
 ---
 
-## PROBLEMA 2: Checklist com "&" e formatação monospace
+## Arquivos a Modificar/Criar
 
-**Causa**:
-- Linhas 748-783: Usando `doc.text(item, ...)` com checkbox Unicode (☐) que aparenta renderizar como "&"
-- Possível encoding issue ou fonte incorreta afetando Unicode
-- Cada item é rendido como texto simples, sem styling colorido por importância
-
-**Solução**:
-Substituir a seção de checklist (linhas 734-783) por uma tabela estruturada usando `autoTable` com styling colorido por tipo de item:
-
-1. Criar array `checkItems` com estrutura: `{ icon: string, texto: string, cor: [r,g,b] }`
-2. Separar por tipo:
-   - Vermelho (200, 50, 50): FALTANDO, ATRASO, DUPLICIDADES
-   - Laranja (200, 120, 0): TRANSFERÊNCIAS, A MAIS, VALORES
-   - Azul (47, 84, 150): CARTÃO
-   - Cinza (100, 100, 100): REVISAR
-3. Usar `autoTable` com theme `plain`, `didParseCell` para colorir cada linha conforme o tipo
-4. Forçar font `helvetica`, remover bordas (theme `plain`), usar bullets (●) em vez de checkboxes
-
-**Mudanças específicas em `outputs.ts`**:
-- Linhas 734-741: Manter header e estrutura
-- Linhas 743-776: Manter lógica de contagem de itens
-- Linhas 748-775: Refatorar para criar array estruturado com `{ icon, texto, cor }`
-- Linhas 777-783: Substituir loop de `doc.text()` por single `autoTable` call com `didParseCell` para styling
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `src/lib/conciliacao/types.ts` | MODIFICAR | Adicionar interfaces `CategoriaGrupo`, `CategoriaItem`, `CategoriasStorage` e constante `CONTAS_DRE` |
+| `src/lib/conciliacao/categorias.ts` | REESCREVER | Nova estrutura v2 com localStorage, seed de 13 grupos + 146 categorias, `suggestCategoria` compativel |
+| `src/pages/FinanceiroCategorias.tsx` | CRIAR | Pagina completa com Accordion por grupo, CRUD grupo/categoria, busca, dialogs de edicao |
+| `src/App.tsx` | MODIFICAR | Adicionar rota `/financeiro/categorias` (linha 89-91) |
+| `src/components/AppSidebar.tsx` | MODIFICAR | Adicionar item "Categorias" com icone `Tags` na area `financeiro` (linha 100) |
+| `src/components/Layout.tsx` | MODIFICAR | Adicionar `/financeiro/categorias: 'financeiro'` ao `routeToArea` (linha 53) |
 
 ---
 
-## ORDEM DE IMPLEMENTAÇÃO
+## Detalhes Tecnicos
 
-1. **Adicionar `overflow: 'linebreak'` em TODAS as autoTable** (4 pontos: linhas 585, 605, 666, 720)
-2. **Aumentar coluna "Ação" em columnStyles** (linha 673, de 38 para 50)
-3. **Refatorar checklist** (substituir linhas 748-783 por nova lógica com array estruturado + autoTable)
+### 1. types.ts — Novos Tipos (apos linha 123)
+
+```typescript
+export interface CategoriaGrupo {
+  id: string;
+  nome: string;
+  tipo: 'Receita' | 'Despesa';
+  ordem: number;
+  ativa: boolean;
+}
+
+export interface CategoriaItem {
+  id: string;
+  grupoId: string;
+  nome: string;
+  tipo: 'Receita' | 'Despesa';
+  contaDRE: string;
+  tipoGasto: string;
+  keywords: string[];
+  observacoes: string;
+  ativa: boolean;
+  ordem: number;
+}
+
+export interface CategoriasStorage {
+  version: number;
+  grupos: CategoriaGrupo[];
+  categorias: CategoriaItem[];
+  categoriaPadrao: string;
+  contaCorrente: string;
+}
+
+export const CONTAS_DRE = [
+  '(+) - Receita Bruta de Vendas',
+  '(+) - Outras Receitas',
+  '(+) - Recuperacao de Despesas Variaveis',
+  '(-) - Deducoes de Receita',
+  '(-) - Outras Deducoes de Receita',
+  '(-) - Custo dos Servicos Prestados',
+  '(-) - Outros Custos',
+  '(-) - Despesas Variaveis',
+  '(-) - Despesas com Pessoal',
+  '(-) - Despesas Administrativas',
+  '(-) - Despesas de Vendas e Marketing',
+  '(-) - Despesas Financeiras',
+  '(-) - Impostos',
+  '(-) - Outros Tributos',
+  '(-) - Ativos',
+] as const;
+```
+
+### 2. categorias.ts — Reescrita Completa
+
+- Chave localStorage: `powerconcept_categorias_v2`
+- `loadCategoriasStorage()`: Le do localStorage, se nao existe faz seed com `getDefaultCategoriasStorage()`
+- `saveCategoriasStorage(data)`: Grava no localStorage
+- `suggestCategoria(descricao)`: Itera `storage.categorias` ativas, busca match em `keywords[]`, retorna `categoriaPadrao` se nao achar
+- `getDefaultCategoriasStorage()`: Retorna os 13 grupos e 146 categorias com UUIDs gerados via `crypto.randomUUID()`
+- Keywords pre-populadas apenas nas ~15 categorias do mapa `KEYWORDS_SEED` (COMBUSTIVEIS, ALIMENTACAO, MERCADO, etc.)
+- Categorias com DRE "(pendente)" gravadas com `contaDRE: ''`
+- Manter export de `CATEGORIAS_CONFIG` como wrapper de compatibilidade (para qualquer import existente)
+
+### 3. FinanceiroCategorias.tsx — Pagina Principal
+
+**Estado local:**
+- `storage`: `CategoriasStorage` (carregado do localStorage)
+- `searchTerm`: string de busca
+- `editingGrupo`: grupo sendo editado (Dialog)
+- `editingCategoria`: categoria sendo editada (Dialog)
+- `openAccordions`: IDs dos accordions abertos
+
+**Layout:**
+- Header com titulo, contadores (receitas X grupos / Y cats, despesas, sem DRE)
+- Input de busca que filtra por nome ou keyword
+- Accordion com um item por grupo, ordenado por `ordem`
+- Dentro de cada accordion: lista de Cards com nome, DRE badge, keywords badges
+- Botoes de acao: editar/excluir em cada grupo e categoria
+- Botao [+ Grupo] no topo, [+ Categoria] dentro de cada accordion
+- Secao "Configuracoes" no rodape com dropdowns de categoria padrao e conta corrente
+
+**Componentes usados:**
+- `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent`
+- `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogFooter`
+- `AlertDialog` para confirmacao de exclusao
+- `Input`, `Select`, `Switch`, `Textarea`, `Badge`, `Button`, `Label`
+- `ScrollArea` para lista longa
+
+**Dialog de Edicao de Categoria:**
+- Select: Grupo (dropdown com todos os grupos)
+- Input: Nome (obrigatorio)
+- Select: Conta DRE (dropdown com CONTAS_DRE + opcao vazia)
+- Input: Tipo de gasto (texto livre)
+- Keywords: Input com logica de chips (separar por Enter ou virgula, exibir como badges removiveis)
+- Textarea: Observacoes
+- Switch: Ativa
+
+**Dialog de Grupo:**
+- Input: Nome
+- Select: Tipo (Receita/Despesa)
+
+**Logica de busca:**
+- Filtra categorias por `nome.includes(term)` ou alguma `keyword.includes(term)`
+- Quando ativo, abre automaticamente os accordions que contém resultados
+
+**Persistencia:**
+- Toda mutacao (criar/editar/excluir grupo ou categoria) chama `saveCategoriasStorage()`
+- Atualiza estado local imediatamente
+
+### 4. Rota e Sidebar
+
+**App.tsx** (apos linha 91):
+```typescript
+import FinanceiroCategorias from "./pages/FinanceiroCategorias";
+// ...
+<Route path="/financeiro/categorias" element={<FinanceiroCategorias />} />
+```
+
+**Layout.tsx** (linha 53):
+```typescript
+'/financeiro/categorias': 'financeiro',
+```
+
+**AppSidebar.tsx** (linha 100-101):
+```typescript
+import { Tags } from 'lucide-react';
+// ...
+financeiro: {
+  label: 'Financeiro',
+  items: [
+    { title: 'Conciliacao', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
+    { title: 'Categorias', url: '/financeiro/categorias', icon: Tags },
+  ],
+},
+```
 
 ---
 
-## IMPACTO
+## Seed: 13 Grupos e 146 Categorias
 
-- **Tabelas**: Sem mais overflow, texto quebra dentro das células
-- **Checklist**: Aparência profissional com cores por tipo, sem encoding issues
-- **Qualidade PDF**: Melhor leitura, menos erros de rendering
+A funcao `getDefaultCategoriasStorage()` contera todos os dados reais do Omie conforme especificado no prompt. Cada grupo recebe um UUID e ordem sequencial (1-13). Cada categoria recebe UUID, referencia ao grupoId, nome, contaDRE (ou '' se pendente), tipoGasto vazio, e keywords do mapa KEYWORDS_SEED quando aplicavel.
+
+---
+
+## O que NAO muda
+
+- `parsers.ts`, `matcher.ts`, `classifier.ts`, `engine.ts`, `utils.ts`, `outputs.ts`
+- `Conciliacao.tsx` (consome `suggestCategoria` que continua compativel)
+- Nenhuma outra pagina ou rota existente
+
