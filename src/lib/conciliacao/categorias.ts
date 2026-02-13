@@ -1,100 +1,298 @@
-export const CATEGORIAS_CONFIG = {
-  categorias_validas: [
-    "ALIMENTACAO (OPERACAO)",
-    "ALIMENTACAO (DIRETORIA)",
-    "ALIMENTACAO (ADMINISTRATIVO)",
-    "COMBUSTIVEIS",
-    "MERCADO",
-    "PEDAGIOS",
-    "DESPESAS A IDENTIFICAR",
-    "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "MANUTENCAO DE VEICULOS",
-    "TELEFONIA E INTERNET",
-    "SEGUROS DE VEICULOS",
-    "ESTACIONAMENTOS",
-    "SOFTWARES ADMINISTRATIVOS",
-    "SOFTWARES DE ENGENHARIA / OPERACIONAL",
-    "CURSOS E TREINAMENTOS OPERACIONAIS",
-    "EQUIPAMENTOS DE INFORMÁTICA",
-    "FERRAMENTAS",
-    "UNIFORMES E EPIS"
-  ],
-  categoria_padrao: "DESPESAS A IDENTIFICAR",
-  conta_corrente: "CARTAO DE CREDITO",
-  fornecedor_categoria: {
-    "GRACIOSA": "ALIMENTACAO (OPERACAO)",
-    "TIBAGI": "ALIMENTACAO (OPERACAO)",
-    "CONDOR": "ALIMENTACAO (OPERACAO)",
-    "CANTINHO DO PAO": "ALIMENTACAO (OPERACAO)",
-    "DONA CHEFFA": "ALIMENTACAO (OPERACAO)",
-    "ALE LANCHES": "ALIMENTACAO (OPERACAO)",
-    "DOS HERMANOS": "ALIMENTACAO (OPERACAO)",
-    "BATEL GRILL": "ALIMENTACAO (OPERACAO)",
-    "PRENSADO": "ALIMENTACAO (OPERACAO)",
-    "LANCHONETE": "ALIMENTACAO (OPERACAO)",
-    "LANCHES": "ALIMENTACAO (OPERACAO)",
-    "BUFFALO RANCH": "ALIMENTACAO (DIRETORIA)",
-    "CAMPODORO": "ALIMENTACAO (DIRETORIA)",
-    "CHURRASCARIA DOS AMI": "ALIMENTACAO (DIRETORIA)",
-    "MADALOSSO": "ALIMENTACAO (DIRETORIA)",
-    "MERCADO": "MERCADO",
-    "SUPERMERCADO": "MERCADO",
-    "DELICAT": "MERCADO",
-    "HIPERMERCADO": "MERCADO",
-    "POSTO": "COMBUSTIVEIS",
-    "HULK": "COMBUSTIVEIS",
-    "TRANSCAP": "COMBUSTIVEIS",
-    "COMBUSTIVEL": "COMBUSTIVEIS",
-    "SHELL": "COMBUSTIVEIS",
-    "IPIRANGA": "COMBUSTIVEIS",
-    "PEDAGIO": "PEDAGIOS",
-    "CONCESSIONARIA DE RO": "PEDAGIOS",
-    "EPR LITORAL": "PEDAGIOS",
-    "ECOVIA": "PEDAGIOS",
-    "RODONORTE": "PEDAGIOS",
-    "ARTERIS": "PEDAGIOS",
-    "BORRACHARIA": "MANUTENCAO DE VEICULOS",
-    "FORMULA RENAULT": "MANUTENCAO DE VEICULOS",
-    "MECANICA": "MANUTENCAO DE VEICULOS",
-    "PNEU": "MANUTENCAO DE VEICULOS",
-    "LAVA CAR": "MANUTENCAO DE VEICULOS",
-    "AUTO CENTER": "MANUTENCAO DE VEICULOS",
-    "CLARO": "TELEFONIA E INTERNET",
-    "VIVO": "TELEFONIA E INTERNET",
-    "TIM": "TELEFONIA E INTERNET",
-    "OI MOVEL": "TELEFONIA E INTERNET",
-    "KENNEDY": "FERRAMENTAS",
-    "CEFEQ": "FERRAMENTAS",
-    "FERRAGISTA": "FERRAMENTAS",
-    "CARVALHO MAT": "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "MAT CONSTR": "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "ELETRICA": "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "HIDRAULICA": "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "TERA ELETRICA": "MATERIAIS APLICADOS NA PRESTACAO DE SERVICOS",
-    "ATLANTICO": "UNIFORMES E EPIS",
-    "EPI": "UNIFORMES E EPIS",
-    "ALTO QI": "SOFTWARES DE ENGENHARIA / OPERACIONAL",
-    "AUTODESK": "SOFTWARES DE ENGENHARIA / OPERACIONAL",
-    "CEFIS": "CURSOS E TREINAMENTOS OPERACIONAIS",
-    "PORTO SEGURO": "SEGUROS DE VEICULOS",
-    "ESTACIONAMENTO": "ESTACIONAMENTOS",
-    "PARK": "ESTACIONAMENTOS"
-  } as Record<string, string>,
-  titular_departamento: {
-    "CONRADO": "DIRETORIA",
-    "DEFAULT": "OPERACAO"
-  } as Record<string, string>
+import type { CategoriaGrupo, CategoriaItem, CategoriasStorage } from './types';
+
+const STORAGE_KEY = 'powerconcept_categorias_v2';
+
+// ===== KEYWORDS PRÉ-POPULADAS =====
+const KEYWORDS_SEED: Record<string, string[]> = {
+  'COMBUSTIVEIS': ['POSTO', 'COMBUST', 'SHELL', 'IPIRANGA', 'GASOLINA', 'BR MANIA', 'PETROBRAS', 'DIESEL'],
+  'ALIMENTACAO (OPERACAO)': ['RESTAURANTE', 'LANCHONETE', 'LANCHES', 'PADARIA', 'PANIFICADORA', 'MARMITEX', 'REFEICAO', 'COMIDA', 'GRACIOSA', 'TIBAGI'],
+  'ALIMENTACAO (DIRETORIA)': ['OUTBACK', 'MADERO', 'BARBACOA', 'COCO BAMBU', 'BUFFALO RANCH', 'CAMPODORO', 'MADALOSSO'],
+  'ALIMENTACAO (ADMINISTRATIVO)': ['IFOOD', 'RAPPI', 'UBER EATS'],
+  'MERCADO': ['MERCADO', 'SUPERMERCADO', 'HIPERMERCADO', 'ZANETTI', 'CONDOR', 'MUFFATO', 'ATACADAO'],
+  'TELEFONIA E INTERNET': ['VIVO', 'CLARO', 'TIM', 'TELEFONICA', 'INTERNET', 'TELECOM'],
+  'MATERIAIS APLICADOS NA PRESTAÇÃO DE SERVIÇOS': ['MAT CONSTR', 'ELETRICA', 'HIDRAULICA', 'FERRAGEM', 'LEROY', 'TELHA', 'CIMENTO'],
+  'MANUTENCAO DE VEICULOS': ['BORRACHARIA', 'MECANICA', 'PNEU', 'AUTO CENTER', 'LAVA CAR', 'OFICINA', 'AUTOPECA'],
+  'PEDAGIOS': ['PEDAGIO', 'ECOVIA', 'RODONORTE', 'EPR', 'ARTERIS', 'ECORODOVIAS', 'CCR'],
+  'FERRAMENTAS': ['FERRAMENT', 'MAKITA', 'BOSCH', 'DEWALT', 'STANLEY'],
+  'UNIFORMES E EPIS': ['EPI', 'UNIFORME', 'BOTA', 'CAPACETE', 'LUVA', 'PORTO EPI'],
+  'SOFTWARES DE ENGENHARIA / OPERACIONAL': ['SOFTWARE', 'LICENCA', 'AUTODESK', 'AUTOCAD', 'REVIT'],
+  'CURSOS E TREINAMENTOS OPERACIONAIS': ['CURSO', 'TREINAMENTO', 'CAPACITACAO', 'UDEMY', 'ALURA'],
+  'DESPESAS COM HOSPEDAGENS': ['HOTEL', 'POUSADA', 'HOSTEL', 'AIRBNB', 'BOOKING'],
+  'TRANSPORTE URBANO (TÁXI, UBER)': ['UBER', 'TAXI', '99POP', '99TAXI', 'CABIFY'],
+  'ESTACIONAMENTOS': ['ESTACIONAMENTO', 'PARK'],
+  'SEGUROS DE VEICULOS': ['PORTO SEGURO', 'SEGURO AUTO'],
+  'EQUIPAMENTOS DE INFORMÁTICA': ['NOTEBOOK', 'COMPUTADOR', 'MONITOR', 'IMPRESSORA'],
 };
 
+// ===== STORAGE =====
+
+export function loadCategoriasStorage(): CategoriasStorage {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.version === 2) return parsed;
+    }
+  } catch (e) { /* ignore */ }
+
+  const seed = getDefaultCategoriasStorage();
+  saveCategoriasStorage(seed);
+  return seed;
+}
+
+export function saveCategoriasStorage(data: CategoriasStorage): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ===== SUGGEST CATEGORIA (compatível com Fase 4) =====
+
 export function suggestCategoria(descricao: string): string {
-  if (!descricao) return CATEGORIAS_CONFIG.categoria_padrao;
+  const storage = loadCategoriasStorage();
+  if (!descricao) return storage.categoriaPadrao;
+
   const descUpper = descricao.toUpperCase().trim();
 
-  for (const [chave, categoria] of Object.entries(CATEGORIAS_CONFIG.fornecedor_categoria)) {
-    if (descUpper.includes(chave.toUpperCase())) {
-      return categoria;
+  for (const cat of storage.categorias) {
+    if (!cat.ativa || !cat.keywords?.length) continue;
+    for (const kw of cat.keywords) {
+      if (kw && descUpper.includes(kw.toUpperCase())) {
+        return cat.nome;
+      }
     }
   }
 
-  return CATEGORIAS_CONFIG.categoria_padrao;
+  return storage.categoriaPadrao;
+}
+
+// ===== COMPATIBILIDADE Fase 4 =====
+// Wrapper para imports existentes que usam CATEGORIAS_CONFIG
+export const CATEGORIAS_CONFIG = {
+  get categorias_validas() {
+    const s = loadCategoriasStorage();
+    return s.categorias.filter(c => c.ativa).map(c => c.nome);
+  },
+  get categoria_padrao() {
+    return loadCategoriasStorage().categoriaPadrao;
+  },
+  get conta_corrente() {
+    return loadCategoriasStorage().contaCorrente;
+  },
+  get fornecedor_categoria() {
+    const s = loadCategoriasStorage();
+    const map: Record<string, string> = {};
+    for (const cat of s.categorias) {
+      if (!cat.ativa) continue;
+      for (const kw of cat.keywords) {
+        if (kw) map[kw] = cat.nome;
+      }
+    }
+    return map;
+  },
+  titular_departamento: {
+    'CONRADO': 'DIRETORIA',
+    'DEFAULT': 'OPERACAO',
+  } as Record<string, string>,
+};
+
+// ===== SEED =====
+
+function makeCat(grupoId: string, nome: string, tipo: 'Receita' | 'Despesa', contaDRE: string, ordem: number): CategoriaItem {
+  return {
+    id: crypto.randomUUID(),
+    grupoId,
+    nome,
+    tipo,
+    contaDRE,
+    tipoGasto: '',
+    keywords: KEYWORDS_SEED[nome] || [],
+    observacoes: '',
+    ativa: true,
+    ordem,
+  };
+}
+
+function getDefaultCategoriasStorage(): CategoriasStorage {
+  const grupos: CategoriaGrupo[] = [
+    { id: crypto.randomUUID(), nome: 'Receitas Diretas', tipo: 'Receita', ordem: 1, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Receitas Indiretas', tipo: 'Receita', ordem: 2, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Devoluções', tipo: 'Receita', ordem: 3, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Outras Entradas', tipo: 'Receita', ordem: 4, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Despesas Diretas', tipo: 'Despesa', ordem: 5, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Despesas de Vendas e Marketing', tipo: 'Despesa', ordem: 6, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Despesas com Pessoal', tipo: 'Despesa', ordem: 7, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Despesas Administrativas', tipo: 'Despesa', ordem: 8, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Despesas Financeiras / Bancos', tipo: 'Despesa', ordem: 9, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Impostos e Taxas', tipo: 'Despesa', ordem: 10, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Investimento', tipo: 'Despesa', ordem: 11, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Outras Despesas', tipo: 'Despesa', ordem: 12, ativa: true },
+    { id: crypto.randomUUID(), nome: 'Devoluções de Vendas', tipo: 'Despesa', ordem: 13, ativa: true },
+  ];
+
+  const g = (nome: string) => grupos.find(gr => gr.nome === nome)!.id;
+
+  const categorias: CategoriaItem[] = [
+    // Grupo 1 — Receitas Diretas
+    makeCat(g('Receitas Diretas'), 'Clientes - Venda de Mercadoria Fabricadas', 'Receita', '(+) - Receita Bruta de Vendas', 1),
+    makeCat(g('Receitas Diretas'), 'RECEITAS DE SERVIÇOS', 'Receita', '(+) - Receita Bruta de Vendas', 2),
+    makeCat(g('Receitas Diretas'), 'RECEITAS DE MATERIAIS', 'Receita', '(+) - Receita Bruta de Vendas', 3),
+    makeCat(g('Receitas Diretas'), 'CLIENTES - TURNKEY', 'Receita', '(+) - Receita Bruta de Vendas', 4),
+    makeCat(g('Receitas Diretas'), 'RECEITAS DE CONTRATOS DE SERVIÇOS', 'Receita', '(+) - Receita Bruta de Vendas', 5),
+
+    // Grupo 2 — Receitas Indiretas
+    makeCat(g('Receitas Indiretas'), 'DIVIDENDOS RECEBIDOS', 'Receita', '(+) - Outras Receitas', 1),
+    makeCat(g('Receitas Indiretas'), 'RENDIMENTOS DE APLICAÇÕES', 'Receita', '(+) - Outras Receitas', 2),
+
+    // Grupo 3 — Devoluções
+    makeCat(g('Devoluções'), 'DEVOLUÇÕES DE COMPRA DE MERCADORIA DE REVENDA', 'Receita', '(+) - Recuperação de Despesas Variáveis', 1),
+    makeCat(g('Devoluções'), 'DEVOLUÇÕES DE COMPRA DE MATERIAL DE CONSUMO', 'Receita', '(+) - Recuperação de Despesas Variáveis', 2),
+    makeCat(g('Devoluções'), 'DEVOLUÇÕES DE COMPRA DE MATÉRIA PRIMA', 'Receita', '(+) - Recuperação de Despesas Variáveis', 3),
+    makeCat(g('Devoluções'), 'DEVOLUÇÕES DE COMPRA DE ATIVO', 'Receita', '(-) - Ativos', 4),
+    makeCat(g('Devoluções'), 'DEVOLUÇÕES DE COMPRA DE SERVIÇOS', 'Receita', '(+) - Recuperação de Despesas Variáveis', 5),
+    makeCat(g('Devoluções'), 'ESTORNO DE PAGAMENTOS', 'Receita', '(-) - Outros Custos', 6),
+
+    // Grupo 4 — Outras Entradas
+    makeCat(g('Outras Entradas'), 'ADIANTAMENTO DE CLIENTES', 'Receita', '(-) - Ativos', 1),
+    makeCat(g('Outras Entradas'), 'REEMBOLSO DE DESPESAS', 'Receita', '(+) - Recuperação de Despesas Variáveis', 2),
+    makeCat(g('Outras Entradas'), 'EMPRESTIMOS BANCÁRIOS', 'Receita', '(-) - Despesas Financeiras', 3),
+    makeCat(g('Outras Entradas'), 'VENDA DE ATIVOS', 'Receita', '(+) - Outras Receitas', 4),
+    makeCat(g('Outras Entradas'), 'RECEITAS A IDENTIFICAR', 'Receita', '(+) - Outras Receitas', 5),
+    makeCat(g('Outras Entradas'), 'EMPRESTIMOS RECEBIDOS - EMPRESAS DO GRUPO', 'Receita', '(-) - Ativos', 6),
+    makeCat(g('Outras Entradas'), 'EMPRESTIMO RECEBIDOS - SOCIOS', 'Receita', '(+) - Outras Receitas', 7),
+
+    // Grupo 5 — Despesas Diretas
+    makeCat(g('Despesas Diretas'), 'MATERIAIS PARA REVENDA', 'Despesa', '(-) - Outros Custos', 1),
+    makeCat(g('Despesas Diretas'), 'FRETE', 'Despesa', '(-) - Outros Custos', 2),
+    makeCat(g('Despesas Diretas'), 'MATERIAIS APLICADOS NA PRESTAÇÃO DE SERVIÇOS', 'Despesa', '(-) - Custo dos Serviços Prestados', 3),
+    makeCat(g('Despesas Diretas'), 'COMPRA DE SERVIÇOS', 'Despesa', '(-) - Custo dos Serviços Prestados', 4),
+    makeCat(g('Despesas Diretas'), 'SOFTWARES DE ENGENHARIA / OPERACIONAL', 'Despesa', '(-) - Custo dos Serviços Prestados', 5),
+    makeCat(g('Despesas Diretas'), 'COMBUSTIVEIS', 'Despesa', '(-) - Custo dos Serviços Prestados', 6),
+    makeCat(g('Despesas Diretas'), 'UNIFORMES E EPIS', 'Despesa', '(-) - Custo dos Serviços Prestados', 7),
+    makeCat(g('Despesas Diretas'), 'SEGURO DE OBRA', 'Despesa', '(-) - Custo dos Serviços Prestados', 8),
+    makeCat(g('Despesas Diretas'), 'TAXAS E LICENCAS PROFISSIONAIS', 'Despesa', '(-) - Custo dos Serviços Prestados', 9),
+    makeCat(g('Despesas Diretas'), 'LOCACAO DE EQUIPAMENTOS', 'Despesa', '(-) - Custo dos Serviços Prestados', 10),
+    makeCat(g('Despesas Diretas'), 'ALIMENTACAO (ADMINISTRATIVO)', 'Despesa', '(-) - Despesas Administrativas', 11),
+    makeCat(g('Despesas Diretas'), 'ALIMENTACAO (OPERACAO)', 'Despesa', '(-) - Custo dos Serviços Prestados', 12),
+    makeCat(g('Despesas Diretas'), 'CURSOS E TREINAMENTOS OPERACIONAIS', 'Despesa', '(-) - Custo dos Serviços Prestados', 13),
+    makeCat(g('Despesas Diretas'), 'DESPESAS COM HOSPEDAGENS', 'Despesa', '(-) - Custo dos Serviços Prestados', 14),
+    makeCat(g('Despesas Diretas'), 'ESTACIONAMENTOS', 'Despesa', '(-) - Custo dos Serviços Prestados', 15),
+    makeCat(g('Despesas Diretas'), 'EXAMES MEDICOS', 'Despesa', '(-) - Despesas com Pessoal', 16),
+    makeCat(g('Despesas Diretas'), 'MANUTENCAO DE EQUIPAMENTOS', 'Despesa', '(-) - Custo dos Serviços Prestados', 17),
+    makeCat(g('Despesas Diretas'), 'MOVEIS E UTENSILIOS', 'Despesa', '(-) - Ativos', 18),
+    makeCat(g('Despesas Diretas'), 'MANUTENCAO PREDIAL', 'Despesa', '(-) - Despesas Administrativas', 19),
+    makeCat(g('Despesas Diretas'), 'GRATIFICAÇÕES', 'Despesa', '(-) - Despesas Variáveis', 20),
+    makeCat(g('Despesas Diretas'), 'VIGILANCIA E SEGURANCA PATRIMONIAL', 'Despesa', '(-) - Despesas Administrativas', 21),
+    makeCat(g('Despesas Diretas'), 'PERDAS', 'Despesa', '(-) - Outros Custos', 22),
+
+    // Grupo 6 — Despesas de Vendas e Marketing
+    makeCat(g('Despesas de Vendas e Marketing'), 'COMISSOES', 'Despesa', '(-) - Outros Custos', 1),
+    makeCat(g('Despesas de Vendas e Marketing'), 'MARKETING E PUBLICIDADE', 'Despesa', '(-) - Despesas Variáveis', 2),
+    makeCat(g('Despesas de Vendas e Marketing'), 'DESPESAS DE VIAGENS', 'Despesa', '(-) - Despesas Variáveis', 3),
+    makeCat(g('Despesas de Vendas e Marketing'), 'BONIFICACOES', 'Despesa', '(-) - Outros Custos', 4),
+    makeCat(g('Despesas de Vendas e Marketing'), 'BRINDES', 'Despesa', '(-) - Despesas de Vendas e Marketing', 5),
+    makeCat(g('Despesas de Vendas e Marketing'), 'REPRESENTACOES COMERCIAIS', 'Despesa', '(-) - Outros Custos', 6),
+
+    // Grupo 7 — Despesas com Pessoal
+    makeCat(g('Despesas com Pessoal'), 'FOPAG', 'Despesa', '(-) - Despesas com Pessoal', 1),
+    makeCat(g('Despesas com Pessoal'), 'FERIAS', 'Despesa', '(-) - Despesas com Pessoal', 2),
+    makeCat(g('Despesas com Pessoal'), 'RESCISOES', 'Despesa', '(-) - Despesas com Pessoal', 3),
+    makeCat(g('Despesas com Pessoal'), '13º SALÁRIO', 'Despesa', '(-) - Despesas com Pessoal', 4),
+    makeCat(g('Despesas com Pessoal'), 'INSS', 'Despesa', '(-) - Despesas com Pessoal', 5),
+    makeCat(g('Despesas com Pessoal'), 'FGTS E MULTA DE FGTS', 'Despesa', '(-) - Despesas com Pessoal', 6),
+    makeCat(g('Despesas com Pessoal'), 'IRRF RETIDO', 'Despesa', '(-) - Outros Tributos', 7),
+    makeCat(g('Despesas com Pessoal'), 'PENSAO ALIMENTICIA', 'Despesa', '(-) - Despesas com Pessoal', 8),
+    makeCat(g('Despesas com Pessoal'), 'PLANO DE SAUDE COLABORADORES', 'Despesa', '', 9),
+    makeCat(g('Despesas com Pessoal'), 'VALE TRANSPORTE', 'Despesa', '(-) - Despesas com Pessoal', 10),
+    makeCat(g('Despesas com Pessoal'), 'VALE ALIMENTACAO', 'Despesa', '(-) - Despesas com Pessoal', 11),
+    makeCat(g('Despesas com Pessoal'), 'SEGURO DE VIDA', 'Despesa', '(-) - Despesas com Pessoal', 12),
+    makeCat(g('Despesas com Pessoal'), 'OUTROS BENEFÍCIOS', 'Despesa', '(-) - Despesas com Pessoal', 13),
+    makeCat(g('Despesas com Pessoal'), 'AJUDA DE CUSTO', 'Despesa', '(-) - Despesas com Pessoal', 14),
+    makeCat(g('Despesas com Pessoal'), 'TERCEIROS SISTEMA S/INCRA', 'Despesa', '(-) - Despesas com Pessoal', 15),
+    makeCat(g('Despesas com Pessoal'), 'HORA VIAGEM PAGA AO COLABORADOR', 'Despesa', '(-) - Despesas com Pessoal', 16),
+    makeCat(g('Despesas com Pessoal'), 'REMUNERACAO DE AUTONOMOS', 'Despesa', '(-) - Despesas com Pessoal', 17),
+    makeCat(g('Despesas com Pessoal'), 'REMUNERACAO DE AUTONOMOS ADMINISTRATIVO', 'Despesa', '(-) - Despesas com Pessoal', 18),
+    makeCat(g('Despesas com Pessoal'), 'CONFRATERNIZACOES', 'Despesa', '(-) - Despesas com Pessoal', 19),
+
+    // Grupo 8 — Despesas Administrativas
+    makeCat(g('Despesas Administrativas'), 'ALUGUEL', 'Despesa', '(-) - Despesas Administrativas', 1),
+    makeCat(g('Despesas Administrativas'), 'CONDOMINIO', 'Despesa', '(-) - Despesas Administrativas', 2),
+    makeCat(g('Despesas Administrativas'), 'AGUA E ESGOTO', 'Despesa', '(-) - Despesas Administrativas', 3),
+    makeCat(g('Despesas Administrativas'), 'ENERGIA ELETRICA', 'Despesa', '(-) - Despesas Administrativas', 4),
+    makeCat(g('Despesas Administrativas'), 'TELEFONIA E INTERNET', 'Despesa', '(-) - Despesas Administrativas', 5),
+    makeCat(g('Despesas Administrativas'), 'MATERIAIS DE ESCRITORIO', 'Despesa', '(-) - Despesas Administrativas', 6),
+    makeCat(g('Despesas Administrativas'), 'IPTU', 'Despesa', '(-) - Despesas Administrativas', 7),
+    makeCat(g('Despesas Administrativas'), 'HONORARIOS CONTABEIS', 'Despesa', '(-) - Despesas Administrativas', 8),
+    makeCat(g('Despesas Administrativas'), 'HONORARIOS ADVOCATICIOS', 'Despesa', '(-) - Despesas Administrativas', 9),
+    makeCat(g('Despesas Administrativas'), 'ANTECIPACAO DE DIVIDENDOS - CONRADO', 'Despesa', '(-) - Despesas Administrativas', 10),
+    makeCat(g('Despesas Administrativas'), 'ANTECIPACAO DE DIVIDENDOS - SANDRO', 'Despesa', '(-) - Despesas Administrativas', 11),
+    makeCat(g('Despesas Administrativas'), 'ANTECIPACAO DE DIVIDENDOS - GUILHERME', 'Despesa', '(-) - Despesas Administrativas', 12),
+    makeCat(g('Despesas Administrativas'), 'BENS DE PEQUENO VALOR', 'Despesa', '(-) - Despesas Administrativas', 13),
+    makeCat(g('Despesas Administrativas'), 'ALVARA DE FUNCIONAMENTO', 'Despesa', '(-) - Despesas Administrativas', 14),
+    makeCat(g('Despesas Administrativas'), 'HONORARIOS DE CONSULTORIA', 'Despesa', '(-) - Despesas Administrativas', 15),
+    makeCat(g('Despesas Administrativas'), 'ALIMENTACAO (DIRETORIA)', 'Despesa', '(-) - Despesas Administrativas', 16),
+
+    // Grupo 9 — Despesas Financeiras / Bancos
+    makeCat(g('Despesas Financeiras / Bancos'), 'JUROS SOBRE EMPRESTIMOS', 'Despesa', '(-) - Despesas Financeiras', 1),
+    makeCat(g('Despesas Financeiras / Bancos'), 'MULTAS', 'Despesa', '(-) - Despesas Financeiras', 2),
+    makeCat(g('Despesas Financeiras / Bancos'), 'PAGAMENTO DE EMPRESTIMOS', 'Despesa', '(-) - Despesas Financeiras', 3),
+    makeCat(g('Despesas Financeiras / Bancos'), 'TARIFAS BANCARIAS', 'Despesa', '(-) - Despesas Financeiras', 4),
+    makeCat(g('Despesas Financeiras / Bancos'), 'CARTORIO', 'Despesa', '(-) - Despesas Administrativas', 5),
+    makeCat(g('Despesas Financeiras / Bancos'), 'TARIFAS DE BOLETOS', 'Despesa', '(-) - Despesas Financeiras', 6),
+
+    // Grupo 10 — Impostos e Taxas
+    makeCat(g('Impostos e Taxas'), 'ICMS', 'Despesa', '(-) - Deduções de Receita', 1),
+    makeCat(g('Impostos e Taxas'), 'IPI', 'Despesa', '(-) - Deduções de Receita', 2),
+    makeCat(g('Impostos e Taxas'), 'PIS', 'Despesa', '(-) - Deduções de Receita', 3),
+    makeCat(g('Impostos e Taxas'), 'COFINS', 'Despesa', '(-) - Deduções de Receita', 4),
+    makeCat(g('Impostos e Taxas'), 'IRPJ', 'Despesa', '(-) - Impostos', 5),
+    makeCat(g('Impostos e Taxas'), 'CSLL', 'Despesa', '(-) - Impostos', 6),
+    makeCat(g('Impostos e Taxas'), 'ISS', 'Despesa', '', 7),
+    makeCat(g('Impostos e Taxas'), 'INSS RETIDO', 'Despesa', '(-) - Outros Tributos', 8),
+    makeCat(g('Impostos e Taxas'), 'IPVA / DPVAT / LICENCIAMENTO', 'Despesa', '', 9),
+    makeCat(g('Impostos e Taxas'), 'SOFTWARES ADMINISTRATIVOS', 'Despesa', '', 10),
+    makeCat(g('Impostos e Taxas'), 'ISS TOMADO', 'Despesa', '(-) - Outros Tributos', 11),
+    makeCat(g('Impostos e Taxas'), 'IOF', 'Despesa', '', 12),
+    makeCat(g('Impostos e Taxas'), 'TARIFAS', 'Despesa', '', 13),
+    makeCat(g('Impostos e Taxas'), 'IMPOSTOS SOBRE APLICAÇÕES', 'Despesa', '', 14),
+    makeCat(g('Impostos e Taxas'), 'PIS/COFINS/CSLL', 'Despesa', '(-) - Impostos', 15),
+
+    // Grupo 11 — Investimento
+    makeCat(g('Investimento'), 'MÁQUINAS, EQUIPAMENTOS E INSTALAÇÕES INDUSTRIAIS', 'Despesa', '', 1),
+    makeCat(g('Investimento'), 'VEÍCULOS', 'Despesa', '(-) - Ativos', 2),
+    makeCat(g('Investimento'), 'INSTALAÇÕES', 'Despesa', '', 3),
+    makeCat(g('Investimento'), 'EQUIPAMENTOS DE INFORMÁTICA', 'Despesa', '(-) - Ativos', 4),
+    makeCat(g('Investimento'), 'MÓVEIS E UTENSÍLIOS', 'Despesa', '(-) - Ativos', 5),
+    makeCat(g('Investimento'), 'INTEGRALIZACAO DE CAPITAL SUBSCRITO', 'Despesa', '', 6),
+    makeCat(g('Investimento'), 'CONSORCIOS', 'Despesa', '(-) - Ativos', 7),
+    makeCat(g('Investimento'), 'FERRAMENTAS', 'Despesa', '', 8),
+    makeCat(g('Investimento'), 'IMOVEIS', 'Despesa', '(-) - Ativos', 9),
+    makeCat(g('Investimento'), 'OUTRAS IMOBILIZACOES POR AQUISICAO', 'Despesa', '', 10),
+    makeCat(g('Investimento'), 'DESPESAS COM CONSTRUÇÃO', 'Despesa', '(-) - Ativos', 11),
+
+    // Grupo 12 — Outras Despesas
+    makeCat(g('Outras Despesas'), 'ADIANTAMENTO A FORNECEDORES', 'Despesa', '', 1),
+    makeCat(g('Outras Despesas'), 'COMPRA DE MATERIAIS', 'Despesa', '(-) - Outros Custos', 2),
+    makeCat(g('Outras Despesas'), 'DESPESAS A IDENTIFICAR', 'Despesa', '', 3),
+    makeCat(g('Outras Despesas'), 'MANUTENCAO DE VEICULOS', 'Despesa', '', 4),
+    makeCat(g('Outras Despesas'), 'MENSALIDADE ASSOCIATIVA', 'Despesa', '', 5),
+    makeCat(g('Outras Despesas'), 'TRANSPORTE URBANO (TÁXI, UBER)', 'Despesa', '', 6),
+    makeCat(g('Outras Despesas'), 'TELEFONIA MÓVEL', 'Despesa', '', 7),
+    makeCat(g('Outras Despesas'), 'SEGUROS DE VEICULOS', 'Despesa', '', 8),
+    makeCat(g('Outras Despesas'), 'PEDAGIOS', 'Despesa', '', 9),
+    makeCat(g('Outras Despesas'), 'MULTAS DE TRANSITO', 'Despesa', '', 10),
+    makeCat(g('Outras Despesas'), 'MERCADO', 'Despesa', '', 11),
+    makeCat(g('Outras Despesas'), 'EMPRESTIMO CONCEDIDOS - SOCIOS', 'Despesa', '(-) - Outras Deduções de Receita', 12),
+    makeCat(g('Outras Despesas'), 'EMPRESTIMOS CONCEDIDOS - EMPRESAS DO GRUPO', 'Despesa', '(-) - Ativos', 13),
+
+    // Grupo 13 — Devoluções de Vendas
+    makeCat(g('Devoluções de Vendas'), 'DEVOLUÇÕES DE VENDAS DE MERCADORIA', 'Despesa', '(-) - Deduções de Receita', 1),
+    makeCat(g('Devoluções de Vendas'), 'DEVOLUÇÕES DE VENDAS DE SERVIÇOS PRESTADOS', 'Despesa', '(-) - Deduções de Receita', 2),
+  ];
+
+  return {
+    version: 2,
+    grupos,
+    categorias,
+    categoriaPadrao: 'DESPESAS A IDENTIFICAR',
+    contaCorrente: 'CARTAO DE CREDITO',
+  };
 }
