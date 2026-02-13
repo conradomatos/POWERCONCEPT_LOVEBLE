@@ -25,6 +25,11 @@ import { ChevronRight, FileText, AlertTriangle, TrendingUp, TrendingDown, Dollar
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { SyncButton } from '@/components/rentabilidade/SyncButton';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -488,8 +493,28 @@ export default function FinanceiroDRE() {
   const [pdfIncludeAH, setPdfIncludeAH] = useState(false);
 
   const periodo = `${mes} ${ano}`;
+  const queryClient = useQueryClient();
   const { data: dreData, isLoading: loadingDRE } = useDREData(Number(ano));
   const { data: categoriasDB } = useCategoriasAtivas();
+
+  const { data: lastSync } = useQuery({
+    queryKey: ['dre-last-sync'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('omie_sync_log')
+        .select('finalizado_em')
+        .eq('status', 'SUCESSO')
+        .order('finalizado_em', { ascending: false })
+        .limit(1)
+        .single();
+      return data?.finalizado_em ?? null;
+    },
+  });
+
+  const handleSyncComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['dre-data'] });
+    queryClient.invalidateQueries({ queryKey: ['dre-last-sync'] });
+  };
 
   const dre = useMemo(() => {
     if (dreData && categoriasDB) {
@@ -539,11 +564,18 @@ export default function FinanceiroDRE() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <BarChart3 className="h-6 w-6" /> DRE — Demonstrativo de Resultado
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Demonstrativo de resultado do exercício.</p>
-          {hasDadosReais && (
-            <Badge className="ml-2 bg-emerald-500/20 text-emerald-700 border-emerald-500/30">
-              Dados Omie
-            </Badge>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-muted-foreground">Demonstrativo de resultado do exercício.</p>
+            {hasDadosReais && (
+              <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/30">
+                Dados Omie
+              </Badge>
+            )}
+          </div>
+          {lastSync && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Última sincronização: {formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: ptBR })}
+            </p>
           )}
         </div>
 
@@ -637,6 +669,10 @@ export default function FinanceiroDRE() {
           <Button variant="outline" size="sm" onClick={() => setPdfDialogOpen(true)}>
             <FileText className="h-4 w-4 mr-1" /> Exportar PDF
           </Button>
+
+          <Separator orientation="vertical" className="h-6" />
+
+          <SyncButton lastSyncAt={lastSync} onSyncComplete={handleSyncComplete} />
         </div>
 
         {/* Orphan categories alert */}
