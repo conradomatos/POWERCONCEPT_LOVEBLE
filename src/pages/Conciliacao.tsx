@@ -23,6 +23,7 @@ import {
 import * as XLSX from 'xlsx';
 import { executarConciliacao } from '@/lib/conciliacao/engine';
 import type { ResultadoConciliacao } from '@/lib/conciliacao/types';
+import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao } from '@/lib/conciliacao/outputs';
 
 interface ParsedFileInfo {
   file: File;
@@ -211,6 +212,39 @@ export default function Conciliacao() {
 
   const canExecute = files.banco && files.omie && !processando;
 
+  const handleDownloadRelatorio = () => {
+    if (!resultado) return;
+    try {
+      gerarRelatorioMD(resultado);
+      toast.success('Download do relatório .md iniciado');
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      toast.error('Falha ao gerar relatório');
+    }
+  };
+
+  const handleDownloadDivergencias = () => {
+    if (!resultado) return;
+    try {
+      gerarExcelDivergencias(resultado);
+      toast.success('Download do Excel de divergências iniciado');
+    } catch (error) {
+      console.error('Erro ao gerar divergências:', error);
+      toast.error('Falha ao gerar Excel de divergências');
+    }
+  };
+
+  const handleDownloadImportacao = () => {
+    if (!resultado) return;
+    try {
+      gerarExcelImportacaoCartao(resultado);
+      toast.success('Download do Excel de importação iniciado');
+    } catch (error) {
+      console.error('Erro ao gerar importação:', error);
+      toast.error('Falha ao gerar Excel de importação');
+    }
+  };
+
   const handleExecute = async () => {
     if (!files.banco?.file || !files.omie?.file) return;
     setProcessando(true);
@@ -394,13 +428,13 @@ export default function Conciliacao() {
 
           {/* Download buttons */}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" disabled className="gap-2">
+            <Button variant="outline" disabled={!resultado} onClick={handleDownloadRelatorio} className="gap-2">
               <Download className="h-4 w-4" /> Relatório (.md)
             </Button>
-            <Button variant="outline" disabled className="gap-2">
+            <Button variant="outline" disabled={!resultado} onClick={handleDownloadDivergencias} className="gap-2">
               <Download className="h-4 w-4" /> Divergências (.xlsx)
             </Button>
-            <Button variant="outline" disabled className="gap-2">
+            <Button variant="outline" disabled={!resultado} onClick={handleDownloadImportacao} className="gap-2">
               <Download className="h-4 w-4" /> Importação Cartão (.xlsx)
             </Button>
           </div>
