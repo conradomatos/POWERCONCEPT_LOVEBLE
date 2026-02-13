@@ -1,141 +1,64 @@
 
-# FASE 3.2 — Correções na Exportação + Tipo T (Transferências) + PDF
+# PLANO: FIX — PDF: Tabela estourando + Checklist formatação
 
-## PROBLEMAS E SOLUÇÕES
+## PROBLEMA 1: Coluna "Ação" estourando a tabela
 
-### 1. FORMATO CONTÁBIL COM CORES NOS VALORES (Excel Divergências)
-**Local:** `src/lib/conciliacao/outputs.ts` na função `gerarExcelDivergencias` (após linha 374)
+**Causa**: 
+- Nem todas as `autoTable` calls têm `overflow: 'linebreak'` em styles
+- A coluna "Ação" (coluna 5) tem largura de 38mm, mas texto como "Lançar transferência Sicredi → Cartão de Crédito no Omie" é muito longo e ultrapassa
+- Outras tabelas (Fontes, Matching, Titular) não têm este setting, causando potenciais estouros também
 
-**Problema:** As colunas numéricas não têm formatação contábil; valores negativos aparecem sem parênteses e sem cores.
+**Solução**:
+1. Adicionar `overflow: 'linebreak'` em TODAS as chamadas de `autoTable` dentro de `gerarRelatorioPDF` (4 chamadas: linhas 573, 591, 657, 709)
+2. Revisar columnStyles da tabela de divergências para garantir que coluna "Ação" (index 5) tem espaço suficiente com wrap forçado
+3. Aplicar padrão consistente: `fontSize: 8` (já tem), `cellPadding: 3` para respiração, `overflow: 'linebreak'` global
 
-**Solução:** Iterar sobre as células de valor após criar a worksheet e aplicar o `numFmt` do SheetJS:
-- Colunas: F (Valor=5), K (Valor Banco=10), L (Valor Omie=11), M (Diferença=12)
-- Formato: `[Blue]#,##0.00;[Red](#,##0.00);0.00` (positivos azuis, negativos vermelhos com parênteses)
-- Aplicar via `ws[cellRef].z` para cada célula
+**Mudanças específicas em `outputs.ts`**:
+- Linha 585: Adicionar `overflow: 'linebreak'` ao styles da tabela Fontes
+- Linha 605: Adicionar `overflow: 'linebreak'` ao styles da tabela Matching
+- Linha 666: Já tem, mas garantir que está ativo
+- Linha 720: Adicionar `overflow: 'linebreak'` ao styles da tabela Titular
+- Linhas 667-674: Verificar se columnStyles está adequado (possivelmente aumentar coluna 5 para 50-55)
 
-### 2. TIPO T — TRANSFERÊNCIAS ENTRE CONTAS
-**Locais:** 
-- `src/lib/conciliacao/classifier.ts` (detectar DEB.CTA.FATURA)
-- `src/lib/conciliacao/types.ts` (adicionar campo `obs`)
-- `src/lib/conciliacao/outputs.ts` (adicionar tipo T em MD, Excel, descricoes)
+---
 
-**Problema:** Lançamento "DEB.CTA.FATURA" no banco (pagamento da fatura do cartão) está sendo classificado como Tipo A (faltando no Omie), quando na verdade é uma transferência entre contas próprias.
+## PROBLEMA 2: Checklist com "&" e formatação monospace
 
-**Solução:**
-- No `classifier.ts`: Antes de classificar lançamento banco como Tipo A, detectar se contém "DEB.CTA.FATURA" ou "FATURA CARTAO" → classificar como Tipo T
-- No `types.ts`: Adicionar campo `obs?: string;` à interface `Divergencia`
-- No `outputs.ts`: 
-  - Adicionar `'T': 'TRANSFERÊNCIA ENTRE CONTAS'` em `tipoDescricoes`
-  - Adicionar seção de tipo T no relatório MD
+**Causa**:
+- Linhas 748-783: Usando `doc.text(item, ...)` com checkbox Unicode (☐) que aparenta renderizar como "&"
+- Possível encoding issue ou fonte incorreta afetando Unicode
+- Cada item é rendido como texto simples, sem styling colorido por importância
 
-### 3. MAIS INFORMAÇÕES NAS DIVERGÊNCIAS
-**Locais:**
-- `src/lib/conciliacao/classifier.ts` (melhorar população de descrição)
-- `src/lib/conciliacao/outputs.ts` (adicionar coluna de observação no Excel)
+**Solução**:
+Substituir a seção de checklist (linhas 734-783) por uma tabela estruturada usando `autoTable` com styling colorido por tipo de item:
 
-**Problemas:**
-- Coluna G (Descrição/Fornecedor) no Excel frequentemente mostra apenas CNPJ ou está vazia
-- Não há informação de Observações do Omie original para contexto
+1. Criar array `checkItems` com estrutura: `{ icon: string, texto: string, cor: [r,g,b] }`
+2. Separar por tipo:
+   - Vermelho (200, 50, 50): FALTANDO, ATRASO, DUPLICIDADES
+   - Laranja (200, 120, 0): TRANSFERÊNCIAS, A MAIS, VALORES
+   - Azul (47, 84, 150): CARTÃO
+   - Cinza (100, 100, 100): REVISAR
+3. Usar `autoTable` com theme `plain`, `didParseCell` para colorir cada linha conforme o tipo
+4. Forçar font `helvetica`, remover bordas (theme `plain`), usar bullets (●) em vez de checkboxes
 
-**Solução:**
-- No `classifier.ts`: Garantir que `divergencia.descricao` contém SEMPRE a informação completa:
-  - Para banco: descrição do extrato (ex: "LIQUIDACAO BOLETO...")
-  - Para Omie: use `observacoes` (se disponível), senão `clienteFornecedor`, senão CNPJ
-- No `outputs.ts`:
-  - Adicionar coluna 19 "Observação" nos headers do Excel divergências
-  - Preencher com `d.obs || ''` (que virá do campo `omie.observacoes`)
-  - Aumentar autofilter para incluir coluna S
-  - Adicionar coluna width `{ wch: 50 }`
-
-### 4. RELATÓRIO PDF COM JSPDF
-**Local:** `src/lib/conciliacao/outputs.ts` (nova função `gerarRelatorioPDF`)
-
-**Problema:** Relatório está apenas em Markdown e Excel; usuários precisam de um PDF formatado e pronto para compartilhar/imprimir.
-
-**Solução:**
-- Instalar dependências: `jspdf` e `jspdf-autotable`
-- Nova função `gerarRelatorioPDF(resultado)` que:
-  - Cria documento PDF A4 em português
-  - Header azul com título, período e data
-  - KPIs em 4 cards coloridos (Conciliados/verde, Divergências/laranja, Atraso/vermelho, Cartão/azul)
-  - Tabela de Fontes (Banco/Omie/Cartão)
-  - Tabela de Matching por camada (A/B/C/D)
-  - Seção de Divergências com subtabelas por tipo (A, T, B*, B, C, E, G)
-    - Cada tipo com cor de fundo alternada
-    - Colunas: #, Data, Valor, Descrição, CNPJ, Ação
-    - Total por tipo na última linha
-  - Seção Cartão: resumo por titular + total importação
-  - Seção Checklist: lista de ações pendentes com checkboxes
-  - Footer com data/hora geração
-  - Arquivo: `relatorio_conciliacao_{mes}{ano}.pdf`
-
-- No `Conciliacao.tsx`:
-  - Importar `gerarRelatorioPDF`
-  - Handler: `handleDownloadPDF`
-  - Botão: "Relatório (.pdf)" com ícone `FileText` ao lado do .md
+**Mudanças específicas em `outputs.ts`**:
+- Linhas 734-741: Manter header e estrutura
+- Linhas 743-776: Manter lógica de contagem de itens
+- Linhas 748-775: Refatorar para criar array estruturado com `{ icon, texto, cor }`
+- Linhas 777-783: Substituir loop de `doc.text()` por single `autoTable` call com `didParseCell` para styling
 
 ---
 
 ## ORDEM DE IMPLEMENTAÇÃO
 
-1. **Adicionar tipo T em `classifier.ts`** (~20 linhas)
-   - Detectar DEB.CTA.FATURA antes de classificar Tipo A
-   - Marcar como Tipo T
-
-2. **Atualizar `types.ts`** (1 linha)
-   - Adicionar `obs?: string;` à interface Divergencia
-
-3. **Melhorar descrição em `classifier.ts`** (~5 linhas)
-   - Garantir que `divergencia.descricao` está preenchida corretamente
-
-4. **Atualizar Excel divergências em `outputs.ts`** (~20 linhas)
-   - Aplicar formato contábil nas 4 colunas de valor
-   - Adicionar coluna "Observação" com dados de `omie.observacoes`
-   - Aumentar autofilter para coluna S
-
-5. **Adicionar tipo T no MD em `outputs.ts`** (~10 linhas)
-   - Adicionar seção "Tipo T — Transferências entre contas"
-   - Adicionar T em `tipoDescricoes`
-
-6. **Criar `gerarRelatorioPDF` em `outputs.ts`** (~350 linhas)
-   - Função completa com header, KPIs, tabelas, divergências coloridas, checklist
-
-7. **Atualizar `Conciliacao.tsx`** (~15 linhas)
-   - Importar `gerarRelatorioPDF`
-   - Handler + botão PDF
-
-8. **Instalar dependências**
-   - `npm install jspdf jspdf-autotable`
-
----
-
-## DECISÕES DE DESIGN
-
-### Tipo T (Transferências)
-- Separar transferências entre contas próprias de "divergências reais"
-- Usuário sabe que precisa lançar transferência, não investigar
-- Ação: "Lançar transferência Sicredi → Cartão de Crédito no Omie"
-
-### Formato Contábil
-- Padrão Excel/contabilidade: azul positivos, vermelho negativo com parênteses
-- Melhora legibilidade sem precisar colorir coluna inteira
-- Aplicável também no PDF (cores nos valores)
-
-### Coluna Observação
-- Campo `omie.observacoes` frequentemente tem contexto importante (ex: "Nota fiscal XYZ", "Referência cliente")
-- Ajuda a validar se uma divergência é realmente um erro ou falsa correspondência
-
-### PDF vs Markdown
-- Markdown é texto puro (versionável), bom para archive/git
-- PDF é visual (tabelas, cores), bom para compartilhar/imprimir
-- Oferecer ambos: usuários escolhem conforme necessidade
+1. **Adicionar `overflow: 'linebreak'` em TODAS as autoTable** (4 pontos: linhas 585, 605, 666, 720)
+2. **Aumentar coluna "Ação" em columnStyles** (linha 673, de 38 para 50)
+3. **Refatorar checklist** (substituir linhas 748-783 por nova lógica com array estruturado + autoTable)
 
 ---
 
 ## IMPACTO
 
-- **Usuário vê melhor:** Excel com cores, descrições completas, observações de contexto
-- **Transferências separadas:** Menu mais limpo, ações mais claras
-- **PDF profissional:** Pode ser enviado direto para cliente/auditoria/contador
-- **Sem mudança em:** Lógica de parsing, matching, engine — só outputs refinados
-
+- **Tabelas**: Sem mais overflow, texto quebra dentro das células
+- **Checklist**: Aparência profissional com cores por tipo, sem encoding issues
+- **Qualidade PDF**: Melhor leitura, menos erros de rendering
