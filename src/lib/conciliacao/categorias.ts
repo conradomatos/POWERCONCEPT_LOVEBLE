@@ -1,4 +1,5 @@
 import type { CategoriaGrupo, CategoriaItem, CategoriasStorage } from './types';
+import * as XLSX from 'xlsx';
 
 const STORAGE_KEY = 'powerconcept_categorias_v2';
 
@@ -62,6 +63,221 @@ export function suggestCategoria(descricao: string): string {
   }
 
   return storage.categoriaPadrao;
+}
+
+// ===== IMPORT/EXPORT EXCEL =====
+
+export interface ImportRow {
+  grupo: string;
+  tipo: string;
+  nome: string;
+  contaDRE: string;
+  tipoGasto: string;
+  keywords: string;
+  obs: string;
+  ativa: string;
+}
+
+export interface ImportPreview {
+  gruposEncontrados: number;
+  categoriasEncontradas: number;
+  novas: number;
+  modificadas: number;
+  semAlteracao: number;
+  dados: ImportRow[];
+}
+
+export function exportarCategoriasXlsx(storage: CategoriasStorage): void {
+  
+  const sortedGrupos = [...storage.grupos].sort((a, b) => a.ordem - b.ordem);
+  const rows: string[][] = [['Grupo', 'Tipo', 'Nome da Categoria', 'Conta do DRE', 'Tipo de Gasto', 'Keywords', 'Observações', 'Ativa']];
+
+  for (const grupo of sortedGrupos) {
+    const cats = storage.categorias
+      .filter(c => c.grupoId === grupo.id)
+      .sort((a, b) => a.ordem - b.ordem);
+    for (const cat of cats) {
+      rows.push([
+        grupo.nome,
+        grupo.tipo,
+        cat.nome,
+        cat.contaDRE,
+        cat.tipoGasto,
+        cat.keywords.join(', '),
+        cat.observacoes,
+        cat.ativa ? 'Sim' : 'Não',
+      ]);
+    }
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 30 }, { wch: 10 }, { wch: 45 }, { wch: 40 },
+    { wch: 45 }, { wch: 50 }, { wch: 30 }, { wch: 6 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `categorias_contabeis_${today}.xlsx`);
+}
+
+export async function importarCategoriasXlsx(file: File, currentStorage: CategoriasStorage): Promise<ImportPreview> {
+  
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  // Skip header row
+  const dataRows = raw.slice(1).filter(r => r.some(cell => String(cell).trim()));
+  const dados: ImportRow[] = dataRows.map(r => ({
+    grupo: String(r[0] || '').trim(),
+    tipo: String(r[1] || '').trim(),
+    nome: String(r[2] || '').trim(),
+    contaDRE: String(r[3] || '').trim(),
+    tipoGasto: String(r[4] || '').trim(),
+    keywords: String(r[5] || '').trim(),
+    obs: String(r[6] || '').trim(),
+    ativa: String(r[7] || '').trim(),
+  })).filter(r => r.nome);
+
+  const gruposSet = new Set(dados.map(d => d.grupo).filter(Boolean));
+  let novas = 0, modificadas = 0, semAlteracao = 0;
+
+  for (const row of dados) {
+    const existing = currentStorage.categorias.find(c => c.nome.trim().toUpperCase() === row.nome.toUpperCase());
+    if (!existing) {
+      novas++;
+    } else {
+      const kwParsed = row.keywords ? row.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean).join(',') : '';
+      const kwExisting = existing.keywords.join(',');
+      const changed = existing.contaDRE !== row.contaDRE ||
+        existing.tipoGasto !== row.tipoGasto ||
+        kwExisting !== kwParsed ||
+        existing.observacoes !== row.obs;
+      if (changed) modificadas++;
+      else semAlteracao++;
+    }
+  }
+
+  return {
+    gruposEncontrados: gruposSet.size,
+    categoriasEncontradas: dados.length,
+    novas,
+    modificadas,
+    semAlteracao,
+    dados,
+  };
+}
+
+function parseAtiva(val: string): boolean {
+  if (!val || val.trim() === '') return true;
+  return ['sim', 's', 'true', '1'].includes(val.trim().toLowerCase());
+}
+
+export function aplicarImportacao(storage: CategoriasStorage, dados: ImportRow[]): CategoriasStorage {
+  const updated: CategoriasStorage = JSON.parse(JSON.stringify(storage));
+
+  for (const row of dados) {
+    if (!row.nome) continue;
+
+    // Ensure group exists
+    let grupo = updated.grupos.find(g => g.nome.trim().toUpperCase() === row.grupo.toUpperCase());
+    if (!grupo && row.grupo) {
+      const maxOrdem = Math.max(0, ...updated.grupos.map(g => g.ordem));
+      grupo = {
+        id: crypto.randomUUID(),
+        nome: row.grupo.trim(),
+        tipo: (row.tipo === 'Receita' ? 'Receita' : 'Despesa') as 'Receita' | 'Despesa',
+        ordem: maxOrdem + 1,
+        ativa: true,
+      };
+      updated.grupos.push(grupo);
+    }
+
+    const keywords = row.keywords ? row.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean) : [];
+    const existing = updated.categorias.find(c => c.nome.trim().toUpperCase() === row.nome.toUpperCase());
+
+    if (existing) {
+      existing.contaDRE = row.contaDRE;
+      existing.tipoGasto = row.tipoGasto;
+      existing.keywords = keywords;
+      existing.observacoes = row.obs;
+      existing.ativa = parseAtiva(row.ativa);
+      if (grupo) {
+        existing.grupoId = grupo.id;
+        existing.tipo = grupo.tipo;
+      }
+    } else if (grupo) {
+      const catsInGroup = updated.categorias.filter(c => c.grupoId === grupo!.id);
+      const maxOrdem = Math.max(0, ...catsInGroup.map(c => c.ordem));
+      updated.categorias.push({
+        id: crypto.randomUUID(),
+        grupoId: grupo.id,
+        nome: row.nome.trim(),
+        tipo: grupo.tipo,
+        contaDRE: row.contaDRE,
+        tipoGasto: row.tipoGasto,
+        keywords,
+        observacoes: row.obs,
+        ativa: parseAtiva(row.ativa),
+        ordem: maxOrdem + 1,
+      });
+    }
+  }
+
+  return updated;
+}
+
+// ===== USAGE / TRANSFER =====
+
+export function getCategoriaUsageCount(categoriaNome: string): number {
+  const conciliacaoData = localStorage.getItem('powerconcept_ultima_conciliacao');
+  if (!conciliacaoData) return 0;
+
+  try {
+    const data = JSON.parse(conciliacaoData);
+    let count = 0;
+    if (data.cartao?.length) {
+      count += data.cartao.filter((t: any) => t.categoria?.toUpperCase() === categoriaNome.toUpperCase()).length;
+    }
+    if (data.conciliados?.length) {
+      count += data.conciliados.filter((t: any) => t.categoria?.toUpperCase() === categoriaNome.toUpperCase()).length;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+export function transferirLancamentos(categoriaOrigem: string, categoriaDestino: string): number {
+  const conciliacaoData = localStorage.getItem('powerconcept_ultima_conciliacao');
+  if (!conciliacaoData) return 0;
+
+  try {
+    const data = JSON.parse(conciliacaoData);
+    let transferred = 0;
+    if (data.cartao?.length) {
+      for (const t of data.cartao) {
+        if (t.categoria?.toUpperCase() === categoriaOrigem.toUpperCase()) {
+          t.categoria = categoriaDestino;
+          transferred++;
+        }
+      }
+    }
+    if (data.conciliados?.length) {
+      for (const t of data.conciliados) {
+        if (t.categoria?.toUpperCase() === categoriaOrigem.toUpperCase()) {
+          t.categoria = categoriaDestino;
+          transferred++;
+        }
+      }
+    }
+    localStorage.setItem('powerconcept_ultima_conciliacao', JSON.stringify(data));
+    return transferred;
+  } catch {
+    return 0;
+  }
 }
 
 // ===== COMPATIBILIDADE Fase 4 =====
