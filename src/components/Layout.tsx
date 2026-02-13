@@ -10,6 +10,7 @@ import {
   BarChart3,
   PanelLeft,
   Calculator,
+  Wallet,
 } from 'lucide-react';
 import logoCps from '@/assets/logo-cps.png';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 
-export type NavigationArea = 'recursos' | 'projetos' | 'relatorios' | 'orcamentos' | 'home';
+export type NavigationArea = 'recursos' | 'projetos' | 'relatorios' | 'orcamentos' | 'financeiro' | 'home';
 
 interface LayoutProps {
   children: ReactNode;
@@ -47,7 +48,9 @@ const routeToArea: Record<string, NavigationArea> = {
   '/dashboard': 'relatorios',
   '/custos-projeto': 'relatorios',
   '/rentabilidade': 'relatorios',
-  '/conciliacao': 'relatorios',
+  // Financeiro
+  '/financeiro': 'financeiro',
+  '/financeiro/conciliacao': 'financeiro',
   // Orçamentos
   '/orcamentos': 'orcamentos',
   '/orcamentos/bases': 'orcamentos',
@@ -93,6 +96,7 @@ export default function Layout({ children }: LayoutProps) {
       projetos: '/projetos',
       orcamentos: '/orcamentos',
       relatorios: '/dashboard',
+      financeiro: '/financeiro/conciliacao',
     };
     navigate(firstRoutes[area]);
   };
@@ -103,6 +107,7 @@ export default function Layout({ children }: LayoutProps) {
     { id: 'projetos' as NavigationArea, label: 'Projetos', icon: FolderKanban },
     { id: 'orcamentos' as NavigationArea, label: 'Orçamentos', icon: Calculator },
     { id: 'relatorios' as NavigationArea, label: 'Relatórios', icon: BarChart3 },
+    { id: 'financeiro' as NavigationArea, label: 'Financeiro', icon: Wallet },
   ];
 
   const canAccessSettings = hasRole('admin') || hasRole('super_admin');

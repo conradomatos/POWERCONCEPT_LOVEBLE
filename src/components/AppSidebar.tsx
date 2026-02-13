@@ -92,7 +92,12 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
       { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
       { title: 'Rentabilidade', url: '/rentabilidade', icon: DollarSign },
       { title: 'Custos & Margem', url: '/custos-projeto', icon: DollarSign },
-      { title: 'Conciliação', url: '/conciliacao', icon: ArrowLeftRight },
+    ],
+  },
+  financeiro: {
+    label: 'Financeiro',
+    items: [
+      { title: 'Conciliação', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
     ],
   },
   orcamentos: {

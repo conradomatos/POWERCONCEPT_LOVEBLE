@@ -315,7 +315,8 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
   L(`*Relatório gerado automaticamente em ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — Conciliação Financeira CONCEPT Engenharia*`);
 
   const sufixo = `${r.mesLabel?.toLowerCase().substring(0, 3) || 'mes'}${r.anoLabel || '2026'}`;
-  downloadFile(lines.join('\n'), `relatorio_conciliacao_${sufixo}.md`, 'text/markdown;charset=utf-8');
+  const content = '\uFEFF' + lines.join('\n');
+  downloadFile(content, `relatorio_conciliacao_${sufixo}.md`, 'text/markdown;charset=utf-8');
 }
 
 // ============================================================
@@ -427,13 +428,14 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
   for (const t of valid) {
     const cat = t.categoriaSugerida || suggestCategoria(t.descricao) || CATEGORIAS_CONFIG.categoria_padrao;
     let obs = t.titular || '';
-    if (t.parcela) obs += ` - ${t.parcela}`;
+    if (t.descricao) obs += ` | ${t.descricao.trim()}`;
+    if (t.parcela) obs += ` | ${t.parcela}`;
 
     rows.push([
-      '', '', t.descricao.trim(), cat, contaCorrente,
+      '', '', 'CARTAO DE CREDITO', cat, contaCorrente,
       Math.abs(t.valor), '', '', '',
       t.dataStr, dataVencimento, '', dataVencimento,
-      Math.abs(t.valor), '', '', '', dataVencimento, obs.trim(),
+      Math.abs(t.valor), 0, 0, 0, dataVencimento, obs.trim(),
     ]);
   }
 
