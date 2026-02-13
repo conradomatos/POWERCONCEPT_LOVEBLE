@@ -582,7 +582,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     headStyles: { fillColor: azulEscuro, fontSize: 8, fontStyle: 'bold' },
     bodyStyles: { fontSize: 8 },
     margin: { left: margin, right: margin },
-    styles: { cellPadding: 2 },
+    styles: { cellPadding: 2, overflow: 'linebreak' },
   });
   y = (doc as any).lastAutoTable.finalY + 6;
 
@@ -602,7 +602,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     headStyles: { fillColor: azulEscuro, fontSize: 8, fontStyle: 'bold' },
     bodyStyles: { fontSize: 8 },
     margin: { left: margin, right: margin },
-    styles: { cellPadding: 2 },
+    styles: { cellPadding: 2, overflow: 'linebreak' },
     columnStyles: { 2: { halign: 'center' } },
   });
   y = (doc as any).lastAutoTable.finalY + 10;
@@ -670,7 +670,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
         2: { cellWidth: 28, halign: 'right' },
         3: { cellWidth: 55 },
         4: { cellWidth: 30 },
-        5: { cellWidth: 38 },
+        5: { cellWidth: 50 },
       },
     });
     y = (doc as any).lastAutoTable.finalY + 8;
@@ -717,9 +717,9 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
         headStyles: { fillColor: azulEscuro, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 8 },
         margin: { left: margin, right: margin },
-        styles: { cellPadding: 2 },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' } },
-      });
+    styles: { cellPadding: 2, overflow: 'linebreak' },
+    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' } },
+  });
       y = (doc as any).lastAutoTable.finalY + 6;
     }
 
@@ -745,41 +745,58 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     divCounts[d.tipo] = (divCounts[d.tipo] || 0) + 1;
   }
 
-  const checkItems: string[] = [];
+  const checkItems: { texto: string; cor: [number, number, number] }[] = [];
   if (divCounts['A']) {
     const totalA = r.divergencias.filter(d => d.tipo === 'A').reduce((s, d) => s + Math.abs(d.valor), 0);
-    checkItems.push(`☐ FALTANDO: ${divCounts['A']} lançamentos faltando no Omie, total ${fmt(totalA)}`);
+    checkItems.push({ texto: `FALTANDO: ${divCounts['A']} lancamentos faltando no Omie, total ${fmt(totalA)}`, cor: [200, 50, 50] });
   }
   if (divCounts['T']) {
-    checkItems.push(`☐ TRANSFERÊNCIAS: ${divCounts['T']} transferências entre contas para lançar`);
+    checkItems.push({ texto: `TRANSFERENCIAS: ${divCounts['T']} transferencias entre contas para lancar`, cor: [200, 120, 0] });
   }
   if (divCounts['B*']) {
     const totalAtraso = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
-    checkItems.push(`☐ ATRASO: ${divCounts['B*']} contas em atraso, total ${fmt(totalAtraso)} — cobrar/verificar`);
+    checkItems.push({ texto: `ATRASO: ${divCounts['B*']} contas em atraso, total ${fmt(totalAtraso)} - cobrar/verificar`, cor: [200, 50, 50] });
   }
   if (divCounts['B']) {
     const totalB = r.divergencias.filter(d => d.tipo === 'B').reduce((s, d) => s + Math.abs(d.valor), 0);
-    checkItems.push(`☐ A MAIS: ${divCounts['B']} a mais no Omie, total ${fmt(totalB)} — investigar`);
+    checkItems.push({ texto: `A MAIS: ${divCounts['B']} a mais no Omie, total ${fmt(totalB)} - investigar`, cor: [200, 120, 0] });
   }
-  if (divCounts['C']) checkItems.push(`☐ VALORES: ${divCounts['C']} com valor divergente — corrigir`);
-  if (divCounts['E']) checkItems.push(`☐ DUPLICIDADES: ${divCounts['E']} duplicatas no Omie — remover`);
+  if (divCounts['C']) checkItems.push({ texto: `VALORES: ${divCounts['C']} com valor divergente - corrigir`, cor: [200, 120, 0] });
+  if (divCounts['E']) checkItems.push({ texto: `DUPLICIDADES: ${divCounts['E']} duplicatas no Omie - remover`, cor: [200, 50, 50] });
 
   const validImportCheck = r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf) || [];
   if (validImportCheck.length > 0) {
     const totalImportCheck = validImportCheck.reduce((s, t) => s + Math.abs(t.valor), 0);
-    checkItems.push(`☐ CARTÃO: Importar planilha com ${validImportCheck.length} despesas, total ${fmt(totalImportCheck)}`);
+    checkItems.push({ texto: `CARTAO: Importar planilha com ${validImportCheck.length} despesas, total ${fmt(totalImportCheck)}`, cor: [47, 84, 150] });
   }
 
   if ((r.camadaCounts['D'] || 0) > 0) {
-    checkItems.push(`☐ REVISAR: ${r.camadaCounts['D']} matches com baixa confiança`);
+    checkItems.push({ texto: `REVISAR: ${r.camadaCounts['D']} matches com baixa confianca`, cor: [100, 100, 100] });
   }
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  for (const item of checkItems) {
-    checkPage(8);
-    doc.text(item, margin + 2, y);
-    y += 6;
+  if (checkItems.length > 0) {
+    autoTable(doc, {
+      startY: y,
+      body: checkItems.map(item => [`●  ${item.texto}`]),
+      theme: 'plain',
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 3, bottom: 3, left: 8, right: 4 },
+        font: 'helvetica',
+        overflow: 'linebreak',
+      },
+      didParseCell: (data: any) => {
+        if (data.section === 'body') {
+          const item = checkItems[data.row.index];
+          if (item) {
+            data.cell.styles.textColor = item.cor;
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
   }
 
   y += 5;
