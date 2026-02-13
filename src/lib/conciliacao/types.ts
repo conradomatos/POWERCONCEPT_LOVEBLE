@@ -152,6 +152,12 @@ export interface DRERelatorio {
   resultado: DRELinha;
 }
 
+export interface DREAnual {
+  ano: number;
+  meses: DRERelatorio[];      // [0]=Jan ... [11]=Dez
+  acumulado: DRERelatorio;    // Soma
+}
+
 // ===== CATEGORIAS CONTÁBEIS =====
 
 export interface CategoriaGrupo {
