@@ -97,6 +97,7 @@ export interface Divergencia {
   nf?: string;
   categoriaSugerida?: string;
   parcela?: string;
+  obs?: string;
   banco?: LancamentoBanco | null;
   omie?: LancamentoOmie | null;
 }
