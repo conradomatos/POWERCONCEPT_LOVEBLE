@@ -46,6 +46,15 @@ interface OmieContaReceber {
   codigo_categoria?: string;
   codigo_projeto?: number;
   numero_parcela?: string;
+  valor_inss?: number;
+  valor_ir?: number;
+  valor_iss?: number;
+  valor_pis?: number;
+  valor_cofins?: number;
+  valor_csll?: number;
+  categorias?: Array<{ codigo_categoria: string; percentual: number; valor: number }>;
+  codigo_tipo_documento?: string;
+  id_conta_corrente?: number;
   info_adicionais?: {
     tags?: string[];
     nCodCC?: number;
@@ -72,6 +81,15 @@ interface OmieContaPagar {
   codigo_categoria?: string;
   codigo_projeto?: number;
   numero_parcela?: string;
+  valor_inss?: number;
+  valor_ir?: number;
+  valor_iss?: number;
+  valor_pis?: number;
+  valor_cofins?: number;
+  valor_csll?: number;
+  categorias?: Array<{ codigo_categoria: string; percentual: number; valor: number }>;
+  codigo_tipo_documento?: string;
+  id_conta_corrente?: number;
   info_adicionais?: {
     tags?: string[];
     nCodCC?: number;
@@ -261,6 +279,7 @@ serve(async (req) => {
     let totalUpdated = 0;
     let pendenciasCreated = 0;
     const errors: string[] = [];
+    const categoriasEncontradas = new Set<string>();
 
     // Fetch all projects with omie_codigo for matching
     const { data: projetos } = await supabase
@@ -321,6 +340,14 @@ serve(async (req) => {
           const projetoId = titulo.codigo_projeto ? projetoMap.get(titulo.codigo_projeto) : null;
           const status = mapOmieStatus(titulo.status_titulo);
           
+          // Collect categories
+          if (titulo.codigo_categoria) categoriasEncontradas.add(titulo.codigo_categoria);
+          if (titulo.categorias?.length) {
+            for (const cat of titulo.categorias) {
+              if (cat.codigo_categoria) categoriasEncontradas.add(cat.codigo_categoria);
+            }
+          }
+          
           // Check if status should be ATRASADO based on date
           let finalStatus = status;
           if (status === 'ABERTO' && titulo.data_vencimento) {
@@ -347,6 +374,16 @@ serve(async (req) => {
             data_recebimento: titulo.baixa_titulo?.dDtLiquidacao ? parseOmieDate(titulo.baixa_titulo.dDtLiquidacao) : null,
             parcela: titulo.numero_parcela || null,
             sync_id: syncId,
+            valor_inss: titulo.valor_inss || 0,
+            valor_ir: titulo.valor_ir || 0,
+            valor_iss: titulo.valor_iss || 0,
+            valor_pis: titulo.valor_pis || 0,
+            valor_cofins: titulo.valor_cofins || 0,
+            valor_csll: titulo.valor_csll || 0,
+            categorias_rateio: titulo.categorias?.length ? JSON.stringify(titulo.categorias) : null,
+            codigo_tipo_documento: titulo.codigo_tipo_documento || null,
+            id_conta_corrente: titulo.id_conta_corrente || titulo.info_adicionais?.nCodCC || null,
+            raw_data: JSON.stringify(titulo),
           };
 
           // Upsert AR record
@@ -456,6 +493,14 @@ serve(async (req) => {
           const projetoId = titulo.codigo_projeto ? projetoMap.get(titulo.codigo_projeto) : null;
           const status = mapOmieStatus(titulo.status_titulo);
           
+          // Collect categories
+          if (titulo.codigo_categoria) categoriasEncontradas.add(titulo.codigo_categoria);
+          if (titulo.categorias?.length) {
+            for (const cat of titulo.categorias) {
+              if (cat.codigo_categoria) categoriasEncontradas.add(cat.codigo_categoria);
+            }
+          }
+
           let finalStatus = status;
           if (status === 'ABERTO' && titulo.data_vencimento) {
             const vencimento = parseOmieDate(titulo.data_vencimento);
@@ -481,6 +526,16 @@ serve(async (req) => {
             data_pagamento: titulo.baixa_titulo?.dDtLiquidacao ? parseOmieDate(titulo.baixa_titulo.dDtLiquidacao) : null,
             parcela: titulo.numero_parcela || null,
             sync_id: syncId,
+            valor_inss: titulo.valor_inss || 0,
+            valor_ir: titulo.valor_ir || 0,
+            valor_iss: titulo.valor_iss || 0,
+            valor_pis: titulo.valor_pis || 0,
+            valor_cofins: titulo.valor_cofins || 0,
+            valor_csll: titulo.valor_csll || 0,
+            categorias_rateio: titulo.categorias?.length ? JSON.stringify(titulo.categorias) : null,
+            codigo_tipo_documento: titulo.codigo_tipo_documento || null,
+            id_conta_corrente: titulo.id_conta_corrente || titulo.info_adicionais?.nCodCC || null,
+            raw_data: JSON.stringify(titulo),
           };
 
           const { data: existingAP } = await supabase
@@ -540,6 +595,16 @@ serve(async (req) => {
         if (pagina <= totalPaginas) {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
+      }
+    }
+
+    // Auto-populate omie_categoria_mapeamento with new categories
+    if (categoriasEncontradas.size > 0) {
+      console.log(`Found ${categoriasEncontradas.size} unique categories, upserting to mapping table...`);
+      for (const codigo of categoriasEncontradas) {
+        await supabase
+          .from('omie_categoria_mapeamento')
+          .upsert({ codigo_omie: codigo }, { onConflict: 'codigo_omie', ignoreDuplicates: true });
       }
     }
 

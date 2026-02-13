@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { buildDREEstrutura, buildDREAnual, getCategoriasOrfas } from '@/lib/conciliacao/dre';
+import { buildDREEstrutura, buildDREAnual, buildDREComDados, buildDREAnualComDados, getCategoriasOrfas } from '@/lib/conciliacao/dre';
 import type { DRELinha, DRESecao, DREAnual } from '@/lib/conciliacao/types';
+import { useDREData } from '@/hooks/useDREData';
+import { useCategoriasAtivas } from '@/hooks/useCategorias';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -486,8 +488,25 @@ export default function FinanceiroDRE() {
   const [pdfIncludeAH, setPdfIncludeAH] = useState(false);
 
   const periodo = `${mes} ${ano}`;
-  const dre = useMemo(() => buildDREEstrutura(periodo), [periodo]);
-  const dreAnual = useMemo(() => buildDREAnual(Number(ano)), [ano]);
+  const { data: dreData, isLoading: loadingDRE } = useDREData(Number(ano));
+  const { data: categoriasDB } = useCategoriasAtivas();
+
+  const dre = useMemo(() => {
+    if (dreData && categoriasDB) {
+      const mesNum = MESES.indexOf(mes) + 1;
+      return buildDREComDados(periodo, dreData, mesNum, categoriasDB);
+    }
+    return buildDREEstrutura(periodo);
+  }, [periodo, dreData, categoriasDB, mes]);
+
+  const dreAnual = useMemo(() => {
+    if (dreData && categoriasDB) {
+      return buildDREAnualComDados(Number(ano), dreData, categoriasDB);
+    }
+    return buildDREAnual(Number(ano));
+  }, [ano, dreData, categoriasDB]);
+
+  const hasDadosReais = dreData && dreData.length > 0;
   const categoriasOrfas = useMemo(() => getCategoriasOrfas(), []);
 
   // Compute KPI values from DRE structure
@@ -521,6 +540,11 @@ export default function FinanceiroDRE() {
             <BarChart3 className="h-6 w-6" /> DRE — Demonstrativo de Resultado
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Demonstrativo de resultado do exercício.</p>
+          {hasDadosReais && (
+            <Badge className="ml-2 bg-emerald-500/20 text-emerald-700 border-emerald-500/30">
+              Dados Omie
+            </Badge>
+          )}
         </div>
 
         {/* Toolbar */}

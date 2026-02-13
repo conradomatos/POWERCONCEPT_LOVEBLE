@@ -44,6 +44,7 @@ import ApontamentoDiario from "./pages/ApontamentoDiario";
 import Conciliacao from "./pages/Conciliacao";
 import FinanceiroCategorias from "./pages/FinanceiroCategorias";
 import FinanceiroDRE from "./pages/FinanceiroDRE";
+import MapeamentoCategorias from "./pages/MapeamentoCategorias";
 // Global bases pages
 import BasesGlobais from "./pages/orcamentos/BasesGlobais";
 import BasesGlobaisLayout from "./pages/orcamentos/BasesGlobaisLayout";
@@ -91,6 +92,7 @@ const App = () => (
             <Route path="/financeiro/conciliacao" element={<Conciliacao />} />
             <Route path="/financeiro/categorias" element={<FinanceiroCategorias />} />
             <Route path="/financeiro/dre" element={<FinanceiroDRE />} />
+            <Route path="/financeiro/mapeamento-categorias" element={<MapeamentoCategorias />} />
             <Route path="/financeiro" element={<Navigate to="/financeiro/conciliacao" replace />} />
             <Route path="/conciliacao" element={<Navigate to="/financeiro/conciliacao" replace />} />
             <Route path="/orcamentos" element={<OrcamentosList />} />
