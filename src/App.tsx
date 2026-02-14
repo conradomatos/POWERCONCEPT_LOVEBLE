@@ -56,6 +56,12 @@ import IncidenciasMO from "./pages/orcamentos/bases/IncidenciasMO";
 import CatalogoImpostos from "./pages/orcamentos/bases/CatalogoImpostos";
 import CatalogoMarkup from "./pages/orcamentos/bases/CatalogoMarkup";
 import NotFound from "./pages/NotFound";
+import AILabDashboard from "./pages/ai-lab/AILabDashboard";
+import AILabChat from "./pages/ai-lab/AILabChat";
+import AILabAgents from "./pages/ai-lab/AILabAgents";
+import AILabTemplates from "./pages/ai-lab/AILabTemplates";
+import AILabSettings from "./pages/ai-lab/AILabSettings";
+import AILabPlaceholder from "./pages/ai-lab/AILabPlaceholder";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +134,15 @@ const App = () => (
               <Route path="resumo" element={<ResumoPrecos />} />
               <Route path="documentos" element={<Documentos />} />
             </Route>
+            {/* AI Lab routes */}
+            <Route path="/ai-lab" element={<AILabDashboard />} />
+            <Route path="/ai-lab/chat/:threadId" element={<AILabChat />} />
+            <Route path="/ai-lab/agents" element={<AILabAgents />} />
+            <Route path="/ai-lab/templates" element={<AILabTemplates />} />
+            <Route path="/ai-lab/artifacts" element={<AILabPlaceholder page="artifacts" />} />
+            <Route path="/ai-lab/analytics" element={<AILabPlaceholder page="analytics" />} />
+            <Route path="/ai-lab/logs" element={<AILabPlaceholder page="logs" />} />
+            <Route path="/ai-lab/settings" element={<AILabSettings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

@@ -14,6 +14,234 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agents: {
+        Row: {
+          avatar_color: string | null
+          avatar_icon: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+          system_prompt: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_color?: string | null
+          avatar_icon?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+          system_prompt?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_color?: string | null
+          avatar_icon?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          system_prompt?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_messages: {
+        Row: {
+          agent_type: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_favorited: boolean | null
+          metadata: Json | null
+          role: string
+          thread_id: string
+        }
+        Insert: {
+          agent_type?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_favorited?: boolean | null
+          metadata?: Json | null
+          role: string
+          thread_id: string
+        }
+        Update: {
+          agent_type?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_favorited?: boolean | null
+          metadata?: Json | null
+          role?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ai_threads"
+            referencedColumns: ["thread_id"]
+          },
+        ]
+      }
+      ai_prompt_templates: {
+        Row: {
+          agent_type: string | null
+          category: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_favorite: boolean | null
+          title: string
+          updated_at: string | null
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          agent_type?: string | null
+          category?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          title: string
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          agent_type?: string | null
+          category?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          title?: string
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_settings: {
+        Row: {
+          api_key: string | null
+          api_url: string | null
+          created_at: string | null
+          default_agent: string | null
+          id: string
+          is_connected: boolean | null
+          last_connection_test: string | null
+          settings: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key?: string | null
+          api_url?: string | null
+          created_at?: string | null
+          default_agent?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_connection_test?: string | null
+          settings?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string | null
+          api_url?: string | null
+          created_at?: string | null
+          default_agent?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_connection_test?: string | null
+          settings?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_threads: {
+        Row: {
+          agent_type: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          last_message_at: string | null
+          message_count: number | null
+          metadata: Json | null
+          project_id: string | null
+          status: string | null
+          thread_id: string
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          agent_type?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          project_id?: string | null
+          status?: string | null
+          thread_id: string
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          agent_type?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          project_id?: string | null
+          status?: string | null
+          thread_id?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_threads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_threads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "ai_threads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
       alocacoes_blocos: {
         Row: {
           colaborador_id: string

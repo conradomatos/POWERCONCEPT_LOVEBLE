@@ -11,6 +11,7 @@ import {
   PanelLeft,
   Calculator,
   Wallet,
+  Brain,
 } from 'lucide-react';
 import logoCps from '@/assets/logo-cps.png';
 import { cn } from '@/lib/utils';
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 
-export type NavigationArea = 'recursos' | 'projetos' | 'relatorios' | 'orcamentos' | 'financeiro' | 'home';
+export type NavigationArea = 'recursos' | 'projetos' | 'relatorios' | 'orcamentos' | 'financeiro' | 'home' | 'ailab';
 
 interface LayoutProps {
   children: ReactNode;
@@ -57,6 +58,7 @@ const routeToArea: Record<string, NavigationArea> = {
   // Orçamentos
   '/orcamentos': 'orcamentos',
   '/orcamentos/bases': 'orcamentos',
+  '/ai-lab': 'ailab',
 };
 
 export default function Layout({ children }: LayoutProps) {
@@ -100,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
       orcamentos: '/orcamentos',
       relatorios: '/dashboard',
       financeiro: '/financeiro/conciliacao',
+      ailab: '/ai-lab',
     };
     navigate(firstRoutes[area]);
   };
@@ -111,6 +114,7 @@ export default function Layout({ children }: LayoutProps) {
     { id: 'orcamentos' as NavigationArea, label: 'Orçamentos', icon: Calculator },
     { id: 'relatorios' as NavigationArea, label: 'Relatórios', icon: BarChart3 },
     { id: 'financeiro' as NavigationArea, label: 'Financeiro', icon: Wallet },
+    { id: 'ailab' as NavigationArea, label: 'AI Lab', icon: Brain },
   ];
 
   const canAccessSettings = hasRole('admin') || hasRole('super_admin');
