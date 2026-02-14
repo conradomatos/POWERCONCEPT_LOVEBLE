@@ -315,6 +315,44 @@ serve(async (req) => {
 
     console.log(`Loaded ${projetoMap.size} projects with omie_codigo`);
 
+    // ── Etapa: ListarCadastroDRE (atualizar descrições das categorias) ──
+    try {
+      console.log("Fetching DRE catalog from Omie (ListarCadastroDRE)...");
+      const dreResponse = await fetch("https://app.omie.com.br/api/v1/geral/dre/", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          call: "ListarCadastroDRE",
+          app_key: OMIE_APP_KEY,
+          app_secret: OMIE_APP_SECRET,
+          param: [{ apenasContasAtivas: "N" }],
+        }),
+      });
+      const dreData = await dreResponse.json();
+
+      if (dreData.faultstring) {
+        console.error("ListarCadastroDRE API error:", dreData.faultstring);
+      } else {
+        const dreLista: any[] = dreData.dreLista || [];
+        // Filter leaf accounts (nivelDRE === 3)
+        const contasFolha = dreLista.filter((item: any) => item.nivelDRE === 3);
+        console.log(`DRE catalog: ${dreLista.length} total items, ${contasFolha.length} leaf accounts`);
+
+        let dreUpdated = 0;
+        for (const conta of contasFolha) {
+          if (!conta.codigoDRE || !conta.descricaoDRE) continue;
+          const { error: updErr } = await supabase
+            .from('omie_categoria_mapeamento')
+            .update({ descricao_omie: conta.descricaoDRE })
+            .eq('codigo_omie', conta.codigoDRE);
+          if (!updErr) dreUpdated++;
+        }
+        console.log(`DRE catalog: updated ${dreUpdated} category descriptions`);
+      }
+    } catch (dreError) {
+      console.error("ListarCadastroDRE failed (continuing sync):", dreError);
+    }
+
     // Sync Contas a Receber
     if (tipo === 'CONTAS_RECEBER' || tipo === 'TODOS') {
       console.log("Starting AR sync...");
