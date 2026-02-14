@@ -567,10 +567,26 @@ export default function FinanceiroDRE() {
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-sm text-muted-foreground">Demonstrativo de resultado do exercício.</p>
-            {hasDadosReais && (
+          {hasDadosReais && (
               <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/30">
                 Dados Omie
               </Badge>
+            )}
+            {hasDadosReais && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground cursor-help border-b border-dashed border-muted-foreground/40">
+                      Impostos por alíquota
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs">Impostos calculados sobre receita bruta (Lucro Presumido):</p>
+                    <p className="text-xs mt-1">ISS 3% · PIS 0,65% · COFINS 3% → Deduções</p>
+                    <p className="text-xs">IRPJ 4,80% · CSLL 2,88% → Impostos s/ Lucro</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
           {lastSync && (
