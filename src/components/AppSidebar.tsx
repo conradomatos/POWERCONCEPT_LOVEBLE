@@ -31,6 +31,11 @@ import {
   ArrowLeftRight,
   Tags,
   BarChart3,
+  MessageSquare,
+  Bot,
+  Archive,
+  ScrollText,
+  Settings,
 } from 'lucide-react';
 
 import {
@@ -108,6 +113,18 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
   orcamentos: {
     label: 'Orçamentos',
     items: [], // Will be handled specially
+  },
+  ailab: {
+    label: 'AI Lab',
+    items: [
+      { title: 'Projetos IA', url: '/ai-lab', icon: MessageSquare },
+      { title: 'Agentes', url: '/ai-lab/agents', icon: Bot },
+      { title: 'Templates', url: '/ai-lab/templates', icon: FileText },
+      { title: 'Artefatos', url: '/ai-lab/artifacts', icon: Archive },
+      { title: 'Analytics', url: '/ai-lab/analytics', icon: BarChart3 },
+      { title: 'Logs', url: '/ai-lab/logs', icon: ScrollText },
+      { title: 'Configurações', url: '/ai-lab/settings', icon: Settings },
+    ],
   },
 };
 
