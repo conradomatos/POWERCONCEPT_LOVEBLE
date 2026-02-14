@@ -25,6 +25,7 @@ import { ChevronRight, FileText, AlertTriangle, TrendingUp, TrendingDown, Dollar
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { exportDREtoPDF } from '@/lib/financeiro/exportDREPdf';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SyncButton } from '@/components/rentabilidade/SyncButton';
@@ -823,7 +824,23 @@ export default function FinanceiroDRE() {
               <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>Cancelar</Button>
               <Button onClick={() => {
                 setPdfDialogOpen(false);
-                toast({ title: 'Exportação disponível após importar dados financeiros.' });
+                if (!hasDadosReais) {
+                  toast({ title: 'Importe dados financeiros antes de exportar.', variant: 'destructive' });
+                  return;
+                }
+                exportDREtoPDF({
+                  dreAnual,
+                  dre,
+                  visao: pdfVisao,
+                  tipo: pdfTipo,
+                  includeAV: pdfIncludeAV,
+                  includeMargens: pdfIncludeMargens,
+                  includeAH: pdfIncludeAH,
+                  periodoLabel: periodo,
+                  mes,
+                  ano,
+                });
+                toast({ title: 'PDF exportado com sucesso!' });
               }}>
                 Exportar PDF
               </Button>
