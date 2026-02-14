@@ -1,130 +1,59 @@
 
 
-# FIX-03 COMPLETO -- Mapeamento DRE + Expandir/Recolher + PDF
+# FIX-04 -- Corrigir campos ListarCategorias + Botao Sincronizar
 
 ## Resumo
 
-Seis alteracoes para corrigir o mapeamento de categorias DRE (custos zerados), fix do botao Expandir/Recolher, e melhorias no PDF.
+Tres alteracoes: (1) remover bloco ListarCadastroDRE que nunca da match, (2) melhorar ListarCategorias com campos defensivos e logging completo, (3) adicionar botao "Sincronizar Omie" e texto de orientacao na pagina de mapeamento.
 
-## 1. Migration SQL -- Novas colunas na tabela omie_categoria_mapeamento
-
-```text
-ALTER TABLE omie_categoria_mapeamento ADD COLUMN IF NOT EXISTS conta_dre_omie TEXT;
-ALTER TABLE omie_categoria_mapeamento ADD COLUMN IF NOT EXISTS tipo_categoria TEXT;
-```
-
-## 2. Edge Function: Nova etapa ListarCategorias
+## 1. Edge Function: Remover ListarCadastroDRE e reescrever ListarCategorias
 
 **Arquivo:** `supabase/functions/omie-financeiro/index.ts`
 
-Inserir APOS o bloco existente de `ListarCadastroDRE` (linha ~354) e ANTES de `// Sync Contas a Receber` (linha ~356), um novo bloco que:
+### 1A. Remover bloco ListarCadastroDRE (linhas 318-354)
 
-- Chama `https://app.omie.com.br/api/v1/geral/categorias/` com `call: "ListarCategorias"` paginado (500/pagina)
-- Para cada categoria retornada, extrai `conta_despesa` ou `conta_receita` (nome da conta DRE real)
-- Log do primeiro item para debug: `console.log("Sample category:", JSON.stringify(categorias[0]))`
-- Acumula em `categoriaDreMap<codigo, {contaDre, tipo, descricao}>`
-- Faz batch update na tabela `omie_categoria_mapeamento` setando `conta_dre_omie`, `tipo_categoria` e `descricao_omie`
-- Delay de 200ms entre paginas
-- Se falhar, loga erro e continua sync normalmente
+O bloco tenta fazer `.eq('codigo_omie', conta.codigoDRE)` mas `codigoDRE` contem codigos de conta DRE (ex: "1.21.02"), nao codigos de categoria Omie (ex: "2.01.03"). Nunca da match. Remover inteiro.
 
-## 3. Reescrever suggestContaDRE
+### 1B. Reescrever bloco ListarCategorias (linhas 356-435)
 
-**Arquivo:** `src/hooks/useCategoriaMapeamento.ts`
+Substituir pelo codigo defensivo que:
+- Loga as chaves do primeiro objeto: `Object.keys(categorias[0])`
+- Loga o objeto completo: `JSON.stringify(categorias[0], null, 2)`
+- Tenta multiplos nomes de campo para codigo: `cat.codigo || cat.cCodCateg`
+- Tenta multiplos nomes para descricao: `cat.descricao || cat.descricao_categoria || cat.cDescrCateg || cat.nome || cat.categoria || codigo`
+- Tenta multiplos nomes para conta DRE: `cat.conta_dre || cat.contaDRE || cat.cContaDRE || cat.id_conta_dre || cat.conta_despesa || cat.conta_receita || cat.definicao?.cContaDRE || cat.descricao_padrao || ''`
+- Atualiza `descricao_omie` sempre (nao apenas quando tem contaDre)
+- Atualiza `conta_dre_omie` quando disponivel
 
-### 3A. Adicionar mapa OMIE_DRE_TO_POWERCONCEPT (antes da funcao)
-
-Mapa de 22 entradas convertendo nomes de conta DRE do Omie para o formato usado na DRE do PowerConcept. Exemplos:
-- `'Custo dos Serviços Prestados'` para `'(-) - Custo dos Serviços Prestados'`
-- `'Receita Bruta de Vendas'` para `'(+) - Receita Bruta de Vendas'`
-- `'Despesas Administrativas'` para `'(-) - Despesas Administrativas'`
-
-### 3B. Reescrever suggestContaDRE com assinatura expandida
-
-```text
-export function suggestContaDRE(codigoOmie: string, contaDreOmie?: string | null): string | null
-```
-
-- PRIORIDADE 1: usar `contaDreOmie` para lookup exato no mapa, com fallback de match parcial
-- PRIORIDADE 2: fallback por prefixo do codigo (mesma logica ja implementada no FIX-03 anterior)
-
-### 3C. Atualizar interface CategoriaMapeamento
-
-Adicionar campos `conta_dre_omie: string | null` e `tipo_categoria: string | null`.
-
-## 4. Tela de Mapeamento: usar conta_dre_omie
+## 2. Pagina MapeamentoCategorias: botao Sincronizar + texto orientacao
 
 **Arquivo:** `src/pages/MapeamentoCategorias.tsx`
 
-### 4A. Atualizar handleAutoSuggest (linhas 120-153)
+### 2A. Adicionar import RefreshCw e estado syncing
 
-Substituir a logica atual de sugestao por:
-- Importar `suggestContaDRE` de `useCategoriaMapeamento`
-- Para cada categoria pendente, chamar `suggestContaDRE(m.codigo_omie, m.conta_dre_omie)`
-- Remover a logica duplicada de fallback por prefixo e tipo AR/AP (agora esta dentro do suggestContaDRE)
+### 2B. Adicionar funcao handleSync
 
-### 4B. Adicionar coluna "DRE Omie" na tabela
+Chama `supabase.functions.invoke('omie-financeiro', { body: { tipo: 'TODOS' } })`. Ao finalizar, faz `window.location.reload()` para recarregar os dados.
 
-- Novo `<TableHead>` apos "Tipo": `DRE Omie`
-- Nova `<TableCell>` mostrando `m.conta_dre_omie || '---'` em texto pequeno
-- Ajustar `colSpan` da row vazia de 6 para 7
+### 2C. Adicionar botao na toolbar
 
-## 5. Fix Expandir/Recolher na DRE
+Botao "Sincronizar Omie" com icone RefreshCw animado durante sync, posicionado antes do botao "Sugerir".
 
-**Arquivo:** `src/pages/FinanceiroDRE.tsx`
+### 2D. Melhorar texto de descricao vazia
 
-### 5A. Estado (linha 486)
-
-Substituir `const [expandAll, setExpandAll] = useState(false)` por:
-```text
-const [expandAllCounter, setExpandAllCounter] = useState(0);
-const [expandAllState, setExpandAllState] = useState(false);
-```
-
-### 5B. Handlers (adicionados apos a declaracao de estado)
-
-```text
-const handleExpandAll = () => { setExpandAllState(true); setExpandAllCounter(c => c + 1); };
-const handleCollapseAll = () => { setExpandAllState(false); setExpandAllCounter(c => c + 1); };
-```
-
-### 5C. Botoes (linhas 677-681)
-
-- Expandir: `onClick={handleExpandAll}`
-- Recolher: `onClick={handleCollapseAll}`
-
-### 5D. Componentes filhos (linhas 749-761)
-
-- DRESecaoBlockMensal: `key={secao.id + '-' + expandAllCounter}` e `expandAll={expandAllState}`
-- DREAnualView: `key={expandAllCounter}` e `expandAll={expandAllState}`
-
-### 5E. Componentes DRELinhaRow e AnualLinhaRow (linhas 57-66 e 378-389)
-
-Alterar o useEffect para reagir corretamente:
-```text
-useEffect(() => {
-  setLocalExpanded(expandAll);
-}, [expandAll]);
-```
-
-E remover a logica `const expanded = expandAll || localExpanded` -- usar apenas `localExpanded`.
-
-## 6. Melhorias no PDF
-
-**Arquivo:** `src/lib/financeiro/exportDREPdf.ts`
-
-O PDF ja implementa:
-- Margens (MARGEM_MAP com Bruta, EBITDA, Liquida) -- linhas 84-87
-- Valores negativos em vermelho (negativeIndices) -- linhas 242-245
-- Acumulado na visao anual -- linha 96, coluna "Acum."
-
-Nenhuma alteracao necessaria -- o FIX-02 ja cobriu tudo isso corretamente.
+Substituir `{m.descricao_omie || '---'}` por `{m.descricao_omie || <span className="italic text-amber-500">Sincronize para carregar</span>}`.
 
 ## O que NAO muda
 
-- Estrutura da DRE (secoes, subtotais, calculos em `src/lib/conciliacao/dre.ts`)
-- Layout geral das paginas
-- Aliquotas de impostos (`src/lib/financeiro/aliquotas.ts`)
-- Logica de sync de titulos AR/AP (FIX-01)
-- Tabela `categorias_contabeis`
-- Funcao `fallbackAP` e `useMapeamentoTipos` na MapeamentoCategorias (serao removidas pois a logica migra para suggestContaDRE)
+- Hook `useCategoriaMapeamento.ts` (suggestContaDRE e mapa OMIE_DRE_TO_POWERCONCEPT ja estao corretos)
+- Estrutura da DRE, calculos, aliquotas
+- Logica de sync de titulos AR/AP
+- Botao Expandir/Recolher (ja corrigido no FIX-03)
 
+## Resultado esperado
+
+1. Usuario clica "Sincronizar Omie" na pagina de mapeamento
+2. Edge function chama ListarCategorias com logging defensivo
+3. Descricoes e contas DRE sao gravadas na tabela
+4. Pagina recarrega mostrando descricoes reais e coluna "DRE Omie" preenchida
+5. Usuario clica "Sugerir" e o mapeamento automatico funciona corretamente
