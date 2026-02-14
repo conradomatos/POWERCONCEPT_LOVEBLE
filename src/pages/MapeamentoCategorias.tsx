@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
-import { useMapeamentos, useBatchUpdateMapeamento, useMapeamentoStats, suggestContaDRE } from '@/hooks/useCategoriaMapeamento';
+import { useMapeamentos, useBatchUpdateMapeamento, useMapeamentoStats } from '@/hooks/useCategoriaMapeamento';
 import { useCategoriasAtivas } from '@/hooks/useCategorias';
 import { CONTAS_DRE } from '@/lib/conciliacao/types';
 import { Button } from '@/components/ui/button';
@@ -24,13 +24,57 @@ import {
 } from '@/components/ui/select';
 import { Search, Save, Wand2, Filter } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 type FilterType = 'todos' | 'mapeados' | 'nao_mapeados';
+
+// Fallback para AP baseado no prefixo (mesma lógica do useDREData)
+function fallbackAP(cat: string): string {
+  if (cat.startsWith('1.')) return '(-) - Custo dos Serviços Prestados';
+  if (cat.startsWith('2.01') || cat.startsWith('2.02')) return '(-) - Despesas com Pessoal';
+  if (cat.startsWith('2.05')) return '(-) - Despesas de Vendas e Marketing';
+  if (cat.startsWith('2.03') || cat.startsWith('2.04') || cat.startsWith('2.06')) return '(-) - Despesas Administrativas';
+  if (cat.startsWith('3.')) return '(-) - Despesas Financeiras';
+  return '(-) - Despesas Administrativas';
+}
+
+function useMapeamentoTipos() {
+  return useQuery({
+    queryKey: ['omie-categoria-tipos'],
+    queryFn: async () => {
+      const [{ data: arData }, { data: apData }] = await Promise.all([
+        supabase.from('omie_contas_receber').select('categoria').not('categoria', 'is', null),
+        supabase.from('omie_contas_pagar').select('categoria').not('categoria', 'is', null),
+      ]);
+
+      const tipos = new Map<string, Set<'AR' | 'AP'>>();
+
+      arData?.forEach(item => {
+        if (!item.categoria) return;
+        const set = tipos.get(item.categoria) || new Set();
+        set.add('AR');
+        tipos.set(item.categoria, set);
+      });
+
+      apData?.forEach(item => {
+        if (!item.categoria) return;
+        const set = tipos.get(item.categoria) || new Set();
+        set.add('AP');
+        tipos.set(item.categoria, set);
+      });
+
+      return tipos;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 export default function MapeamentoCategorias() {
   const { data: mapeamentos, isLoading } = useMapeamentos();
   const { data: categorias } = useCategoriasAtivas();
   const { data: stats } = useMapeamentoStats();
+  const { data: tipos } = useMapeamentoTipos();
   const batchUpdate = useBatchUpdateMapeamento();
 
   const [search, setSearch] = useState('');
@@ -80,7 +124,26 @@ export default function MapeamentoCategorias() {
     for (const m of mapeamentos as any[]) {
       const existing = m.conta_dre_override || m.categorias_contabeis?.conta_dre;
       if (existing) continue;
-      const suggestion = suggestContaDRE(m.codigo_omie);
+
+      // Usar tipo AR/AP para sugestão inteligente
+      const tipoSet = tipos?.get(m.codigo_omie);
+      let suggestion: string | null = null;
+
+      if (tipoSet?.has('AR') && !tipoSet?.has('AP')) {
+        // Categoria exclusivamente de receita
+        suggestion = '(+) - Receita Bruta de Vendas';
+      } else if (tipoSet?.has('AP')) {
+        // Categoria de despesa (ou mista) → fallback por prefixo
+        suggestion = fallbackAP(m.codigo_omie);
+      } else {
+        // Sem dados de tipo → fallback por prefixo antigo
+        if (m.codigo_omie.startsWith('1.01')) suggestion = '(+) - Receita Bruta de Vendas';
+        else if (m.codigo_omie.startsWith('1.02')) suggestion = '(+) - Outras Receitas';
+        else if (m.codigo_omie.startsWith('1.')) suggestion = '(+) - Outras Receitas';
+        else if (m.codigo_omie.startsWith('2.')) suggestion = fallbackAP(m.codigo_omie);
+        else if (m.codigo_omie.startsWith('3.')) suggestion = '(-) - Despesas Financeiras';
+      }
+
       if (suggestion) {
         newOverrides.set(m.id, suggestion);
         count++;
@@ -174,6 +237,7 @@ export default function MapeamentoCategorias() {
               <TableRow>
                 <TableHead className="w-[140px]">Código Omie</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead className="w-[100px]">Tipo</TableHead>
                 <TableHead className="w-[80px] text-right">Títulos</TableHead>
                 <TableHead className="w-[320px]">Conta DRE</TableHead>
                 <TableHead className="w-[100px]">Status</TableHead>
@@ -182,7 +246,7 @@ export default function MapeamentoCategorias() {
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     {mapeamentos?.length === 0
                       ? 'Nenhuma categoria Omie encontrada. Sincronize os dados do Omie primeiro.'
                       : 'Nenhum resultado para o filtro aplicado.'
@@ -194,12 +258,32 @@ export default function MapeamentoCategorias() {
                 const currentVal = localOverrides.get(m.id) ?? m.conta_dre_override ?? m.categorias_contabeis?.conta_dre ?? '';
                 const isMapped = !!currentVal;
                 const qtd = stats?.get(m.codigo_omie)?.qtd || 0;
+                const tipoSet = tipos?.get(m.codigo_omie);
+                const isAR = tipoSet?.has('AR') ?? false;
+                const isAP = tipoSet?.has('AP') ?? false;
 
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-mono text-sm">{m.codigo_omie}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {m.descricao_omie || '—'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {isAR && (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-xs">
+                            Receita
+                          </Badge>
+                        )}
+                        {isAP && (
+                          <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-500/30 text-xs">
+                            Despesa
+                          </Badge>
+                        )}
+                        {!isAR && !isAP && (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">{qtd}</TableCell>
                     <TableCell>
