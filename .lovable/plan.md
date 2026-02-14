@@ -1,96 +1,62 @@
 
-# FIX-02 -- Exportacao real de PDF na DRE
+
+# FIX-03 -- Auto-mapeamento de categorias DRE via API Omie
 
 ## Resumo
 
-Implementar exportacao PDF funcional no botao "Exportar PDF" da pagina DRE, substituindo o placeholder atual que apenas mostra toast.
+Corrigir os prefixos errados na funcao `suggestContaDRE` e adicionar chamada ao endpoint `ListarCadastroDRE` do Omie na Edge Function para trazer descricoes das categorias.
 
-## Arquivos
+## Arquivos a modificar
 
-| Arquivo | Acao |
-|---------|------|
-| `src/lib/financeiro/exportDREPdf.ts` | **CRIAR** -- funcao de geracao PDF |
-| `src/pages/FinanceiroDRE.tsx` | **EDITAR** -- substituir handler placeholder (linhas 824-827) |
-
-## Dependencias
-
-`jspdf` e `jspdf-autotable` ja estao instalados no projeto.
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `supabase/functions/omie-financeiro/index.ts` | **EDITAR** | Adicionar chamada ListarCadastroDRE antes do sync de titulos |
+| `src/hooks/useCategoriaMapeamento.ts` | **EDITAR** | Reescrever suggestContaDRE com prefixos corretos |
 
 ## Detalhes tecnicos
 
-### 1. Criar `src/lib/financeiro/exportDREPdf.ts`
+### 1. Edge Function: Adicionar etapa ListarCadastroDRE
 
-Funcao principal `exportDREtoPDF` com parametros:
+Inserir logo apos o carregamento dos projetos (linha ~316) e antes do sync AR (linha 318), um bloco que:
 
-```text
-{
-  dreAnual: DREAnual          // dados completos (12 meses + acumulado)
-  dre: DRERelatorio           // DRE mensal selecionado
-  visao: 'mensal' | 'anual'
-  tipo: 'sintetico' | 'analitico'
-  includeAV: boolean
-  includeMargens: boolean
-  includeAH: boolean
-  periodoLabel: string        // ex: "Janeiro 2025" ou "Janeiro a Dezembro 2025"
-  mes: string                 // nome do mes selecionado
-  ano: string
-}
-```
+- Chama `https://app.omie.com.br/api/v1/geral/dre/` com `call: "ListarCadastroDRE"` e `param: [{"apenasContasAtivas": "N"}]`
+- Filtra itens onde `nivelDRE === 3` (contas-folha)
+- Para cada conta-folha, faz update na tabela `omie_categoria_mapeamento` setando `descricao_omie = descricaoDRE` onde `codigo_omie = codigoDRE`
+- Usa update (nao upsert) para nao criar registros novos -- apenas atualiza descricoes dos que ja existem
+- Se a chamada falhar, loga o erro e continua o sync normalmente
 
-**Layout do PDF:**
+### 2. Reescrever suggestContaDRE
 
-- Orientacao paisagem (landscape), A4
-- Cabecalho: "Demonstracao do Resultado do Exercicio (DRE)" centralizado, periodo abaixo
-- Tabela usando `jspdf-autotable`:
-  - Visao mensal: 2 colunas (Conta | Valor) + AV% opcional
-  - Visao anual: 14 colunas (Conta | Jan-Dez | Acum.) + AV% opcional
-- Estilos:
-  - Linhas de secao (header): fundo cinza claro, negrito, uppercase
-  - Linhas de subtotal: negrito, fundo cinza claro
-  - Linha de resultado final: negrito, fundo mais escuro
-  - Valores negativos em vermelho
-  - Formato BRL: R$ 1.234,56
-  - Tipo analitico: inclui sub-linhas de categorias com indentacao
-  - Margens (Bruta, EBITDA, Liquida) em italico se includeMargens=true
-- Rodape: "Gerado em DD/MM/AAAA HH:MM" a esquerda, "PowerConcept" a direita
-- Nome do arquivo: `DRE_{ano}_{mes}.pdf` (mensal) ou `DRE_{ano}_Anual.pdf` (anual)
+Substituir a funcao nas linhas 107-117 do `useCategoriaMapeamento.ts` pela versao correta que mapeia:
 
-**Dados lidos diretamente das estruturas `DRERelatorio` e `DREAnual`** (secoes, linhas, subtotais, resultado) -- mesmos dados ja renderizados na tela.
+- `1.01.01` para Receita Bruta de Vendas
+- `1.01.02` e `1.01.03` para Deducoes de Receita
+- `1.11.01` e `1.11.02` para Receita Bruta de Vendas
+- `1.11.03` para Deducoes de Receita
+- `1.21.xx` para Custo dos Servicos Prestados (CRITICO -- antes caia como receita)
+- `2.01.xx` para Despesas Variaveis
+- `2.11.01` para Despesas com Pessoal
+- `2.11.02` para Despesas Administrativas
+- `2.11.03` para Despesas Administrativas (Financeiras agrupadas)
+- `2.11.04` para Despesas de Vendas e Marketing
+- `2.11.05` e `2.11.10` para Despesas Administrativas
+- `3.xx` para Despesas Administrativas (Investimentos)
 
-**Calculo de receita liquida para AV%:** obtida de `secoes[0].subtotal.valor` (mesma logica da pagina).
+### 3. Pagina MapeamentoCategorias.tsx
 
-### 2. Editar `src/pages/FinanceiroDRE.tsx`
-
-Substituir o handler do botao "Exportar PDF" (linhas 824-827):
-
-```text
-// De:
-<Button onClick={() => {
-  setPdfDialogOpen(false);
-  toast({ title: 'Exportacao disponivel apos importar dados financeiros.' });
-}}>
-
-// Para:
-<Button onClick={() => {
-  setPdfDialogOpen(false);
-  if (!hasDadosReais) {
-    toast({ title: 'Importe dados financeiros antes de exportar', variant: 'destructive' });
-    return;
-  }
-  exportDREtoPDF({
-    dreAnual, dre, visao: pdfVisao, tipo: pdfTipo,
-    includeAV: pdfIncludeAV, includeMargens: pdfIncludeMargens,
-    includeAH: pdfIncludeAH, periodoLabel: ..., mes, ano,
-  });
-  toast({ title: 'PDF exportado com sucesso!' });
-}}>
-```
-
-Adicionar import de `exportDREtoPDF` no topo do arquivo.
+Nao precisa de alteracoes. O botao "Sugerir" (handleAutoSuggest) ja usa a logica correta de fallback por prefixo internamente (nao chama suggestContaDRE). A correcao do suggestContaDRE beneficia apenas chamadas diretas a essa funcao exportada.
 
 ## O que NAO muda
 
-- Nenhuma logica de calculo da DRE
-- Nenhum layout da pagina
-- Nenhum outro arquivo
-- As aliquotas de `src/lib/financeiro/aliquotas.ts` nao sao alteradas (os impostos ja estao calculados nos dados)
+- Estrutura da DRE (secoes, subtotais, calculos)
+- Layout das paginas
+- Aliquotas de impostos
+- Logica de sync de titulos financeiros (AR/AP)
+- Tabelas SQL ou migrations
+
+## Resultado esperado
+
+- Categorias terao descricao correta apos proximo sync (ex: "Receita Bruta de Vendas" em vez de "---")
+- Custos (1.21.xx) classificados corretamente como custos na DRE
+- Botao "Sugerir" na pagina de mapeamento continuara funcionando com fallback por prefixo
+
