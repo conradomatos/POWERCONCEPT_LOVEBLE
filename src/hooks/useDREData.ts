@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getAliquotas, calcularImpostosDRE } from '@/lib/financeiro/aliquotas';
 
 export interface DREDadosMes {
   conta_dre: string;
@@ -15,12 +16,19 @@ export interface DREUnmappedInfo {
   total: number;
 }
 
-export interface DREResult {
+export interface DREDataResult {
   dados: DREDadosMes[];
   unmapped: DREUnmappedInfo[];
+  totalAR: number;
+  totalAP: number;
 }
 
-// Fallback para AP baseado no prefixo do código Omie
+function parseRateio(raw: any): any[] | null {
+  if (!raw) return null;
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return Array.isArray(parsed) ? parsed : null;
+}
+
 function fallbackAP(cat?: string): string {
   if (!cat) return '(-) - Despesas Administrativas';
   if (cat.startsWith('1.')) return '(-) - Custo dos Serviços Prestados';
@@ -31,23 +39,12 @@ function fallbackAP(cat?: string): string {
   return '(-) - Despesas Administrativas';
 }
 
-function parseRateio(raw: any): any[] | null {
-  if (!raw) return null;
-  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  return Array.isArray(parsed) ? parsed : null;
-}
-
-function trackUnmapped(tracker: Map<string, DREUnmappedInfo>, cat: string, tipo: 'AR' | 'AP', valor: number) {
-  const ukey = `${cat}|${tipo}`;
-  const existing = tracker.get(ukey);
-  if (existing) { existing.count++; existing.total += valor; }
-  else { tracker.set(ukey, { categoria: cat, tipo, count: 1, total: valor }); }
-}
-
 export function useDREData(ano: number) {
   return useQuery({
     queryKey: ['dre-data', ano],
-    queryFn: async (): Promise<DREResult> => {
+    queryFn: async (): Promise<DREDataResult> => {
+      const aliquotas = getAliquotas();
+
       // 1. Buscar mapeamento de categorias Omie → conta_dre
       const { data: mapeamentos } = await supabase
         .from('omie_categoria_mapeamento')
@@ -60,17 +57,17 @@ export function useDREData(ano: number) {
         if (contaDre) mapaCat.set(m.codigo_omie, contaDre);
       });
 
-      // 2. Buscar AR e AP do ano
+      // 2. Buscar AR e AP do ano (sem campos de retenção)
       const [{ data: receber }, { data: pagar }] = await Promise.all([
         supabase
           .from('omie_contas_receber')
-          .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
+          .select('data_emissao, valor, categoria, categorias_rateio, status')
           .gte('data_emissao', `${ano}-01-01`)
           .lte('data_emissao', `${ano}-12-31`)
           .neq('status', 'CANCELADO'),
         supabase
           .from('omie_contas_pagar')
-          .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
+          .select('data_emissao, valor, categoria, categorias_rateio, status')
           .gte('data_emissao', `${ano}-01-01`)
           .lte('data_emissao', `${ano}-12-31`)
           .neq('status', 'CANCELADO'),
@@ -78,16 +75,28 @@ export function useDREData(ano: number) {
 
       const acumulador = new Map<string, number>();
       const unmappedTracker = new Map<string, DREUnmappedInfo>();
+      const receitaPorMes = new Map<number, number>();
+      let totalAR = 0;
+      let totalAP = 0;
 
       const acumular = (contaDre: string, mes: number, valor: number) => {
         const key = `${contaDre}|${mes}`;
         acumulador.set(key, (acumulador.get(key) || 0) + valor);
       };
 
+      const trackUnmapped = (cat: string, tipo: 'AR' | 'AP', valor: number) => {
+        const ukey = `${cat}|${tipo}`;
+        const existing = unmappedTracker.get(ukey);
+        if (existing) { existing.count++; existing.total += valor; }
+        else { unmappedTracker.set(ukey, { categoria: cat, tipo, count: 1, total: valor }); }
+      };
+
       // ===== AR (RECEITA) =====
       receber?.forEach(titulo => {
         if (!titulo.data_emissao) return;
         const mes = new Date(titulo.data_emissao).getMonth() + 1;
+        const valor = titulo.valor || 0;
+        totalAR += valor;
 
         const rateio = parseRateio(titulo.categorias_rateio);
         if (rateio) {
@@ -97,27 +106,31 @@ export function useDREData(ano: number) {
               acumular(contaDre, mes, rat.valor || 0);
             } else {
               acumular('(+) - Receita Bruta de Vendas', mes, rat.valor || 0);
-              if (rat.codigo_categoria) trackUnmapped(unmappedTracker, rat.codigo_categoria, 'AR', rat.valor || 0);
+              if (rat.codigo_categoria) trackUnmapped(rat.codigo_categoria, 'AR', rat.valor || 0);
             }
           }
-        } else if (titulo.categoria) {
-          const contaDre = mapaCat.get(titulo.categoria);
-          if (contaDre) {
-            acumular(contaDre, mes, titulo.valor || 0);
-          } else {
-            acumular('(+) - Receita Bruta de Vendas', mes, titulo.valor || 0);
-            trackUnmapped(unmappedTracker, titulo.categoria, 'AR', titulo.valor || 0);
-          }
         } else {
-          acumular('(+) - Receita Bruta de Vendas', mes, titulo.valor || 0);
+          const contaDre = titulo.categoria ? mapaCat.get(titulo.categoria) : null;
+          if (contaDre) {
+            acumular(contaDre, mes, valor);
+          } else {
+            acumular('(+) - Receita Bruta de Vendas', mes, valor);
+            if (titulo.categoria) trackUnmapped(titulo.categoria, 'AR', valor);
+          }
         }
 
-        // Impostos retidos de AR → Deduções de Receita
-        const totalImpostos = (titulo.valor_inss || 0) + (titulo.valor_ir || 0) +
-          (titulo.valor_iss || 0) + (titulo.valor_pis || 0) +
-          (titulo.valor_cofins || 0) + (titulo.valor_csll || 0);
-        if (totalImpostos > 0) {
-          acumular('(-) - Deduções de Receita', mes, totalImpostos);
+        // Acumular receita por mês para cálculo de impostos
+        receitaPorMes.set(mes, (receitaPorMes.get(mes) || 0) + valor);
+      });
+
+      // ===== IMPOSTOS POR ALÍQUOTA SOBRE RECEITA BRUTA =====
+      receitaPorMes.forEach((receita, mes) => {
+        const impostos = calcularImpostosDRE(receita, aliquotas);
+        if (impostos.deducoes > 0) {
+          acumular('(-) - Deduções de Receita', mes, impostos.deducoes);
+        }
+        if (impostos.impostosLucro > 0) {
+          acumular('(-) - Impostos', mes, impostos.impostosLucro);
         }
       });
 
@@ -125,6 +138,8 @@ export function useDREData(ano: number) {
       pagar?.forEach(titulo => {
         if (!titulo.data_emissao) return;
         const mes = new Date(titulo.data_emissao).getMonth() + 1;
+        const valor = titulo.valor || 0;
+        totalAP += valor;
 
         const rateio = parseRateio(titulo.categorias_rateio);
         if (rateio) {
@@ -132,19 +147,18 @@ export function useDREData(ano: number) {
             const contaDre = mapaCat.get(rat.codigo_categoria) || fallbackAP(rat.codigo_categoria);
             acumular(contaDre, mes, rat.valor || 0);
             if (!mapaCat.has(rat.codigo_categoria) && rat.codigo_categoria) {
-              trackUnmapped(unmappedTracker, rat.codigo_categoria, 'AP', rat.valor || 0);
+              trackUnmapped(rat.codigo_categoria, 'AP', rat.valor || 0);
             }
           }
-        } else if (titulo.categoria) {
-          const contaDre = mapaCat.get(titulo.categoria) || fallbackAP(titulo.categoria);
-          acumular(contaDre, mes, titulo.valor || 0);
-          if (!mapaCat.has(titulo.categoria)) {
-            trackUnmapped(unmappedTracker, titulo.categoria, 'AP', titulo.valor || 0);
-          }
         } else {
-          acumular('(-) - Despesas Administrativas', mes, titulo.valor || 0);
+          const contaDre = titulo.categoria
+            ? (mapaCat.get(titulo.categoria) || fallbackAP(titulo.categoria))
+            : fallbackAP(undefined);
+          acumular(contaDre, mes, valor);
+          if (titulo.categoria && !mapaCat.has(titulo.categoria)) {
+            trackUnmapped(titulo.categoria, 'AP', valor);
+          }
         }
-        // Impostos retidos de AP → NÃO processados separadamente
       });
 
       // Converter em array
@@ -154,10 +168,7 @@ export function useDREData(ano: number) {
         dados.push({ conta_dre, mes: Number(mesStr), ano, total });
       });
 
-      return {
-        dados,
-        unmapped: Array.from(unmappedTracker.values()),
-      };
+      return { dados, unmapped: Array.from(unmappedTracker.values()), totalAR, totalAP };
     },
     staleTime: 5 * 60 * 1000,
   });
