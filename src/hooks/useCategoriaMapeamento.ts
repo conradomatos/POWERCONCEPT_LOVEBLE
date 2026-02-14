@@ -103,15 +103,44 @@ export function useMapeamentoStats() {
   });
 }
 
-// Helper: suggest conta_dre based on Omie code prefix
+// Helper: suggest conta_dre based on Omie code prefix (estrutura real Omie DRE)
 export function suggestContaDRE(codigoOmie: string): string | null {
-  if (codigoOmie.startsWith('1.01')) return '(+) - Receita Bruta de Vendas';
-  if (codigoOmie.startsWith('1.02')) return '(+) - Outras Receitas';
-  if (codigoOmie.startsWith('1.')) return '(+) - Outras Receitas';
-  if (codigoOmie.startsWith('2.01') || codigoOmie.startsWith('2.02') || codigoOmie.startsWith('2.03') || codigoOmie.startsWith('2.04')) {
-    return '(-) - Custo dos Serviços Prestados';
-  }
-  if (codigoOmie.startsWith('2.05')) return '(-) - Despesas com Pessoal';
-  if (codigoOmie.startsWith('2.06')) return '(-) - Despesas Administrativas';
+  // Receita Operacional
+  if (codigoOmie.startsWith('1.01.01')) return '(+) - Receita Bruta de Vendas';
+  if (codigoOmie.startsWith('1.01.02')) return '(-) - Deduções de Receita';
+  if (codigoOmie.startsWith('1.01.03')) return '(-) - Deduções de Receita';
+
+  // Receita Indireta
+  if (codigoOmie.startsWith('1.11.01')) return '(+) - Receita Bruta de Vendas';
+  if (codigoOmie.startsWith('1.11.02')) return '(+) - Receita Bruta de Vendas';
+  if (codigoOmie.startsWith('1.11.03')) return '(-) - Deduções de Receita';
+
+  // Custos (CRÍTICO — antes caía como receita!)
+  if (codigoOmie.startsWith('1.21.01')) return '(-) - Custo dos Serviços Prestados';
+  if (codigoOmie.startsWith('1.21.02')) return '(-) - Custo dos Serviços Prestados';
+  if (codigoOmie.startsWith('1.21.03')) return '(-) - Outros Custos';
+  if (codigoOmie.startsWith('1.21')) return '(-) - Custo dos Serviços Prestados';
+
+  // Fallback receita (1.xx que não caiu nos acima)
+  if (codigoOmie.startsWith('1.')) return '(+) - Receita Bruta de Vendas';
+
+  // Despesas Variáveis
+  if (codigoOmie.startsWith('2.01.01')) return '(-) - Despesas Variáveis';
+  if (codigoOmie.startsWith('2.01.02')) return '(-) - Despesas Variáveis';
+
+  // Despesas Fixas
+  if (codigoOmie.startsWith('2.11.01')) return '(-) - Despesas com Pessoal';
+  if (codigoOmie.startsWith('2.11.02')) return '(-) - Despesas Administrativas';
+  if (codigoOmie.startsWith('2.11.03')) return '(-) - Despesas Administrativas';
+  if (codigoOmie.startsWith('2.11.04')) return '(-) - Despesas de Vendas e Marketing';
+  if (codigoOmie.startsWith('2.11.05')) return '(-) - Despesas Administrativas';
+  if (codigoOmie.startsWith('2.11.10')) return '(-) - Despesas Administrativas';
+
+  // Fallback despesas
+  if (codigoOmie.startsWith('2.')) return '(-) - Despesas Administrativas';
+
+  // Investimentos
+  if (codigoOmie.startsWith('3.')) return '(-) - Despesas Administrativas';
+
   return null;
 }
