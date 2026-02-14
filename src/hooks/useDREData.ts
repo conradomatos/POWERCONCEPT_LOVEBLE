@@ -8,10 +8,46 @@ export interface DREDadosMes {
   total: number;
 }
 
+export interface DREUnmappedInfo {
+  categoria: string;
+  tipo: 'AR' | 'AP';
+  count: number;
+  total: number;
+}
+
+export interface DREResult {
+  dados: DREDadosMes[];
+  unmapped: DREUnmappedInfo[];
+}
+
+// Fallback para AP baseado no prefixo do código Omie
+function fallbackAP(cat?: string): string {
+  if (!cat) return '(-) - Despesas Administrativas';
+  if (cat.startsWith('1.')) return '(-) - Custo dos Serviços Prestados';
+  if (cat.startsWith('2.01') || cat.startsWith('2.02')) return '(-) - Despesas com Pessoal';
+  if (cat.startsWith('2.05')) return '(-) - Despesas de Vendas e Marketing';
+  if (cat.startsWith('2.03') || cat.startsWith('2.04') || cat.startsWith('2.06')) return '(-) - Despesas Administrativas';
+  if (cat.startsWith('3.')) return '(-) - Despesas Financeiras';
+  return '(-) - Despesas Administrativas';
+}
+
+function parseRateio(raw: any): any[] | null {
+  if (!raw) return null;
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return Array.isArray(parsed) ? parsed : null;
+}
+
+function trackUnmapped(tracker: Map<string, DREUnmappedInfo>, cat: string, tipo: 'AR' | 'AP', valor: number) {
+  const ukey = `${cat}|${tipo}`;
+  const existing = tracker.get(ukey);
+  if (existing) { existing.count++; existing.total += valor; }
+  else { tracker.set(ukey, { categoria: cat, tipo, count: 1, total: valor }); }
+}
+
 export function useDREData(ano: number) {
   return useQuery({
     queryKey: ['dre-data', ano],
-    queryFn: async (): Promise<DREDadosMes[]> => {
+    queryFn: async (): Promise<DREResult> => {
       // 1. Buscar mapeamento de categorias Omie → conta_dre
       const { data: mapeamentos } = await supabase
         .from('omie_categoria_mapeamento')
@@ -24,69 +60,104 @@ export function useDREData(ano: number) {
         if (contaDre) mapaCat.set(m.codigo_omie, contaDre);
       });
 
-      // 2. Buscar Contas a Receber do ano
-      const { data: receber } = await supabase
-        .from('omie_contas_receber')
-        .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
-        .gte('data_emissao', `${ano}-01-01`)
-        .lte('data_emissao', `${ano}-12-31`)
-        .neq('status', 'CANCELADO');
+      // 2. Buscar AR e AP do ano
+      const [{ data: receber }, { data: pagar }] = await Promise.all([
+        supabase
+          .from('omie_contas_receber')
+          .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
+          .gte('data_emissao', `${ano}-01-01`)
+          .lte('data_emissao', `${ano}-12-31`)
+          .neq('status', 'CANCELADO'),
+        supabase
+          .from('omie_contas_pagar')
+          .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
+          .gte('data_emissao', `${ano}-01-01`)
+          .lte('data_emissao', `${ano}-12-31`)
+          .neq('status', 'CANCELADO'),
+      ]);
 
-      // 3. Buscar Contas a Pagar do ano
-      const { data: pagar } = await supabase
-        .from('omie_contas_pagar')
-        .select('data_emissao, valor, categoria, categorias_rateio, valor_inss, valor_ir, valor_iss, valor_pis, valor_cofins, valor_csll, status')
-        .gte('data_emissao', `${ano}-01-01`)
-        .lte('data_emissao', `${ano}-12-31`)
-        .neq('status', 'CANCELADO');
-
-      // 4. Agregar por conta_dre e mês
       const acumulador = new Map<string, number>();
+      const unmappedTracker = new Map<string, DREUnmappedInfo>();
 
-      const processarTitulo = (titulo: any) => {
+      const acumular = (contaDre: string, mes: number, valor: number) => {
+        const key = `${contaDre}|${mes}`;
+        acumulador.set(key, (acumulador.get(key) || 0) + valor);
+      };
+
+      // ===== AR (RECEITA) =====
+      receber?.forEach(titulo => {
         if (!titulo.data_emissao) return;
-        const dataEmissao = new Date(titulo.data_emissao);
-        const mes = dataEmissao.getMonth() + 1;
+        const mes = new Date(titulo.data_emissao).getMonth() + 1;
 
-        // Se tem rateio, usar categorias_rateio
-        if (titulo.categorias_rateio && Array.isArray(titulo.categorias_rateio)) {
-          for (const rat of titulo.categorias_rateio) {
+        const rateio = parseRateio(titulo.categorias_rateio);
+        if (rateio) {
+          for (const rat of rateio) {
             const contaDre = mapaCat.get(rat.codigo_categoria);
             if (contaDre) {
-              const key = `${contaDre}|${mes}`;
-              acumulador.set(key, (acumulador.get(key) || 0) + (rat.valor || 0));
+              acumular(contaDre, mes, rat.valor || 0);
+            } else {
+              acumular('(+) - Receita Bruta de Vendas', mes, rat.valor || 0);
+              if (rat.codigo_categoria) trackUnmapped(unmappedTracker, rat.codigo_categoria, 'AR', rat.valor || 0);
             }
           }
         } else if (titulo.categoria) {
           const contaDre = mapaCat.get(titulo.categoria);
           if (contaDre) {
-            const key = `${contaDre}|${mes}`;
-            acumulador.set(key, (acumulador.get(key) || 0) + (titulo.valor || 0));
+            acumular(contaDre, mes, titulo.valor || 0);
+          } else {
+            acumular('(+) - Receita Bruta de Vendas', mes, titulo.valor || 0);
+            trackUnmapped(unmappedTracker, titulo.categoria, 'AR', titulo.valor || 0);
           }
+        } else {
+          acumular('(+) - Receita Bruta de Vendas', mes, titulo.valor || 0);
         }
 
-        // Impostos retidos → conta "(-) - Deduções de Receita"
-        const totalImpostos =
-          (titulo.valor_inss || 0) + (titulo.valor_ir || 0) +
+        // Impostos retidos de AR → Deduções de Receita
+        const totalImpostos = (titulo.valor_inss || 0) + (titulo.valor_ir || 0) +
           (titulo.valor_iss || 0) + (titulo.valor_pis || 0) +
           (titulo.valor_cofins || 0) + (titulo.valor_csll || 0);
         if (totalImpostos > 0) {
-          const key = `(-) - Deduções de Receita|${mes}`;
-          acumulador.set(key, (acumulador.get(key) || 0) + totalImpostos);
+          acumular('(-) - Deduções de Receita', mes, totalImpostos);
         }
-      };
-
-      receber?.forEach(processarTitulo);
-      pagar?.forEach(processarTitulo);
-
-      // Converter em array
-      const resultado: DREDadosMes[] = [];
-      acumulador.forEach((total, key) => {
-        const [conta_dre, mesStr] = key.split('|');
-        resultado.push({ conta_dre, mes: Number(mesStr), ano, total });
       });
 
-      return resultado;
+      // ===== AP (DESPESA/CUSTO) =====
+      pagar?.forEach(titulo => {
+        if (!titulo.data_emissao) return;
+        const mes = new Date(titulo.data_emissao).getMonth() + 1;
+
+        const rateio = parseRateio(titulo.categorias_rateio);
+        if (rateio) {
+          for (const rat of rateio) {
+            const contaDre = mapaCat.get(rat.codigo_categoria) || fallbackAP(rat.codigo_categoria);
+            acumular(contaDre, mes, rat.valor || 0);
+            if (!mapaCat.has(rat.codigo_categoria) && rat.codigo_categoria) {
+              trackUnmapped(unmappedTracker, rat.codigo_categoria, 'AP', rat.valor || 0);
+            }
+          }
+        } else if (titulo.categoria) {
+          const contaDre = mapaCat.get(titulo.categoria) || fallbackAP(titulo.categoria);
+          acumular(contaDre, mes, titulo.valor || 0);
+          if (!mapaCat.has(titulo.categoria)) {
+            trackUnmapped(unmappedTracker, titulo.categoria, 'AP', titulo.valor || 0);
+          }
+        } else {
+          acumular('(-) - Despesas Administrativas', mes, titulo.valor || 0);
+        }
+        // Impostos retidos de AP → NÃO processados separadamente
+      });
+
+      // Converter em array
+      const dados: DREDadosMes[] = [];
+      acumulador.forEach((total, key) => {
+        const [conta_dre, mesStr] = key.split('|');
+        dados.push({ conta_dre, mes: Number(mesStr), ano, total });
+      });
+
+      return {
+        dados,
+        unmapped: Array.from(unmappedTracker.values()),
+      };
     },
     staleTime: 5 * 60 * 1000,
   });

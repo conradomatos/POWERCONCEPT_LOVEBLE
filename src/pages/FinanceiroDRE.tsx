@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { buildDREEstrutura, buildDREAnual, buildDREComDados, buildDREAnualComDados, getCategoriasOrfas } from '@/lib/conciliacao/dre';
+import { buildDREEstrutura, buildDREAnual, buildDREComDados, buildDREAnualComDados } from '@/lib/conciliacao/dre';
 import type { DRELinha, DRESecao, DREAnual } from '@/lib/conciliacao/types';
 import { useDREData } from '@/hooks/useDREData';
 import { useCategoriasAtivas } from '@/hooks/useCategorias';
@@ -494,7 +494,8 @@ export default function FinanceiroDRE() {
 
   const periodo = `${mes} ${ano}`;
   const queryClient = useQueryClient();
-  const { data: dreData, isLoading: loadingDRE } = useDREData(Number(ano));
+  const { data: dreResult, isLoading: loadingDRE } = useDREData(Number(ano));
+  const dreData = dreResult?.dados;
   const { data: categoriasDB } = useCategoriasAtivas();
 
   const { data: lastSync } = useQuery({
@@ -532,7 +533,7 @@ export default function FinanceiroDRE() {
   }, [ano, dreData, categoriasDB]);
 
   const hasDadosReais = dreData && dreData.length > 0;
-  const categoriasOrfas = useMemo(() => getCategoriasOrfas(), []);
+  const unmappedCategories = dreResult?.unmapped ?? [];
 
   // Compute KPI values from DRE structure
   const receitaBruta = dre.secoes[0]?.linhas[0]?.valor ?? 0;
@@ -676,13 +677,20 @@ export default function FinanceiroDRE() {
         </div>
 
         {/* Orphan categories alert */}
-        {categoriasOrfas.length > 0 && (
+        {unmappedCategories.length > 0 && (
           <Alert className="border-yellow-500/30 bg-yellow-500/5">
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
-            <AlertTitle>{categoriasOrfas.length} categorias sem conta DRE</AlertTitle>
+            <AlertTitle>{unmappedCategories.length} categorias Omie não mapeadas</AlertTitle>
             <AlertDescription>
-              Essas categorias não aparecerão no DRE.
-              <Link to="/financeiro/categorias" className="underline ml-1">Vincular na página de categorias →</Link>
+              {(() => {
+                const arTotal = unmappedCategories.filter(u => u.tipo === 'AR').reduce((s, u) => s + u.total, 0);
+                const apTotal = unmappedCategories.filter(u => u.tipo === 'AP').reduce((s, u) => s + u.total, 0);
+                const parts: string[] = [];
+                if (arTotal > 0) parts.push(`${formatBRL(arTotal)} em receitas`);
+                if (apTotal > 0) parts.push(`${formatBRL(apTotal)} em despesas`);
+                return parts.length > 0 ? `${parts.join(', ')} usando classificação automática. ` : 'Usando classificação automática. ';
+              })()}
+              <Link to="/financeiro/mapeamento-categorias" className="underline ml-1">Vincular na página de mapeamento →</Link>
             </AlertDescription>
           </Alert>
         )}
