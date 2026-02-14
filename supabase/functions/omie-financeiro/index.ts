@@ -315,50 +315,12 @@ serve(async (req) => {
 
     console.log(`Loaded ${projetoMap.size} projects with omie_codigo`);
 
-    // ── Etapa: ListarCadastroDRE (atualizar descrições das categorias) ──
-    try {
-      console.log("Fetching DRE catalog from Omie (ListarCadastroDRE)...");
-      const dreResponse = await fetch("https://app.omie.com.br/api/v1/geral/dre/", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          call: "ListarCadastroDRE",
-          app_key: OMIE_APP_KEY,
-          app_secret: OMIE_APP_SECRET,
-          param: [{ apenasContasAtivas: "N" }],
-        }),
-      });
-      const dreData = await dreResponse.json();
-
-      if (dreData.faultstring) {
-        console.error("ListarCadastroDRE API error:", dreData.faultstring);
-      } else {
-        const dreLista: any[] = dreData.dreLista || [];
-        // Filter leaf accounts (nivelDRE === 3)
-        const contasFolha = dreLista.filter((item: any) => item.nivelDRE === 3);
-        console.log(`DRE catalog: ${dreLista.length} total items, ${contasFolha.length} leaf accounts`);
-
-        let dreUpdated = 0;
-        for (const conta of contasFolha) {
-          if (!conta.codigoDRE || !conta.descricaoDRE) continue;
-          const { error: updErr } = await supabase
-            .from('omie_categoria_mapeamento')
-            .update({ descricao_omie: conta.descricaoDRE })
-            .eq('codigo_omie', conta.codigoDRE);
-          if (!updErr) dreUpdated++;
-        }
-        console.log(`DRE catalog: updated ${dreUpdated} category descriptions`);
-      }
-    } catch (dreError) {
-      console.error("ListarCadastroDRE failed (continuing sync):", dreError);
-    }
-
-    // ── Etapa: ListarCategorias (buscar conta DRE real de cada categoria) ──
+    // ── Etapa: ListarCategorias (buscar descrição e conta DRE de cada categoria) ──
     try {
       console.log("Fetching categories from Omie (ListarCategorias)...");
       let catPagina = 1;
       let catTotalPaginas = 1;
-      const categoriaDreMap = new Map<string, { contaDre: string; tipo: string; descricao: string }>();
+      const categoriaDreMap = new Map<string, { descricao: string; contaDre: string }>();
 
       while (catPagina <= catTotalPaginas) {
         const catResponse = await fetch("https://app.omie.com.br/api/v1/geral/categorias/", {
@@ -387,19 +349,37 @@ serve(async (req) => {
         const categorias: any[] = catData.categoria_cadastro || [];
         console.log(`ListarCategorias page ${catPagina}/${catTotalPaginas}: ${categorias.length} items`);
 
+        // LOG COMPLETO do primeiro item para debug
         if (catPagina === 1 && categorias.length > 0) {
-          console.log("Sample category:", JSON.stringify(categorias[0]));
+          console.log("=== FULL CATEGORY OBJECT KEYS ===", Object.keys(categorias[0]));
+          console.log("=== FULL CATEGORY SAMPLE ===", JSON.stringify(categorias[0], null, 2));
         }
 
         for (const cat of categorias) {
-          if (!cat.codigo) continue;
-          const contaDre = cat.conta_despesa || cat.conta_receita || cat.descricao_padrao || '';
-          const tipo = cat.conta_receita ? 'AR' : 'AP';
-          const descricao = cat.descricao || cat.codigo;
+          // Código da categoria (campo principal)
+          const codigo = cat.codigo || cat.cCodCateg || '';
+          if (!codigo) continue;
 
-          if (contaDre) {
-            categoriaDreMap.set(cat.codigo, { contaDre, tipo, descricao });
-          }
+          // Descrição: tentar vários campos possíveis
+          const descricao = cat.descricao
+            || cat.descricao_categoria
+            || cat.cDescrCateg
+            || cat.nome
+            || cat.categoria
+            || codigo;
+
+          // Conta DRE: tentar vários campos possíveis
+          const contaDre = cat.conta_dre
+            || cat.contaDRE
+            || cat.cContaDRE
+            || cat.id_conta_dre
+            || cat.conta_despesa
+            || cat.conta_receita
+            || cat.definicao?.cContaDRE
+            || cat.descricao_padrao
+            || '';
+
+          categoriaDreMap.set(codigo, { descricao, contaDre });
         }
 
         catPagina++;
@@ -408,27 +388,34 @@ serve(async (req) => {
         }
       }
 
-      console.log(`ListarCategorias: mapped ${categoriaDreMap.size} categories to DRE accounts`);
+      console.log(`ListarCategorias: mapped ${categoriaDreMap.size} categories`);
 
+      // Atualizar tabela de mapeamento
       if (categoriaDreMap.size > 0) {
         let catUpdated = 0;
-        const entries = Array.from(categoriaDreMap.entries());
+        for (const [codigo, info] of categoriaDreMap.entries()) {
+          const updateFields: any = {};
 
-        for (let i = 0; i < entries.length; i += 50) {
-          const chunk = entries.slice(i, i + 50);
-          for (const [codigo, info] of chunk) {
+          // Sempre atualizar descrição se disponível
+          if (info.descricao && info.descricao !== codigo) {
+            updateFields.descricao_omie = info.descricao;
+          }
+
+          // Atualizar conta DRE se disponível
+          if (info.contaDre) {
+            updateFields.conta_dre_omie = info.contaDre;
+          }
+
+          if (Object.keys(updateFields).length > 0) {
             const { error: updErr } = await supabase
               .from('omie_categoria_mapeamento')
-              .update({
-                conta_dre_omie: info.contaDre,
-                tipo_categoria: info.tipo,
-                descricao_omie: info.descricao,
-              })
+              .update(updateFields)
               .eq('codigo_omie', codigo);
+
             if (!updErr) catUpdated++;
           }
         }
-        console.log(`ListarCategorias: updated ${catUpdated} categories with DRE account info`);
+        console.log(`ListarCategorias: updated ${catUpdated} categories in mapeamento`);
       }
     } catch (catError) {
       console.error("ListarCategorias failed (continuing sync):", catError);
