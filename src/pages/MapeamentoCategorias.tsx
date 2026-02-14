@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Save, Wand2, Filter } from 'lucide-react';
+import { Search, Save, Wand2, Filter, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,6 +80,27 @@ export default function MapeamentoCategorias() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('todos');
   const [localOverrides, setLocalOverrides] = useState<Map<string, string>>(new Map());
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const response = await supabase.functions.invoke('omie-financeiro', {
+        body: { tipo: 'TODOS' },
+      });
+
+      if (response.error) {
+        toast.error('Erro na sincronização: ' + response.error.message);
+      } else {
+        toast.success('Sincronização concluída! Descrições atualizadas.');
+        window.location.reload();
+      }
+    } catch (err) {
+      toast.error('Erro ao sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!mapeamentos) return [];
@@ -205,6 +226,10 @@ export default function MapeamentoCategorias() {
               <SelectItem value="nao_mapeados">Não mapeados</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Sincronizando...' : 'Sincronizar Omie'}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleAutoSuggest}>
             <Wand2 className="h-4 w-4 mr-1" /> Sugerir
           </Button>
@@ -250,7 +275,7 @@ export default function MapeamentoCategorias() {
                   <TableRow key={m.id}>
                     <TableCell className="font-mono text-sm">{m.codigo_omie}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {m.descricao_omie || '—'}
+                      {m.descricao_omie || <span className="italic text-amber-500">Sincronize para carregar</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
