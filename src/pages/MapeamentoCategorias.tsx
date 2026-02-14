@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
-import { useMapeamentos, useBatchUpdateMapeamento, useMapeamentoStats } from '@/hooks/useCategoriaMapeamento';
+import { useMapeamentos, useBatchUpdateMapeamento, useMapeamentoStats, suggestContaDRE } from '@/hooks/useCategoriaMapeamento';
 import { useCategoriasAtivas } from '@/hooks/useCategorias';
 import { CONTAS_DRE } from '@/lib/conciliacao/types';
 import { Button } from '@/components/ui/button';
@@ -125,24 +125,7 @@ export default function MapeamentoCategorias() {
       const existing = m.conta_dre_override || m.categorias_contabeis?.conta_dre;
       if (existing) continue;
 
-      // Usar tipo AR/AP para sugestão inteligente
-      const tipoSet = tipos?.get(m.codigo_omie);
-      let suggestion: string | null = null;
-
-      if (tipoSet?.has('AR') && !tipoSet?.has('AP')) {
-        // Categoria exclusivamente de receita
-        suggestion = '(+) - Receita Bruta de Vendas';
-      } else if (tipoSet?.has('AP')) {
-        // Categoria de despesa (ou mista) → fallback por prefixo
-        suggestion = fallbackAP(m.codigo_omie);
-      } else {
-        // Sem dados de tipo → fallback por prefixo antigo
-        if (m.codigo_omie.startsWith('1.01')) suggestion = '(+) - Receita Bruta de Vendas';
-        else if (m.codigo_omie.startsWith('1.02')) suggestion = '(+) - Outras Receitas';
-        else if (m.codigo_omie.startsWith('1.')) suggestion = '(+) - Outras Receitas';
-        else if (m.codigo_omie.startsWith('2.')) suggestion = fallbackAP(m.codigo_omie);
-        else if (m.codigo_omie.startsWith('3.')) suggestion = '(-) - Despesas Financeiras';
-      }
+      const suggestion = suggestContaDRE(m.codigo_omie, m.conta_dre_omie);
 
       if (suggestion) {
         newOverrides.set(m.id, suggestion);
@@ -238,6 +221,7 @@ export default function MapeamentoCategorias() {
                 <TableHead className="w-[140px]">Código Omie</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead className="w-[100px]">Tipo</TableHead>
+                <TableHead className="w-[180px]">DRE Omie</TableHead>
                 <TableHead className="w-[80px] text-right">Títulos</TableHead>
                 <TableHead className="w-[320px]">Conta DRE</TableHead>
                 <TableHead className="w-[100px]">Status</TableHead>
@@ -246,7 +230,7 @@ export default function MapeamentoCategorias() {
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     {mapeamentos?.length === 0
                       ? 'Nenhuma categoria Omie encontrada. Sincronize os dados do Omie primeiro.'
                       : 'Nenhum resultado para o filtro aplicado.'
@@ -284,6 +268,9 @@ export default function MapeamentoCategorias() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">{m.conta_dre_omie || '—'}</span>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">{qtd}</TableCell>
                     <TableCell>
