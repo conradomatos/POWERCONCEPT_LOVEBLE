@@ -353,6 +353,87 @@ serve(async (req) => {
       console.error("ListarCadastroDRE failed (continuing sync):", dreError);
     }
 
+    // ── Etapa: ListarCategorias (buscar conta DRE real de cada categoria) ──
+    try {
+      console.log("Fetching categories from Omie (ListarCategorias)...");
+      let catPagina = 1;
+      let catTotalPaginas = 1;
+      const categoriaDreMap = new Map<string, { contaDre: string; tipo: string; descricao: string }>();
+
+      while (catPagina <= catTotalPaginas) {
+        const catResponse = await fetch("https://app.omie.com.br/api/v1/geral/categorias/", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            call: "ListarCategorias",
+            app_key: OMIE_APP_KEY,
+            app_secret: OMIE_APP_SECRET,
+            param: [{
+              pagina: catPagina,
+              registros_por_pagina: 500,
+              filtrar_apenas_ativas: "N",
+            }],
+          }),
+        });
+
+        const catData = await catResponse.json();
+
+        if (catData.faultstring) {
+          console.error("ListarCategorias API error:", catData.faultstring);
+          break;
+        }
+
+        catTotalPaginas = catData.total_de_paginas || 1;
+        const categorias: any[] = catData.categoria_cadastro || [];
+        console.log(`ListarCategorias page ${catPagina}/${catTotalPaginas}: ${categorias.length} items`);
+
+        if (catPagina === 1 && categorias.length > 0) {
+          console.log("Sample category:", JSON.stringify(categorias[0]));
+        }
+
+        for (const cat of categorias) {
+          if (!cat.codigo) continue;
+          const contaDre = cat.conta_despesa || cat.conta_receita || cat.descricao_padrao || '';
+          const tipo = cat.conta_receita ? 'AR' : 'AP';
+          const descricao = cat.descricao || cat.codigo;
+
+          if (contaDre) {
+            categoriaDreMap.set(cat.codigo, { contaDre, tipo, descricao });
+          }
+        }
+
+        catPagina++;
+        if (catPagina <= catTotalPaginas) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      console.log(`ListarCategorias: mapped ${categoriaDreMap.size} categories to DRE accounts`);
+
+      if (categoriaDreMap.size > 0) {
+        let catUpdated = 0;
+        const entries = Array.from(categoriaDreMap.entries());
+
+        for (let i = 0; i < entries.length; i += 50) {
+          const chunk = entries.slice(i, i + 50);
+          for (const [codigo, info] of chunk) {
+            const { error: updErr } = await supabase
+              .from('omie_categoria_mapeamento')
+              .update({
+                conta_dre_omie: info.contaDre,
+                tipo_categoria: info.tipo,
+                descricao_omie: info.descricao,
+              })
+              .eq('codigo_omie', codigo);
+            if (!updErr) catUpdated++;
+          }
+        }
+        console.log(`ListarCategorias: updated ${catUpdated} categories with DRE account info`);
+      }
+    } catch (catError) {
+      console.error("ListarCategorias failed (continuing sync):", catError);
+    }
+
     // Sync Contas a Receber
     if (tipo === 'CONTAS_RECEBER' || tipo === 'TODOS') {
       console.log("Starting AR sync...");

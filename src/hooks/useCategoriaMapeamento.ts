@@ -8,6 +8,8 @@ export interface CategoriaMapeamento {
   descricao_omie: string | null;
   categoria_contabil_id: string | null;
   conta_dre_override: string | null;
+  conta_dre_omie: string | null;
+  tipo_categoria: string | null;
   ativo: boolean;
   created_at: string;
   updated_at: string;
@@ -103,44 +105,61 @@ export function useMapeamentoStats() {
   });
 }
 
-// Helper: suggest conta_dre based on Omie code prefix (estrutura real Omie DRE)
-export function suggestContaDRE(codigoOmie: string): string | null {
-  // Receita Operacional
+// Mapa de nomes de conta DRE do Omie → formato usado na DRE do PowerConcept
+const OMIE_DRE_TO_POWERCONCEPT: Record<string, string> = {
+  'Receita Bruta de Vendas':            '(+) - Receita Bruta de Vendas',
+  'Outras Receitas':                     '(+) - Outras Receitas',
+  'Receitas Financeiras':                '(+) - Receitas Financeiras',
+  'Deduções de Receita':                 '(-) - Deduções de Receita',
+  'Impostos':                            '(-) - Impostos sobre o Lucro',
+  'Outras Deduções':                     '(-) - Outras Deduções',
+  'Outras Deduções de Receita':          '(-) - Outras Deduções',
+  'CMC das Vendas':                      '(-) - Custo dos Serviços Prestados',
+  'Custo dos Serviços Prestados':        '(-) - Custo dos Serviços Prestados',
+  'Outros Custos':                       '(-) - Outros Custos',
+  'Despesas Variáveis':                  '(-) - Despesas Variáveis',
+  'Recuperação de Despesas Variáveis':   '(+) - Recuperação de Despesas',
+  'Recuperação Desp. Variáveis':         '(+) - Recuperação de Despesas',
+  'Despesas com Pessoal':                '(-) - Despesas com Pessoal',
+  'Despesas Administrativas':            '(-) - Despesas Administrativas',
+  'Despesas Financeiras':                '(-) - Despesas Financeiras',
+  'Despesas de Vendas e Marketing':      '(-) - Despesas de Vendas e Marketing',
+  'Outros Tributos':                     '(-) - Outros Tributos',
+  'Recuperação de Despesas Fixas':       '(+) - Recuperação de Despesas',
+  'Recuperação Desp. Fixas':             '(+) - Recuperação de Despesas',
+  'Ativos':                              '(-) - Investimentos',
+  'Serviços':                            '(-) - Investimentos',
+};
+
+// Helper: suggest conta_dre based on conta_dre_omie field (populated by ListarCategorias sync)
+export function suggestContaDRE(codigoOmie: string, contaDreOmie?: string | null): string | null {
+  // PRIORIDADE 1: usar o nome da conta DRE que veio do Omie
+  if (contaDreOmie) {
+    const mapped = OMIE_DRE_TO_POWERCONCEPT[contaDreOmie];
+    if (mapped) return mapped;
+
+    // Tentar match parcial (caso o Omie retorne variações)
+    const lower = contaDreOmie.toLowerCase();
+    for (const [key, val] of Object.entries(OMIE_DRE_TO_POWERCONCEPT)) {
+      if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
+        return val;
+      }
+    }
+  }
+
+  // PRIORIDADE 2: fallback por prefixo do código
   if (codigoOmie.startsWith('1.01.01')) return '(+) - Receita Bruta de Vendas';
-  if (codigoOmie.startsWith('1.01.02')) return '(-) - Deduções de Receita';
-  if (codigoOmie.startsWith('1.01.03')) return '(-) - Deduções de Receita';
-
-  // Receita Indireta
-  if (codigoOmie.startsWith('1.11.01')) return '(+) - Receita Bruta de Vendas';
-  if (codigoOmie.startsWith('1.11.02')) return '(+) - Receita Bruta de Vendas';
-  if (codigoOmie.startsWith('1.11.03')) return '(-) - Deduções de Receita';
-
-  // Custos (CRÍTICO — antes caía como receita!)
-  if (codigoOmie.startsWith('1.21.01')) return '(-) - Custo dos Serviços Prestados';
-  if (codigoOmie.startsWith('1.21.02')) return '(-) - Custo dos Serviços Prestados';
-  if (codigoOmie.startsWith('1.21.03')) return '(-) - Outros Custos';
+  if (codigoOmie.startsWith('1.01.02') || codigoOmie.startsWith('1.01.03')) return '(-) - Deduções de Receita';
+  if (codigoOmie.startsWith('1.11')) return '(+) - Outras Receitas';
   if (codigoOmie.startsWith('1.21')) return '(-) - Custo dos Serviços Prestados';
-
-  // Fallback receita (1.xx que não caiu nos acima)
   if (codigoOmie.startsWith('1.')) return '(+) - Receita Bruta de Vendas';
-
-  // Despesas Variáveis
-  if (codigoOmie.startsWith('2.01.01')) return '(-) - Despesas Variáveis';
-  if (codigoOmie.startsWith('2.01.02')) return '(-) - Despesas Variáveis';
-
-  // Despesas Fixas
+  if (codigoOmie.startsWith('2.01')) return '(-) - Despesas Variáveis';
   if (codigoOmie.startsWith('2.11.01')) return '(-) - Despesas com Pessoal';
   if (codigoOmie.startsWith('2.11.02')) return '(-) - Despesas Administrativas';
-  if (codigoOmie.startsWith('2.11.03')) return '(-) - Despesas Administrativas';
+  if (codigoOmie.startsWith('2.11.03')) return '(-) - Despesas Financeiras';
   if (codigoOmie.startsWith('2.11.04')) return '(-) - Despesas de Vendas e Marketing';
-  if (codigoOmie.startsWith('2.11.05')) return '(-) - Despesas Administrativas';
-  if (codigoOmie.startsWith('2.11.10')) return '(-) - Despesas Administrativas';
-
-  // Fallback despesas
   if (codigoOmie.startsWith('2.')) return '(-) - Despesas Administrativas';
-
-  // Investimentos
-  if (codigoOmie.startsWith('3.')) return '(-) - Despesas Administrativas';
+  if (codigoOmie.startsWith('3.')) return '(-) - Investimentos';
 
   return null;
 }

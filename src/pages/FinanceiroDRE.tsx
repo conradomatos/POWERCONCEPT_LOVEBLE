@@ -57,12 +57,11 @@ function formatAV(valor: number, receitaLiquida: number): string {
 function DRELinhaRow({ linha, expandAll, showAV, receitaLiquida }: {
   linha: DRELinha; expandAll: boolean; showAV: boolean; receitaLiquida: number;
 }) {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const expanded = expandAll || localExpanded;
+  const [localExpanded, setLocalExpanded] = useState(expandAll);
   const hasCategorias = linha.categorias && linha.categorias.length > 0;
 
   useEffect(() => {
-    if (!expandAll) setLocalExpanded(false);
+    setLocalExpanded(expandAll);
   }, [expandAll]);
 
   return (
@@ -72,11 +71,12 @@ function DRELinhaRow({ linha, expandAll, showAV, receitaLiquida }: {
           "flex items-center justify-between py-1.5 px-3 rounded-sm transition-colors",
           hasCategorias && "hover:bg-muted/10 cursor-pointer",
         )}
+        
         onClick={() => hasCategorias && setLocalExpanded(prev => !prev)}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {hasCategorias ? (
-            <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
+            <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", localExpanded && "rotate-90")} />
           ) : (
             <div className="w-3.5 shrink-0" />
           )}
@@ -107,7 +107,7 @@ function DRELinhaRow({ linha, expandAll, showAV, receitaLiquida }: {
           )}
         </div>
       </div>
-      {expanded && hasCategorias && (
+      {localExpanded && hasCategorias && (
         <div className="ml-10 mb-2 py-1 px-3 bg-muted/5 rounded border-l-2 border-muted">
           {linha.categorias!.map((cat, i) => (
             <div key={i} className="flex justify-between py-0.5">
@@ -379,13 +379,12 @@ function AnualLinhaRow({ linha, sectionIdx, linhaIdx, dreAnual, showAV, showAH, 
   linha: DRELinha; sectionIdx: number; linhaIdx: number; dreAnual: DREAnual;
   showAV: boolean; showAH: boolean; acumRL: number; expandAll: boolean;
 }) {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const expanded = expandAll || localExpanded;
+  const [localExpanded, setLocalExpanded] = useState(expandAll);
   const hasCats = linha.categorias && linha.categorias.length > 0;
   const isDespesa = linha.sinal === '-';
 
   useEffect(() => {
-    if (!expandAll) setLocalExpanded(false);
+    setLocalExpanded(expandAll);
   }, [expandAll]);
 
   const monthValues = MESES_ABREV.map((_, mi) => {
@@ -402,7 +401,7 @@ function AnualLinhaRow({ linha, sectionIdx, linhaIdx, dreAnual, showAV, showAH, 
       >
         <div className="min-w-[250px] sticky left-0 bg-background z-10 px-3 py-1 flex items-center gap-1.5">
           {hasCats ? (
-            <ChevronRight className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
+            <ChevronRight className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform", localExpanded && "rotate-90")} />
           ) : (
             <div className="w-3 shrink-0" />
           )}
@@ -443,7 +442,7 @@ function AnualLinhaRow({ linha, sectionIdx, linhaIdx, dreAnual, showAV, showAH, 
           </div>
         )}
       </div>
-      {expanded && hasCats && (
+      {localExpanded && hasCats && (
         <div className="bg-muted/5 border-l-2 border-muted ml-4">
           {linha.categorias!.map((cat, ci) => (
             <div key={ci} className="flex">
@@ -483,7 +482,17 @@ export default function FinanceiroDRE() {
   const [mes, setMes] = useState(MESES[now.getMonth()]);
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [visao, setVisao] = useState<'mensal' | 'anual'>('mensal');
-  const [expandAll, setExpandAll] = useState(false);
+  const [expandAllCounter, setExpandAllCounter] = useState(0);
+  const [expandAllState, setExpandAllState] = useState(false);
+
+  const handleExpandAll = () => {
+    setExpandAllState(true);
+    setExpandAllCounter(prev => prev + 1);
+  };
+  const handleCollapseAll = () => {
+    setExpandAllState(false);
+    setExpandAllCounter(prev => prev + 1);
+  };
   const [showAV, setShowAV] = useState(true);
   const [showAH, setShowAH] = useState(false);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
@@ -674,10 +683,10 @@ export default function FinanceiroDRE() {
           <Separator orientation="vertical" className="h-6" />
 
           {/* Expand/Collapse */}
-          <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => setExpandAll(true)}>
+          <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={handleExpandAll}>
             <Maximize2 className="h-3.5 w-3.5 mr-1" /> Expandir
           </Button>
-          <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => setExpandAll(false)}>
+          <Button variant="outline" size="sm" className="text-xs h-7 px-2" onClick={handleCollapseAll}>
             <Minimize2 className="h-3.5 w-3.5 mr-1" /> Recolher
           </Button>
 
@@ -748,16 +757,16 @@ export default function FinanceiroDRE() {
               </div>
               {dre.secoes.map(secao => (
                 <DRESecaoBlockMensal
-                  key={secao.id}
+                  key={`${secao.id}-${expandAllCounter}`}
                   secao={secao}
-                  expandAll={expandAll}
+                  expandAll={expandAllState}
                   showAV={showAV}
                   receitaLiquida={receitaLiquida}
                 />
               ))}
             </>
           ) : (
-            <DREAnualView dreAnual={dreAnual} showAV={showAV} showAH={showAH} expandAll={expandAll} />
+            <DREAnualView key={expandAllCounter} dreAnual={dreAnual} showAV={showAV} showAH={showAH} expandAll={expandAllState} />
           )}
         </div>
 

@@ -4290,30 +4290,36 @@ export type Database = {
           ativo: boolean | null
           categoria_contabil_id: string | null
           codigo_omie: string
+          conta_dre_omie: string | null
           conta_dre_override: string | null
           created_at: string | null
           descricao_omie: string | null
           id: string
+          tipo_categoria: string | null
           updated_at: string | null
         }
         Insert: {
           ativo?: boolean | null
           categoria_contabil_id?: string | null
           codigo_omie: string
+          conta_dre_omie?: string | null
           conta_dre_override?: string | null
           created_at?: string | null
           descricao_omie?: string | null
           id?: string
+          tipo_categoria?: string | null
           updated_at?: string | null
         }
         Update: {
           ativo?: boolean | null
           categoria_contabil_id?: string | null
           codigo_omie?: string
+          conta_dre_omie?: string | null
           conta_dre_override?: string | null
           created_at?: string | null
           descricao_omie?: string | null
           id?: string
+          tipo_categoria?: string | null
           updated_at?: string | null
         }
         Relationships: [
