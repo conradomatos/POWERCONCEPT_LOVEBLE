@@ -160,6 +160,26 @@ function parseOmieDate(dateStr?: string): string | null {
   return dateStr;
 }
 
+// Helper to upsert in chunks
+async function upsertInChunks(
+  supabase: any,
+  table: string,
+  batch: any[],
+  conflictColumn: string,
+  chunkSize = 100
+): Promise<{ error: string | null }> {
+  for (let i = 0; i < batch.length; i += chunkSize) {
+    const chunk = batch.slice(i, i + chunkSize);
+    const { error } = await supabase
+      .from(table)
+      .upsert(chunk, { onConflict: conflictColumn });
+    if (error) {
+      return { error: error.message };
+    }
+  }
+  return { error: null };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -184,16 +204,15 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
       return new Response(
         JSON.stringify({ ok: false, error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     // Check for admin, financeiro, or super_admin role
     const { data: roles } = await userClient
@@ -334,6 +353,10 @@ serve(async (req) => {
 
         console.log(`Processing ${titulos.length} AR titles from page ${pagina}/${totalPaginas}`);
 
+        // Accumulate batch
+        const arBatch: any[] = [];
+        const pendenciasBatchAR: { tipo: string; origem: string; id_omie_titulo: number; referencia_omie_codigo?: number; detalhes: any }[] = [];
+
         for (const titulo of titulos) {
           totalProcessed++;
 
@@ -348,7 +371,6 @@ serve(async (req) => {
             }
           }
           
-          // Check if status should be ATRASADO based on date
           let finalStatus = status;
           if (status === 'ABERTO' && titulo.data_vencimento) {
             const vencimento = parseOmieDate(titulo.data_vencimento);
@@ -357,7 +379,7 @@ serve(async (req) => {
             }
           }
 
-          const arRecord = {
+          arBatch.push({
             id_omie_titulo: titulo.codigo_lancamento_omie,
             omie_projeto_codigo: titulo.codigo_projeto || null,
             projeto_id: projetoId || null,
@@ -384,59 +406,77 @@ serve(async (req) => {
             codigo_tipo_documento: titulo.codigo_tipo_documento || null,
             id_conta_corrente: titulo.id_conta_corrente || titulo.info_adicionais?.nCodCC || null,
             raw_data: JSON.stringify(titulo),
-          };
+          });
 
-          // Upsert AR record
-          const { data: existingAR } = await supabase
-            .from('omie_contas_receber')
-            .select('id')
-            .eq('id_omie_titulo', titulo.codigo_lancamento_omie)
-            .single();
+          // Prepare pendencies
+          if (!titulo.codigo_projeto) {
+            pendenciasBatchAR.push({
+              tipo: 'SEM_PROJETO',
+              origem: 'OMIE_AR',
+              id_omie_titulo: titulo.codigo_lancamento_omie,
+              detalhes: {
+                numero_documento: titulo.numero_documento || titulo.info_adicionais?.cNumeroNF || null,
+                cliente: titulo.info_adicionais?.cNomeCliente || null,
+                valor: titulo.valor_documento || titulo.valor_titulo || 0,
+              },
+            });
+          } else if (!projetoId) {
+            pendenciasBatchAR.push({
+              tipo: 'PROJETO_INEXISTENTE',
+              origem: 'OMIE_AR',
+              id_omie_titulo: titulo.codigo_lancamento_omie,
+              referencia_omie_codigo: titulo.codigo_projeto,
+              detalhes: {
+                omie_projeto_codigo: titulo.codigo_projeto,
+                numero_documento: titulo.numero_documento || titulo.info_adicionais?.cNumeroNF || null,
+                cliente: titulo.info_adicionais?.cNomeCliente || null,
+                valor: titulo.valor_documento || titulo.valor_titulo || 0,
+              },
+            });
+          }
+        }
 
-          if (existingAR) {
-            await supabase
-              .from('omie_contas_receber')
-              .update(arRecord)
-              .eq('id_omie_titulo', titulo.codigo_lancamento_omie);
-            totalUpdated++;
+        // Batch upsert AR
+        if (arBatch.length > 0) {
+          const { error: upsertErr } = await upsertInChunks(supabase, 'omie_contas_receber', arBatch, 'id_omie_titulo');
+          if (upsertErr) {
+            console.error('AR batch upsert error:', upsertErr);
+            errors.push(`Erro ao gravar AR batch: ${upsertErr}`);
           } else {
-            const { data: newAR } = await supabase
-              .from('omie_contas_receber')
-              .insert(arRecord)
-              .select()
-              .single();
-            totalNew++;
+            totalNew += arBatch.length;
+          }
+        }
 
-            // Create pendency if needed
-            if (newAR) {
-              if (!titulo.codigo_projeto) {
-                await supabase.from('pendencias_financeiras').insert({
-                  tipo: 'SEM_PROJETO',
-                  origem: 'OMIE_AR',
-                  referencia_id: newAR.id,
-                  detalhes: { 
-                    numero_documento: arRecord.numero_documento,
-                    cliente: arRecord.cliente,
-                    valor: arRecord.valor 
-                  },
-                });
-                pendenciasCreated++;
-              } else if (!projetoId) {
-                await supabase.from('pendencias_financeiras').insert({
-                  tipo: 'PROJETO_INEXISTENTE',
-                  origem: 'OMIE_AR',
-                  referencia_id: newAR.id,
-                  referencia_omie_codigo: titulo.codigo_projeto,
-                  detalhes: { 
-                    omie_projeto_codigo: titulo.codigo_projeto,
-                    numero_documento: arRecord.numero_documento,
-                    cliente: arRecord.cliente,
-                    valor: arRecord.valor 
-                  },
-                });
-                pendenciasCreated++;
-              }
-            }
+        // Batch insert pendencies
+        if (pendenciasBatchAR.length > 0) {
+          const omieIds = pendenciasBatchAR.map(p => p.id_omie_titulo);
+          const { data: arRefs } = await supabase
+            .from('omie_contas_receber')
+            .select('id, id_omie_titulo')
+            .in('id_omie_titulo', omieIds);
+
+          const refMap = new Map<number, string>();
+          arRefs?.forEach((r: any) => refMap.set(r.id_omie_titulo, r.id));
+
+          const pendenciasToInsert = pendenciasBatchAR
+            .map(p => {
+              const refId = refMap.get(p.id_omie_titulo);
+              if (!refId) return null;
+              return {
+                tipo: p.tipo,
+                origem: p.origem,
+                referencia_id: refId,
+                referencia_omie_codigo: p.referencia_omie_codigo || null,
+                detalhes: p.detalhes,
+              };
+            })
+            .filter(Boolean);
+
+          if (pendenciasToInsert.length > 0) {
+            const { error: pendError } = await supabase
+              .from('pendencias_financeiras')
+              .insert(pendenciasToInsert);
+            if (!pendError) pendenciasCreated += pendenciasToInsert.length;
           }
         }
 
@@ -487,6 +527,10 @@ serve(async (req) => {
 
         console.log(`Processing ${titulos.length} AP titles from page ${pagina}/${totalPaginas}`);
 
+        // Accumulate batch
+        const apBatch: any[] = [];
+        const pendenciasBatchAP: { tipo: string; origem: string; id_omie_titulo: number; referencia_omie_codigo?: number; detalhes: any }[] = [];
+
         for (const titulo of titulos) {
           totalProcessed++;
 
@@ -509,7 +553,7 @@ serve(async (req) => {
             }
           }
 
-          const apRecord = {
+          apBatch.push({
             id_omie_titulo: titulo.codigo_lancamento_omie,
             omie_projeto_codigo: titulo.codigo_projeto || null,
             projeto_id: projetoId || null,
@@ -536,57 +580,77 @@ serve(async (req) => {
             codigo_tipo_documento: titulo.codigo_tipo_documento || null,
             id_conta_corrente: titulo.id_conta_corrente || titulo.info_adicionais?.nCodCC || null,
             raw_data: JSON.stringify(titulo),
-          };
+          });
 
-          const { data: existingAP } = await supabase
-            .from('omie_contas_pagar')
-            .select('id')
-            .eq('id_omie_titulo', titulo.codigo_lancamento_omie)
-            .single();
+          // Prepare pendencies
+          if (!titulo.codigo_projeto) {
+            pendenciasBatchAP.push({
+              tipo: 'SEM_PROJETO',
+              origem: 'OMIE_AP',
+              id_omie_titulo: titulo.codigo_lancamento_omie,
+              detalhes: {
+                numero_documento: titulo.numero_documento || titulo.info_adicionais?.cNumeroNF || null,
+                fornecedor: titulo.info_adicionais?.cNomeFornecedor || null,
+                valor: titulo.valor_documento || 0,
+              },
+            });
+          } else if (!projetoId) {
+            pendenciasBatchAP.push({
+              tipo: 'PROJETO_INEXISTENTE',
+              origem: 'OMIE_AP',
+              id_omie_titulo: titulo.codigo_lancamento_omie,
+              referencia_omie_codigo: titulo.codigo_projeto,
+              detalhes: {
+                omie_projeto_codigo: titulo.codigo_projeto,
+                numero_documento: titulo.numero_documento || titulo.info_adicionais?.cNumeroNF || null,
+                fornecedor: titulo.info_adicionais?.cNomeFornecedor || null,
+                valor: titulo.valor_documento || 0,
+              },
+            });
+          }
+        }
 
-          if (existingAP) {
-            await supabase
-              .from('omie_contas_pagar')
-              .update(apRecord)
-              .eq('id_omie_titulo', titulo.codigo_lancamento_omie);
-            totalUpdated++;
+        // Batch upsert AP
+        if (apBatch.length > 0) {
+          const { error: upsertErr } = await upsertInChunks(supabase, 'omie_contas_pagar', apBatch, 'id_omie_titulo');
+          if (upsertErr) {
+            console.error('AP batch upsert error:', upsertErr);
+            errors.push(`Erro ao gravar AP batch: ${upsertErr}`);
           } else {
-            const { data: newAP } = await supabase
-              .from('omie_contas_pagar')
-              .insert(apRecord)
-              .select()
-              .single();
-            totalNew++;
+            totalNew += apBatch.length;
+          }
+        }
 
-            if (newAP) {
-              if (!titulo.codigo_projeto) {
-                await supabase.from('pendencias_financeiras').insert({
-                  tipo: 'SEM_PROJETO',
-                  origem: 'OMIE_AP',
-                  referencia_id: newAP.id,
-                  detalhes: { 
-                    numero_documento: apRecord.numero_documento,
-                    fornecedor: apRecord.fornecedor,
-                    valor: apRecord.valor 
-                  },
-                });
-                pendenciasCreated++;
-              } else if (!projetoId) {
-                await supabase.from('pendencias_financeiras').insert({
-                  tipo: 'PROJETO_INEXISTENTE',
-                  origem: 'OMIE_AP',
-                  referencia_id: newAP.id,
-                  referencia_omie_codigo: titulo.codigo_projeto,
-                  detalhes: { 
-                    omie_projeto_codigo: titulo.codigo_projeto,
-                    numero_documento: apRecord.numero_documento,
-                    fornecedor: apRecord.fornecedor,
-                    valor: apRecord.valor 
-                  },
-                });
-                pendenciasCreated++;
-              }
-            }
+        // Batch insert pendencies
+        if (pendenciasBatchAP.length > 0) {
+          const omieIds = pendenciasBatchAP.map(p => p.id_omie_titulo);
+          const { data: apRefs } = await supabase
+            .from('omie_contas_pagar')
+            .select('id, id_omie_titulo')
+            .in('id_omie_titulo', omieIds);
+
+          const refMap = new Map<number, string>();
+          apRefs?.forEach((r: any) => refMap.set(r.id_omie_titulo, r.id));
+
+          const pendenciasToInsert = pendenciasBatchAP
+            .map(p => {
+              const refId = refMap.get(p.id_omie_titulo);
+              if (!refId) return null;
+              return {
+                tipo: p.tipo,
+                origem: p.origem,
+                referencia_id: refId,
+                referencia_omie_codigo: p.referencia_omie_codigo || null,
+                detalhes: p.detalhes,
+              };
+            })
+            .filter(Boolean);
+
+          if (pendenciasToInsert.length > 0) {
+            const { error: pendError } = await supabase
+              .from('pendencias_financeiras')
+              .insert(pendenciasToInsert);
+            if (!pendError) pendenciasCreated += pendenciasToInsert.length;
           }
         }
 
@@ -598,14 +662,13 @@ serve(async (req) => {
       }
     }
 
-    // Auto-populate omie_categoria_mapeamento with new categories
+    // Batch upsert categories
     if (categoriasEncontradas.size > 0) {
-      console.log(`Found ${categoriasEncontradas.size} unique categories, upserting to mapping table...`);
-      for (const codigo of categoriasEncontradas) {
-        await supabase
-          .from('omie_categoria_mapeamento')
-          .upsert({ codigo_omie: codigo }, { onConflict: 'codigo_omie', ignoreDuplicates: true });
-      }
+      console.log(`Found ${categoriasEncontradas.size} unique categories, batch upserting...`);
+      const catBatch = Array.from(categoriasEncontradas).map(codigo => ({ codigo_omie: codigo }));
+      await supabase
+        .from('omie_categoria_mapeamento')
+        .upsert(catBatch, { onConflict: 'codigo_omie', ignoreDuplicates: true });
     }
 
     // Update sync log
