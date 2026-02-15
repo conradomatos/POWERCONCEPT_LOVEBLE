@@ -39,6 +39,17 @@ export function useAIChat(threadId: string | undefined) {
     setSending(true);
     setAgentStatus('pensando');
 
+    // Fetch history BEFORE inserting current message
+    const { data: historyData } = await supabase
+      .from('ai_messages')
+      .select('role, content')
+      .eq('thread_id', threadId)
+      .in('role', ['user', 'assistant'])
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    const history = (historyData || []).map(m => ({ role: m.role, content: m.content }));
+
     // Save user message
     const { data: userMsg } = await supabase
       .from('ai_messages')
@@ -81,6 +92,7 @@ export function useAIChat(threadId: string | undefined) {
           thread_id: threadId,
           user_id: user.id,
           agent_type: agentType || 'default',
+          history,
         }),
         signal: AbortSignal.timeout(120000),
       });
