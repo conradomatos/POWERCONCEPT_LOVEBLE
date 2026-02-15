@@ -6,13 +6,16 @@ import { AgentCreateDialog } from '@/components/ai-lab/AgentCreateDialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AILabAgents() {
   const { agents, loading, createAgent, updateAgent, deleteAgent } = useAIAgents();
+  const { hasRole, isSuperAdmin } = useAuth();
+  const isAdmin = hasRole('admin') || isSuperAdmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAgent, setEditAgent] = useState<AIAgent | null>(null);
 
-  const handleSubmit = async (data: { name: string; slug: string; description: string; avatar_icon: string; avatar_color: string }) => {
+  const handleSubmit = async (data: { name: string; slug: string; description: string; icon: string; color: string; system_prompt: string }) => {
     if (editAgent) {
       await updateAgent(editAgent.id, data);
       toast({ title: 'Agente atualizado' });
@@ -31,9 +34,11 @@ export default function AILabAgents() {
             <h1 className="text-2xl font-bold">Agentes</h1>
             <p className="text-muted-foreground">Gerencie os agentes de IA disponíveis</p>
           </div>
-          <Button onClick={() => { setEditAgent(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" /> Novo Agente
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => { setEditAgent(null); setDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Novo Agente
+            </Button>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -44,6 +49,7 @@ export default function AILabAgents() {
               <AgentCard
                 key={a.id}
                 agent={a}
+                isAdmin={isAdmin}
                 onToggle={(id, active) => updateAgent(id, { is_active: active })}
                 onEdit={(agent) => { setEditAgent(agent); setDialogOpen(true); }}
                 onDelete={async (id) => { await deleteAgent(id); toast({ title: 'Agente excluído' }); }}

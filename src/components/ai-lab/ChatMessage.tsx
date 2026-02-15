@@ -18,12 +18,24 @@ export function ChatMessage({ message, onToggleFavorite }: ChatMessageProps) {
     toast({ title: 'Copiado!' });
   };
 
+  const agentName = !isUser ? (message.agent_name || 'Assistente') : null;
+  const agentColor = !isUser ? (message.agent_color || undefined) : undefined;
+
   return (
     <div className={cn('group flex gap-3 px-4 py-3', isUser ? 'flex-row-reverse' : '')}>
-      <div className={cn('shrink-0 w-8 h-8 rounded-full flex items-center justify-center', isUser ? 'bg-primary' : 'bg-muted')}>
-        {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className="h-4 w-4 text-muted-foreground" />}
+      <div
+        className={cn('shrink-0 w-8 h-8 rounded-full flex items-center justify-center', isUser ? 'bg-primary' : 'bg-muted')}
+        style={agentColor ? { backgroundColor: agentColor + '20', color: agentColor } : undefined}
+      >
+        {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className="h-4 w-4" />}
       </div>
       <div className={cn('max-w-[80%] rounded-lg px-4 py-2', isUser ? 'bg-primary text-primary-foreground' : 'bg-card border border-border')}>
+        {!isUser && agentName && (
+          <div className="flex items-center gap-1.5 mb-1">
+            {agentColor && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: agentColor }} />}
+            <span className="text-xs font-medium" style={agentColor ? { color: agentColor } : undefined}>{agentName}</span>
+          </div>
+        )}
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         ) : (
