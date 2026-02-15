@@ -13,6 +13,23 @@ import { ArrowLeft, Bot } from 'lucide-react';
 import { AGENT_ICONS } from '@/lib/agent-icons';
 import { supabase } from '@/integrations/supabase/client';
 
+function buildAgentMeta(agent: AIAgent) {
+  return {
+    id: agent.id,
+    name: agent.name,
+    color: agent.color,
+    system_prompt: agent.system_prompt,
+    slug: agent.slug,
+    temperature: agent.temperature,
+    max_tokens: agent.max_tokens,
+    knowledge_base: agent.knowledge_base,
+    example_responses: agent.example_responses,
+    model: agent.model,
+    debate_posture: agent.debate_posture,
+    max_response_length: agent.max_response_length,
+  };
+}
+
 export default function AILabChat() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
@@ -25,7 +42,6 @@ export default function AILabChat() {
 
   const thread = threads.find(t => t.thread_id === threadId);
 
-  // Restore active_agents from thread on load
   useEffect(() => {
     if (thread && !initializedRef.current) {
       const stored = (thread as any).active_agents as string[] | undefined;
@@ -36,7 +52,6 @@ export default function AILabChat() {
     }
   }, [thread]);
 
-  // Persist active_agents when selection changes
   const persistActiveAgents = useCallback(async (slugs: string[]) => {
     if (!threadId) return;
     await supabase
@@ -50,7 +65,7 @@ export default function AILabChat() {
       let next: string[];
       if (prev.includes(slug)) {
         next = prev.filter(s => s !== slug);
-        if (next.length === 0) return prev; // keep at least 1
+        if (next.length === 0) return prev;
       } else {
         next = [...prev, slug];
       }
@@ -71,28 +86,12 @@ export default function AILabChat() {
 
   const handleSend = (content: string) => {
     if (!primaryAgent) return;
-    sendMessage(content, primaryAgent.slug, {
-      id: primaryAgent.id,
-      name: primaryAgent.name,
-      color: primaryAgent.color,
-      system_prompt: primaryAgent.system_prompt,
-      temperature: primaryAgent.temperature,
-      max_tokens: primaryAgent.max_tokens,
-    });
+    sendMessage(content, primaryAgent.slug, buildAgentMeta(primaryAgent));
   };
 
   const handleSendRound = (content: string) => {
     if (selectedAgents.length === 0) return;
-    const agentMetas = selectedAgents.map(a => ({
-      id: a.id,
-      name: a.name,
-      color: a.color,
-      system_prompt: a.system_prompt,
-      slug: a.slug,
-      temperature: a.temperature,
-      max_tokens: a.max_tokens,
-    }));
-    sendRound(content, agentMetas);
+    sendRound(content, selectedAgents.map(buildAgentMeta));
   };
 
   return (
@@ -110,7 +109,7 @@ export default function AILabChat() {
           {thread && <Badge variant="outline">{thread.agent_type}</Badge>}
         </div>
 
-        {/* Agent Selector (multi-toggle) */}
+        {/* Agent Selector */}
         {activeAgents.length > 0 && (
           <div className="flex gap-2 py-3 overflow-x-auto">
             {activeAgents.map(agent => {
@@ -147,7 +146,6 @@ export default function AILabChat() {
           )}
         </div>
 
-        {/* Status Banner */}
         {agentStatus && (
           <AgentStatusBanner
             agentName={respondingAgent?.name}
@@ -155,7 +153,6 @@ export default function AILabChat() {
           />
         )}
 
-        {/* Input */}
         <ChatInput
           onSend={handleSend}
           onSendRound={handleSendRound}

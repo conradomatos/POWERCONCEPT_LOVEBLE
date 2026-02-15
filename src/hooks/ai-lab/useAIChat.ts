@@ -24,6 +24,11 @@ interface AgentMeta {
   slug: string;
   temperature?: number;
   max_tokens?: number;
+  knowledge_base?: string | null;
+  example_responses?: string | null;
+  model?: string;
+  debate_posture?: string;
+  max_response_length?: string;
 }
 
 const MEETING_PREFIX = `Você está numa reunião virtual com outros especialistas. Considere as respostas anteriores dos colegas antes de dar sua opinião. Se concordar, complemente. Se discordar, explique por quê.\n\n`;
@@ -94,18 +99,27 @@ export function useAIChat(threadId: string | undefined) {
     };
     if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
 
+    const body: Record<string, unknown> = {
+      message: content,
+      thread_id: threadId,
+      user_id: user!.id,
+      agent_type: agentMeta.slug,
+      system_prompt: systemPrompt,
+      temperature: agentMeta.temperature ?? 0.3,
+      history,
+    };
+
+    // Add optional fields if present
+    if (agentMeta.knowledge_base) body.knowledge_base = agentMeta.knowledge_base;
+    if (agentMeta.example_responses) body.example_responses = agentMeta.example_responses;
+    if (agentMeta.model) body.model = agentMeta.model;
+    if (agentMeta.max_tokens) body.max_tokens = agentMeta.max_tokens;
+    if (agentMeta.debate_posture) body.debate_posture = agentMeta.debate_posture;
+
     const response = await fetch(`${settings.api_url}/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        message: content,
-        thread_id: threadId,
-        user_id: user!.id,
-        agent_type: agentMeta.slug,
-        system_prompt: systemPrompt,
-        temperature: agentMeta.temperature ?? 0.3,
-        history,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(120000),
     });
 
@@ -138,7 +152,7 @@ export function useAIChat(threadId: string | undefined) {
   const sendMessage = async (
     content: string,
     agentType?: string,
-    agentMeta?: { id: string; name: string; color: string; system_prompt: string; temperature?: number; max_tokens?: number },
+    agentMeta?: AgentMeta,
   ) => {
     if (!threadId || !user || !content.trim()) return;
     setSending(true);
@@ -147,7 +161,6 @@ export function useAIChat(threadId: string | undefined) {
 
     const history = await fetchHistory();
 
-    // Save user message
     const { data: userMsg } = await supabase
       .from('ai_messages')
       .insert({ thread_id: threadId, role: 'user', content, agent_type: agentType } as any)
@@ -199,7 +212,6 @@ export function useAIChat(threadId: string | undefined) {
     if (!threadId || !user || !content.trim() || agents.length === 0) return;
     setSending(true);
 
-    // Save user message
     const { data: userMsg } = await supabase
       .from('ai_messages')
       .insert({ thread_id: threadId, role: 'user', content } as any)
@@ -230,7 +242,6 @@ export function useAIChat(threadId: string | undefined) {
       setRespondingAgent({ name: agent.name, color: agent.color });
 
       try {
-        // Fetch fresh history (includes previous agents' responses from this round)
         const history = await fetchHistory();
         const assistantContent = await callAgent(content, agent, history, settings, isMultiAgent);
         const msg = await saveAssistantMessage(assistantContent, agent);
@@ -254,7 +265,6 @@ export function useAIChat(threadId: string | undefined) {
       }
     }
 
-    // Update thread
     const currentCount = messages.length + 1 + agents.length;
     await supabase
       .from('ai_threads')
