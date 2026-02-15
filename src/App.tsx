@@ -59,6 +59,7 @@ import NotFound from "./pages/NotFound";
 import AILabDashboard from "./pages/ai-lab/AILabDashboard";
 import AILabChat from "./pages/ai-lab/AILabChat";
 import AILabAgents from "./pages/ai-lab/AILabAgents";
+import AgentEditor from "./pages/ai-lab/AgentEditor";
 import AILabTemplates from "./pages/ai-lab/AILabTemplates";
 import AILabSettings from "./pages/ai-lab/AILabSettings";
 import AILabPlaceholder from "./pages/ai-lab/AILabPlaceholder";
@@ -138,6 +139,8 @@ const App = () => (
             <Route path="/ai-lab" element={<AILabDashboard />} />
             <Route path="/ai-lab/chat/:threadId" element={<AILabChat />} />
             <Route path="/ai-lab/agents" element={<AILabAgents />} />
+            <Route path="/ai-lab/agents/new" element={<AgentEditor />} />
+            <Route path="/ai-lab/agents/:id/edit" element={<AgentEditor />} />
             <Route path="/ai-lab/templates" element={<AILabTemplates />} />
             <Route path="/ai-lab/artifacts" element={<AILabPlaceholder page="artifacts" />} />
             <Route path="/ai-lab/analytics" element={<AILabPlaceholder page="analytics" />} />

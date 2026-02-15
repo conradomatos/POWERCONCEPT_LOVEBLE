@@ -1,6 +1,7 @@
 import {
   Bot, Calculator, ShieldCheck, HardHat,
-  Briefcase, Scale, ClipboardCheck, Users
+  Briefcase, Scale, ClipboardCheck, Users,
+  Brain, Target, Swords, Flame
 } from 'lucide-react';
 
 export const AGENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -12,6 +13,10 @@ export const AGENT_ICONS: Record<string, React.ComponentType<{ className?: strin
   'scale': Scale,
   'clipboard-check': ClipboardCheck,
   'users': Users,
+  'brain': Brain,
+  'target': Target,
+  'sword': Swords,
+  'flame': Flame,
 };
 
 export const AGENT_ICON_OPTIONS = [
@@ -23,4 +28,8 @@ export const AGENT_ICON_OPTIONS = [
   { value: 'scale', label: 'Scale' },
   { value: 'clipboard-check', label: 'Clipboard Check' },
   { value: 'users', label: 'Users' },
+  { value: 'brain', label: 'Brain' },
+  { value: 'target', label: 'Target' },
+  { value: 'sword', label: 'Sword' },
+  { value: 'flame', label: 'Flame' },
 ];

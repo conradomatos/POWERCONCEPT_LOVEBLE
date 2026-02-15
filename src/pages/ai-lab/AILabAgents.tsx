@@ -1,30 +1,17 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { useAIAgents, type AIAgent } from '@/hooks/ai-lab/useAIAgents';
+import { useAIAgents } from '@/hooks/ai-lab/useAIAgents';
 import { AgentCard } from '@/components/ai-lab/AgentCard';
-import { AgentCreateDialog } from '@/components/ai-lab/AgentCreateDialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function AILabAgents() {
-  const { agents, loading, createAgent, updateAgent, deleteAgent } = useAIAgents();
+  const { agents, loading, updateAgent, deleteAgent } = useAIAgents();
   const { hasRole, isSuperAdmin } = useAuth();
   const isAdmin = hasRole('admin') || isSuperAdmin();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editAgent, setEditAgent] = useState<AIAgent | null>(null);
-
-  const handleSubmit = async (data: { name: string; slug: string; description: string; icon: string; color: string; system_prompt: string }) => {
-    if (editAgent) {
-      await updateAgent(editAgent.id, data);
-      toast({ title: 'Agente atualizado' });
-    } else {
-      await createAgent(data);
-      toast({ title: 'Agente criado' });
-    }
-    setEditAgent(null);
-  };
+  const navigate = useNavigate();
 
   return (
     <Layout>
@@ -35,7 +22,7 @@ export default function AILabAgents() {
             <p className="text-muted-foreground">Gerencie os agentes de IA disponíveis</p>
           </div>
           {isAdmin && (
-            <Button onClick={() => { setEditAgent(null); setDialogOpen(true); }}>
+            <Button onClick={() => navigate('/ai-lab/agents/new')}>
               <Plus className="h-4 w-4 mr-2" /> Novo Agente
             </Button>
           )}
@@ -51,20 +38,13 @@ export default function AILabAgents() {
                 agent={a}
                 isAdmin={isAdmin}
                 onToggle={(id, active) => updateAgent(id, { is_active: active })}
-                onEdit={(agent) => { setEditAgent(agent); setDialogOpen(true); }}
+                onEdit={(agent) => navigate(`/ai-lab/agents/${agent.id}/edit`)}
                 onDelete={async (id) => { await deleteAgent(id); toast({ title: 'Agente excluído' }); }}
               />
             ))
           )}
         </div>
       </div>
-
-      <AgentCreateDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        agent={editAgent}
-        onSubmit={handleSubmit}
-      />
     </Layout>
   );
 }
