@@ -10,6 +10,9 @@ export interface AIMessage {
   agent_type: string | null;
   metadata: Record<string, unknown>;
   is_favorited: boolean;
+  agent_id: string | null;
+  agent_name: string | null;
+  agent_color: string | null;
   created_at: string;
 }
 
@@ -34,7 +37,11 @@ export function useAIChat(threadId: string | undefined) {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  const sendMessage = async (content: string, agentType?: string) => {
+  const sendMessage = async (
+    content: string,
+    agentType?: string,
+    agentMeta?: { id: string; name: string; color: string; system_prompt: string }
+  ) => {
     if (!threadId || !user || !content.trim()) return;
     setSending(true);
     setAgentStatus('pensando');
@@ -53,7 +60,7 @@ export function useAIChat(threadId: string | undefined) {
     // Save user message
     const { data: userMsg } = await supabase
       .from('ai_messages')
-      .insert({ thread_id: threadId, role: 'user', content, agent_type: agentType })
+      .insert({ thread_id: threadId, role: 'user', content, agent_type: agentType } as any)
       .select()
       .single();
 
@@ -71,7 +78,7 @@ export function useAIChat(threadId: string | undefined) {
         const errorMsg = 'Configure a URL da API em Configurações do AI Lab.';
         const { data: errMsg } = await supabase
           .from('ai_messages')
-          .insert({ thread_id: threadId, role: 'assistant', content: errorMsg, agent_type: agentType })
+          .insert({ thread_id: threadId, role: 'assistant', content: errorMsg, agent_type: agentType } as any)
           .select()
           .single();
         if (errMsg) setMessages(prev => [...prev, errMsg as unknown as AIMessage]);
@@ -92,6 +99,7 @@ export function useAIChat(threadId: string | undefined) {
           thread_id: threadId,
           user_id: user.id,
           agent_type: agentType || 'default',
+          system_prompt: agentMeta?.system_prompt || '',
           history,
         }),
         signal: AbortSignal.timeout(120000),
@@ -100,7 +108,7 @@ export function useAIChat(threadId: string | undefined) {
       const result = await response.json();
       const assistantContent = result.response || result.message || 'Sem resposta do agente.';
 
-      // Save assistant message
+      // Save assistant message with agent identity
       const { data: assistantMsg } = await supabase
         .from('ai_messages')
         .insert({
@@ -109,7 +117,10 @@ export function useAIChat(threadId: string | undefined) {
           content: assistantContent,
           agent_type: agentType,
           metadata: result.metadata || {},
-        })
+          agent_id: agentMeta?.id || null,
+          agent_name: agentMeta?.name || null,
+          agent_color: agentMeta?.color || null,
+        } as any)
         .select()
         .single();
 
@@ -127,7 +138,7 @@ export function useAIChat(threadId: string | undefined) {
       const errorContent = `Erro ao contactar o agente: ${err.message}`;
       const { data: errMsg } = await supabase
         .from('ai_messages')
-        .insert({ thread_id: threadId, role: 'assistant', content: errorContent, agent_type: agentType })
+        .insert({ thread_id: threadId, role: 'assistant', content: errorContent, agent_type: agentType } as any)
         .select()
         .single();
       if (errMsg) setMessages(prev => [...prev, errMsg as unknown as AIMessage]);

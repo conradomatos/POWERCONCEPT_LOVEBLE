@@ -16,45 +16,59 @@ export type Database = {
     Tables: {
       ai_agents: {
         Row: {
-          avatar_color: string | null
-          avatar_icon: string | null
+          color: string | null
           created_at: string | null
+          created_by: string | null
           description: string | null
+          icon: string | null
           id: string
           is_active: boolean | null
           name: string
           slug: string
-          system_prompt: string | null
-          user_id: string
+          system_prompt: string
+          updated_at: string | null
         }
         Insert: {
-          avatar_color?: string | null
-          avatar_icon?: string | null
+          color?: string | null
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
           name: string
           slug: string
-          system_prompt?: string | null
-          user_id: string
+          system_prompt?: string
+          updated_at?: string | null
         }
         Update: {
-          avatar_color?: string | null
-          avatar_icon?: string | null
+          color?: string | null
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
           slug?: string
-          system_prompt?: string | null
-          user_id?: string
+          system_prompt?: string
+          updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       ai_messages: {
         Row: {
+          agent_color: string | null
+          agent_id: string | null
+          agent_name: string | null
           agent_type: string | null
           content: string
           created_at: string | null
@@ -65,6 +79,9 @@ export type Database = {
           thread_id: string
         }
         Insert: {
+          agent_color?: string | null
+          agent_id?: string | null
+          agent_name?: string | null
           agent_type?: string | null
           content: string
           created_at?: string | null
@@ -75,6 +92,9 @@ export type Database = {
           thread_id: string
         }
         Update: {
+          agent_color?: string | null
+          agent_id?: string | null
+          agent_name?: string | null
           agent_type?: string | null
           content?: string
           created_at?: string | null
@@ -85,6 +105,13 @@ export type Database = {
           thread_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_messages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_messages_thread_id_fkey"
             columns: ["thread_id"]
