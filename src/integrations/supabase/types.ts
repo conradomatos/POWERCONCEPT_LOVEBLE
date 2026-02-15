@@ -201,6 +201,7 @@ export type Database = {
       }
       ai_threads: {
         Row: {
+          active_agents: string[] | null
           agent_type: string | null
           created_at: string | null
           description: string | null
@@ -216,6 +217,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_agents?: string[] | null
           agent_type?: string | null
           created_at?: string | null
           description?: string | null
@@ -231,6 +233,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_agents?: string[] | null
           agent_type?: string | null
           created_at?: string | null
           description?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_threads ADD COLUMN IF NOT EXISTS active_agents text[] DEFAULT '{default}';
