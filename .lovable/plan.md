@@ -1,35 +1,52 @@
 
 
-# Adicionar header ngrok-skip-browser-warning nos fetches do AI Lab
+# Enviar historico de mensagens no payload do chat
 
-## Alteracoes
+## Alteracao
 
-### 1. `src/hooks/ai-lab/useAIChat.ts`
-Na funcao `sendMessage`, no fetch para `${settings.api_url}/chat` (linha ~68), adicionar `'ngrok-skip-browser-warning': 'true'` ao objeto `headers`.
-
-### 2. `src/hooks/ai-lab/useAISettings.ts`
-Na funcao `testConnection`, no fetch para `${url}/health` (linha ~62), adicionar `'ngrok-skip-browser-warning': 'true'` aos headers do request.
+No `src/hooks/ai-lab/useAIChat.ts`, na funcao `sendMessage`, antes de fazer o POST para `${settings.api_url}/chat`, buscar as ultimas 20 mensagens da thread no Supabase e incluir como campo `history` no body.
 
 ## Detalhes tecnicos
 
-Ambos os arquivos ja constroem um objeto `headers` antes do fetch. Basta incluir a chave extra em cada um:
+Na funcao `sendMessage` (linha ~45), apos salvar a mensagem do usuario no Supabase e antes do fetch para a API externa (~linha 73):
 
-**useAIChat.ts** — bloco do fetch (~linha 68):
+1. Buscar historico da thread:
 ```typescript
-const headers: Record<string, string> = {
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-};
+const { data: historyData } = await supabase
+  .from('ai_messages')
+  .select('role, content')
+  .eq('thread_id', threadId)
+  .in('role', ['user', 'assistant'])
+  .order('created_at', { ascending: true })
+  .limit(20);
 ```
 
-**useAISettings.ts** — fetch do /health (~linha 62):
+Nota: esta query retorna as mensagens ja existentes no banco, incluindo a mensagem do usuario que acabou de ser inserida. Para excluir a mensagem atual do historico, filtrar pelo id da mensagem recem-inserida:
 ```typescript
-const response = await fetch(`${url}/health`, {
-  method: 'GET',
-  headers: { 'ngrok-skip-browser-warning': 'true' },
-  signal: AbortSignal.timeout(5000),
-});
+const history = (historyData || [])
+  .filter(m => m.id !== userMsg.id)
+  .map(m => ({ role: m.role, content: m.content }));
 ```
 
-Nenhuma outra alteracao necessaria.
+Ajuste: a query de select precisa incluir `id` alem de `role` e `content` para permitir o filtro. Alternativamente, buscar o historico ANTES de inserir a mensagem do usuario -- esta abordagem e mais simples e garante que a mensagem atual nao aparece.
+
+**Abordagem escolhida:** mover a busca do historico para ANTES do insert da mensagem do usuario. Assim nao precisa filtrar nada.
+
+2. Incluir no body do fetch:
+```typescript
+body: JSON.stringify({
+  message: content,
+  thread_id: threadId,
+  user_id: user.id,
+  agent_type: agentType || 'default',
+  history: history,
+}),
+```
+
+## Arquivo modificado
+- `src/hooks/ai-lab/useAIChat.ts`
+
+## Nenhuma outra alteracao
+- Headers com `ngrok-skip-browser-warning` permanecem inalterados
+- Toda a logica restante (salvar resposta, atualizar thread, tratamento de erro) permanece igual
 
