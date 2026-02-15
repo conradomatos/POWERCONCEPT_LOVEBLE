@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Save, Wifi, WifiOff } from 'lucide-react';
+import { Save, Wifi, WifiOff, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export default function AILabSettings() {
@@ -19,6 +19,7 @@ export default function AILabSettings() {
   const [apiKey, setApiKey] = useState('');
   const [defaultAgent, setDefaultAgent] = useState('default');
   const [saving, setSaving] = useState(false);
+  const [showToken, setShowToken] = useState(false);
 
   useEffect(() => {
     if (settings) {
