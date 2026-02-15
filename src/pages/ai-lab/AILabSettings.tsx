@@ -64,8 +64,13 @@ export default function AILabSettings() {
               <Input value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://seu-servidor.com:8000" />
             </div>
             <div>
-              <Label>Chave de API (opcional)</Label>
-              <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
+              <Label>API Token</Label>
+              <div className="relative">
+                <Input type={showToken ? 'text' : 'password'} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="pc-ia-..." className="pr-10" />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-10 w-10" onClick={() => setShowToken(v => !v)}>
+                  {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <div>
               <Label>Agente Padrão</Label>
