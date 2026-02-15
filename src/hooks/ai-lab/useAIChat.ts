@@ -70,7 +70,7 @@ export function useAIChat(threadId: string | undefined) {
       }
 
       // Call external API
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' };
       if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
 
       const response = await fetch(`${settings.api_url}/chat`, {
