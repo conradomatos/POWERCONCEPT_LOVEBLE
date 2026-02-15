@@ -23,9 +23,11 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean | null
+          max_tokens: number | null
           name: string
           slug: string
           system_prompt: string
+          temperature: number | null
           updated_at: string | null
         }
         Insert: {
@@ -36,9 +38,11 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean | null
+          max_tokens?: number | null
           name: string
           slug: string
           system_prompt?: string
+          temperature?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -49,9 +53,11 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean | null
+          max_tokens?: number | null
           name?: string
           slug?: string
           system_prompt?: string
+          temperature?: number | null
           updated_at?: string | null
         }
         Relationships: [

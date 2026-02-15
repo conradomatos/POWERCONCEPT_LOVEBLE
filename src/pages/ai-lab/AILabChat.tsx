@@ -76,6 +76,8 @@ export default function AILabChat() {
       name: primaryAgent.name,
       color: primaryAgent.color,
       system_prompt: primaryAgent.system_prompt,
+      temperature: primaryAgent.temperature,
+      max_tokens: primaryAgent.max_tokens,
     });
   };
 
@@ -87,6 +89,8 @@ export default function AILabChat() {
       color: a.color,
       system_prompt: a.system_prompt,
       slug: a.slug,
+      temperature: a.temperature,
+      max_tokens: a.max_tokens,
     }));
     sendRound(content, agentMetas);
   };

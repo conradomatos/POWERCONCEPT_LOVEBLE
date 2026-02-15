@@ -22,6 +22,8 @@ interface AgentMeta {
   color: string;
   system_prompt: string;
   slug: string;
+  temperature?: number;
+  max_tokens?: number;
 }
 
 const MEETING_PREFIX = `Você está numa reunião virtual com outros especialistas. Considere as respostas anteriores dos colegas antes de dar sua opinião. Se concordar, complemente. Se discordar, explique por quê.\n\n`;
@@ -101,6 +103,7 @@ export function useAIChat(threadId: string | undefined) {
         user_id: user!.id,
         agent_type: agentMeta.slug,
         system_prompt: systemPrompt,
+        temperature: agentMeta.temperature ?? 0.3,
         history,
       }),
       signal: AbortSignal.timeout(120000),
@@ -135,7 +138,7 @@ export function useAIChat(threadId: string | undefined) {
   const sendMessage = async (
     content: string,
     agentType?: string,
-    agentMeta?: { id: string; name: string; color: string; system_prompt: string },
+    agentMeta?: { id: string; name: string; color: string; system_prompt: string; temperature?: number; max_tokens?: number },
   ) => {
     if (!threadId || !user || !content.trim()) return;
     setSending(true);
