@@ -1,45 +1,48 @@
 
 
-# Migrar URL do Backend e Remover Header ngrok
+# Adicionar API Token com valor padrao no AI Lab
 
 ## Resumo
 
-Remover o header `ngrok-skip-browser-warning` de 3 arquivos e atualizar a URL padrao do backend na tabela `ai_settings` para `https://ia.powerconcept.com.br`.
-
----
+O campo `api_key` ja existe na tabela `ai_settings` e o codigo ja envia `Authorization: Bearer {api_key}` nas chamadas `/chat` (e NAO no `/health`). As alteracoes sao cosmeticas e de dados.
 
 ## Alteracoes
 
-### 1. Remover header ngrok de `src/hooks/ai-lab/useAIChat.ts`
+### 1. Atualizar UI em `src/pages/ai-lab/AILabSettings.tsx`
 
-Remover a linha `'ngrok-skip-browser-warning': 'true'` do objeto `headers` na funcao `callAgent`.
+- Renomear o label de "Chave de API (opcional)" para "API Token"
+- Adicionar estado `showToken` para controlar visibilidade
+- Trocar `type="password"` por dinamico (`password` / `text`)
+- Adicionar botao com icone Eye/EyeOff para alternar visibilidade
+- Atualizar placeholder para `pc-ia-...`
 
-### 2. Remover header ngrok de `src/hooks/ai-lab/useAISettings.ts`
-
-Remover o header da chamada `fetch` ao endpoint `/health` na funcao `testConnection`.
-
-### 3. Remover header ngrok de `src/pages/ai-lab/AgentEditor.tsx`
-
-Remover a linha do objeto `headers` na funcao de teste do agente.
-
-### 4. Atualizar URL no banco de dados
-
-Executar migracao SQL para atualizar todos os registros existentes em `ai_settings` que contenham URLs ngrok (ou qualquer URL) para a nova URL definitiva:
+### 2. Atualizar valor padrao no banco de dados (Migration SQL)
 
 ```text
+-- Setar token padrao para registros existentes sem token
 UPDATE ai_settings
-SET api_url = 'https://ia.powerconcept.com.br'
-WHERE api_url IS NOT NULL;
+SET api_key = 'pc-ia-2026-SkR8mX4vQzL7nW3j'
+WHERE api_key IS NULL;
+
+-- Alterar default da coluna para novos registros
+ALTER TABLE ai_settings
+ALTER COLUMN api_key SET DEFAULT 'pc-ia-2026-SkR8mX4vQzL7nW3j';
 ```
 
----
+### 3. Verificacao -- nenhuma alteracao necessaria
+
+Os 3 arquivos que fazem fetch ja implementam o Bearer token corretamente:
+
+| Arquivo | Endpoint | Token | Status |
+|---|---|---|---|
+| `useAIChat.ts` | `/chat` | Sim (Bearer) | OK |
+| `AgentEditor.tsx` | `/chat` | Sim (Bearer) | OK |
+| `useAISettings.ts` | `/health` | Nao | OK (conforme requisito) |
 
 ## Arquivos afetados
 
 | Arquivo | Acao |
 |---|---|
-| `src/hooks/ai-lab/useAIChat.ts` | Remover header ngrok |
-| `src/hooks/ai-lab/useAISettings.ts` | Remover header ngrok |
-| `src/pages/ai-lab/AgentEditor.tsx` | Remover header ngrok |
-| Migration SQL | Atualizar api_url existentes no banco |
+| `src/pages/ai-lab/AILabSettings.tsx` | Renomear label, adicionar toggle show/hide |
+| Migration SQL | Setar default e atualizar registros existentes |
 
