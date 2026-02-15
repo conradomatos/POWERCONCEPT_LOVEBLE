@@ -69,8 +69,9 @@ export function useAIChat(threadId: string | undefined) {
       .limit(20);
     return (historyData || []).map(m => ({
       role: m.role,
-      content: m.content,
-      ...(m.agent_name ? { agent_name: m.agent_name } : {}),
+      content: m.role === 'assistant' && m.agent_name
+        ? `[${m.agent_name}]: ${m.content}`
+        : m.content,
     }));
   };
 
