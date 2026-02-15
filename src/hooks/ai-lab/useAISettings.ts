@@ -59,7 +59,6 @@ export function useAISettings() {
       const start = Date.now();
       const response = await fetch(`${url}/health`, {
         method: 'GET',
-        headers: { 'ngrok-skip-browser-warning': 'true' },
         signal: AbortSignal.timeout(5000),
       });
       const latency = Date.now() - start;

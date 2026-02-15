@@ -95,7 +95,6 @@ export function useAIChat(threadId: string | undefined) {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
     };
     if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
 
