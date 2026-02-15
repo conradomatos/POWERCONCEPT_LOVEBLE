@@ -19,14 +19,21 @@ export type Database = {
           color: string | null
           created_at: string | null
           created_by: string | null
+          debate_posture: string | null
           description: string | null
+          example_responses: string | null
           icon: string | null
           id: string
           is_active: boolean | null
+          knowledge_base: string | null
+          max_response_length: string | null
           max_tokens: number | null
+          model: string | null
           name: string
+          priority_order: number | null
           slug: string
           system_prompt: string
+          tags: string[] | null
           temperature: number | null
           updated_at: string | null
         }
@@ -34,14 +41,21 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           created_by?: string | null
+          debate_posture?: string | null
           description?: string | null
+          example_responses?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
+          knowledge_base?: string | null
+          max_response_length?: string | null
           max_tokens?: number | null
+          model?: string | null
           name: string
+          priority_order?: number | null
           slug: string
           system_prompt?: string
+          tags?: string[] | null
           temperature?: number | null
           updated_at?: string | null
         }
@@ -49,14 +63,21 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           created_by?: string | null
+          debate_posture?: string | null
           description?: string | null
+          example_responses?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
+          knowledge_base?: string | null
+          max_response_length?: string | null
           max_tokens?: number | null
+          model?: string | null
           name?: string
+          priority_order?: number | null
           slug?: string
           system_prompt?: string
+          tags?: string[] | null
           temperature?: number | null
           updated_at?: string | null
         }

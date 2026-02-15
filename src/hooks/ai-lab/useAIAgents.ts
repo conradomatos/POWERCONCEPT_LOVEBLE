@@ -16,6 +16,13 @@ export interface AIAgent {
   updated_at: string;
   temperature: number;
   max_tokens: number;
+  knowledge_base: string | null;
+  example_responses: string | null;
+  model: string;
+  debate_posture: string;
+  priority_order: number;
+  tags: string[] | null;
+  max_response_length: string;
 }
 
 export function useAIAgents() {
@@ -35,7 +42,7 @@ export function useAIAgents() {
 
   useEffect(() => { fetchAgents(); }, [fetchAgents]);
 
-  const createAgent = async (agent: { name: string; slug: string; description?: string; icon?: string; color?: string; system_prompt?: string }) => {
+  const createAgent = async (agent: Partial<AIAgent> & { name: string; slug: string }) => {
     if (!user) return;
     await supabase.from('ai_agents').insert({ ...agent, created_by: user.id } as any);
     await fetchAgents();
@@ -51,5 +58,17 @@ export function useAIAgents() {
     await fetchAgents();
   };
 
-  return { agents, loading, createAgent, updateAgent, deleteAgent, refetch: fetchAgents };
+  const duplicateAgent = async (agent: AIAgent) => {
+    if (!user) return;
+    const { id, created_at, updated_at, created_by, ...rest } = agent;
+    await supabase.from('ai_agents').insert({
+      ...rest,
+      name: `Cópia de ${agent.name}`,
+      slug: `${agent.slug}-copia-${Date.now()}`,
+      created_by: user.id,
+    } as any);
+    await fetchAgents();
+  };
+
+  return { agents, loading, createAgent, updateAgent, deleteAgent, duplicateAgent, refetch: fetchAgents };
 }

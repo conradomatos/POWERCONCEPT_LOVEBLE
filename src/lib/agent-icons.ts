@@ -1,7 +1,8 @@
 import {
   Bot, Calculator, ShieldCheck, HardHat,
   Briefcase, Scale, ClipboardCheck, Users,
-  Brain, Target, Swords, Flame
+  Brain, Target, Swords, Flame,
+  Gavel, Search, AlertTriangle
 } from 'lucide-react';
 
 export const AGENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -17,19 +18,25 @@ export const AGENT_ICONS: Record<string, React.ComponentType<{ className?: strin
   'target': Target,
   'sword': Swords,
   'flame': Flame,
+  'gavel': Gavel,
+  'search': Search,
+  'alert-triangle': AlertTriangle,
 };
 
 export const AGENT_ICON_OPTIONS = [
   { value: 'bot', label: 'Bot' },
-  { value: 'calculator', label: 'Calculator' },
-  { value: 'shield-check', label: 'Shield Check' },
-  { value: 'hard-hat', label: 'Hard Hat' },
-  { value: 'briefcase', label: 'Briefcase' },
-  { value: 'scale', label: 'Scale' },
-  { value: 'clipboard-check', label: 'Clipboard Check' },
-  { value: 'users', label: 'Users' },
-  { value: 'brain', label: 'Brain' },
-  { value: 'target', label: 'Target' },
-  { value: 'sword', label: 'Sword' },
-  { value: 'flame', label: 'Flame' },
+  { value: 'calculator', label: 'Calculadora' },
+  { value: 'shield-check', label: 'Escudo' },
+  { value: 'hard-hat', label: 'Capacete' },
+  { value: 'briefcase', label: 'Maleta' },
+  { value: 'scale', label: 'Balança' },
+  { value: 'clipboard-check', label: 'Checklist' },
+  { value: 'users', label: 'Equipe' },
+  { value: 'brain', label: 'Cérebro' },
+  { value: 'target', label: 'Alvo' },
+  { value: 'sword', label: 'Espada' },
+  { value: 'flame', label: 'Chama' },
+  { value: 'gavel', label: 'Martelo' },
+  { value: 'search', label: 'Busca' },
+  { value: 'alert-triangle', label: 'Alerta' },
 ];
