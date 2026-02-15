@@ -16,12 +16,23 @@ export interface AIMessage {
   created_at: string;
 }
 
+interface AgentMeta {
+  id: string;
+  name: string;
+  color: string;
+  system_prompt: string;
+  slug: string;
+}
+
+const MEETING_PREFIX = `Você está numa reunião virtual com outros especialistas. Considere as respostas anteriores dos colegas antes de dar sua opinião. Se concordar, complemente. Se discordar, explique por quê.\n\n`;
+
 export function useAIChat(threadId: string | undefined) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
+  const [respondingAgent, setRespondingAgent] = useState<{ name: string; color: string } | null>(null);
 
   const loadHistory = useCallback(async () => {
     if (!threadId) return;
@@ -37,25 +48,100 @@ export function useAIChat(threadId: string | undefined) {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  const sendMessage = async (
-    content: string,
-    agentType?: string,
-    agentMeta?: { id: string; name: string; color: string; system_prompt: string }
-  ) => {
-    if (!threadId || !user || !content.trim()) return;
-    setSending(true);
-    setAgentStatus('pensando');
+  const getSettings = async () => {
+    if (!user) return null;
+    const { data: settings } = await supabase
+      .from('ai_settings')
+      .select('api_url, api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    return settings;
+  };
 
-    // Fetch history BEFORE inserting current message
+  const fetchHistory = async () => {
+    if (!threadId) return [];
     const { data: historyData } = await supabase
       .from('ai_messages')
-      .select('role, content')
+      .select('role, content, agent_name')
       .eq('thread_id', threadId)
       .in('role', ['user', 'assistant'])
       .order('created_at', { ascending: true })
       .limit(20);
+    return (historyData || []).map(m => ({
+      role: m.role,
+      content: m.content,
+      ...(m.agent_name ? { agent_name: m.agent_name } : {}),
+    }));
+  };
 
-    const history = (historyData || []).map(m => ({ role: m.role, content: m.content }));
+  const callAgent = async (
+    content: string,
+    agentMeta: AgentMeta,
+    history: Array<{ role: string; content: string; agent_name?: string }>,
+    settings: { api_url: string; api_key: string | null },
+    isMultiAgent: boolean,
+  ) => {
+    const systemPrompt = isMultiAgent
+      ? MEETING_PREFIX + agentMeta.system_prompt
+      : agentMeta.system_prompt;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    };
+    if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
+
+    const response = await fetch(`${settings.api_url}/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: content,
+        thread_id: threadId,
+        user_id: user!.id,
+        agent_type: agentMeta.slug,
+        system_prompt: systemPrompt,
+        history,
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    const result = await response.json();
+    return result.response || result.message || 'Sem resposta do agente.';
+  };
+
+  const saveAssistantMessage = async (
+    content: string,
+    agentMeta: AgentMeta,
+    metadata: Record<string, unknown> = {},
+  ) => {
+    const { data } = await supabase
+      .from('ai_messages')
+      .insert({
+        thread_id: threadId!,
+        role: 'assistant',
+        content,
+        agent_type: agentMeta.slug,
+        metadata,
+        agent_id: agentMeta.id,
+        agent_name: agentMeta.name,
+        agent_color: agentMeta.color,
+      } as any)
+      .select()
+      .single();
+    return data as unknown as AIMessage | null;
+  };
+
+  const sendMessage = async (
+    content: string,
+    agentType?: string,
+    agentMeta?: { id: string; name: string; color: string; system_prompt: string },
+  ) => {
+    if (!threadId || !user || !content.trim()) return;
+    setSending(true);
+    setAgentStatus('pensando');
+    if (agentMeta) setRespondingAgent({ name: agentMeta.name, color: agentMeta.color });
+
+    const history = await fetchHistory();
 
     // Save user message
     const { data: userMsg } = await supabase
@@ -63,17 +149,10 @@ export function useAIChat(threadId: string | undefined) {
       .insert({ thread_id: threadId, role: 'user', content, agent_type: agentType } as any)
       .select()
       .single();
-
     if (userMsg) setMessages(prev => [...prev, userMsg as unknown as AIMessage]);
 
     try {
-      // Get API settings
-      const { data: settings } = await supabase
-        .from('ai_settings')
-        .select('api_url, api_key')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
+      const settings = await getSettings();
       if (!settings?.api_url) {
         const errorMsg = 'Configure a URL da API em Configurações do AI Lab.';
         const { data: errMsg } = await supabase
@@ -82,57 +161,20 @@ export function useAIChat(threadId: string | undefined) {
           .select()
           .single();
         if (errMsg) setMessages(prev => [...prev, errMsg as unknown as AIMessage]);
-        setSending(false);
-        setAgentStatus(null);
         return;
       }
 
-      // Call external API
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' };
-      if (settings.api_key) headers['Authorization'] = `Bearer ${settings.api_key}`;
+      const meta: AgentMeta = agentMeta
+        ? { ...agentMeta, slug: agentType || 'default' }
+        : { id: '', name: 'Assistente', color: '#F59E0B', system_prompt: '', slug: agentType || 'default' };
 
-      const response = await fetch(`${settings.api_url}/chat`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: content,
-          thread_id: threadId,
-          user_id: user.id,
-          agent_type: agentType || 'default',
-          system_prompt: agentMeta?.system_prompt || '',
-          history,
-        }),
-        signal: AbortSignal.timeout(120000),
-      });
+      const assistantContent = await callAgent(content, meta, history, settings, false);
+      const msg = await saveAssistantMessage(assistantContent, meta);
+      if (msg) setMessages(prev => [...prev, msg]);
 
-      const result = await response.json();
-      const assistantContent = result.response || result.message || 'Sem resposta do agente.';
-
-      // Save assistant message with agent identity
-      const { data: assistantMsg } = await supabase
-        .from('ai_messages')
-        .insert({
-          thread_id: threadId,
-          role: 'assistant',
-          content: assistantContent,
-          agent_type: agentType,
-          metadata: result.metadata || {},
-          agent_id: agentMeta?.id || null,
-          agent_name: agentMeta?.name || null,
-          agent_color: agentMeta?.color || null,
-        } as any)
-        .select()
-        .single();
-
-      if (assistantMsg) setMessages(prev => [...prev, assistantMsg as unknown as AIMessage]);
-
-      // Update thread
       await supabase
         .from('ai_threads')
-        .update({
-          last_message_at: new Date().toISOString(),
-          message_count: messages.length + 2,
-        })
+        .update({ last_message_at: new Date().toISOString(), message_count: messages.length + 2 })
         .eq('thread_id', threadId);
     } catch (err: any) {
       const errorContent = `Erro ao contactar o agente: ${err.message}`;
@@ -145,7 +187,79 @@ export function useAIChat(threadId: string | undefined) {
     } finally {
       setSending(false);
       setAgentStatus(null);
+      setRespondingAgent(null);
     }
+  };
+
+  const sendRound = async (content: string, agents: AgentMeta[]) => {
+    if (!threadId || !user || !content.trim() || agents.length === 0) return;
+    setSending(true);
+
+    // Save user message
+    const { data: userMsg } = await supabase
+      .from('ai_messages')
+      .insert({ thread_id: threadId, role: 'user', content } as any)
+      .select()
+      .single();
+    if (userMsg) setMessages(prev => [...prev, userMsg as unknown as AIMessage]);
+
+    const settings = await getSettings();
+    if (!settings?.api_url) {
+      const errorMsg = 'Configure a URL da API em Configurações do AI Lab.';
+      const { data: errMsg } = await supabase
+        .from('ai_messages')
+        .insert({ thread_id: threadId, role: 'assistant', content: errorMsg } as any)
+        .select()
+        .single();
+      if (errMsg) setMessages(prev => [...prev, errMsg as unknown as AIMessage]);
+      setSending(false);
+      setAgentStatus(null);
+      setRespondingAgent(null);
+      return;
+    }
+
+    const isMultiAgent = agents.length > 1;
+
+    for (let i = 0; i < agents.length; i++) {
+      const agent = agents[i];
+      setAgentStatus('pensando');
+      setRespondingAgent({ name: agent.name, color: agent.color });
+
+      try {
+        // Fetch fresh history (includes previous agents' responses from this round)
+        const history = await fetchHistory();
+        const assistantContent = await callAgent(content, agent, history, settings, isMultiAgent);
+        const msg = await saveAssistantMessage(assistantContent, agent);
+        if (msg) setMessages(prev => [...prev, msg]);
+      } catch (err: any) {
+        const errorContent = `Erro ao contactar ${agent.name}: ${err.message}`;
+        const { data: errMsg } = await supabase
+          .from('ai_messages')
+          .insert({
+            thread_id: threadId,
+            role: 'assistant',
+            content: errorContent,
+            agent_type: agent.slug,
+            agent_id: agent.id,
+            agent_name: agent.name,
+            agent_color: agent.color,
+          } as any)
+          .select()
+          .single();
+        if (errMsg) setMessages(prev => [...prev, errMsg as unknown as AIMessage]);
+      }
+    }
+
+    // Update thread
+    const currentCount = messages.length + 1 + agents.length;
+    await supabase
+      .from('ai_threads')
+      .update({ last_message_at: new Date().toISOString(), message_count: currentCount })
+      .eq('thread_id', threadId);
+
+    setSending(false);
+    setAgentStatus(null);
+    setRespondingAgent(null);
   };
 
   const toggleFavorite = async (messageId: string, current: boolean) => {
@@ -153,5 +267,5 @@ export function useAIChat(threadId: string | undefined) {
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_favorited: !current } : m));
   };
 
-  return { messages, loading, sending, agentStatus, sendMessage, toggleFavorite, refetch: loadHistory };
+  return { messages, loading, sending, agentStatus, respondingAgent, sendMessage, sendRound, toggleFavorite, refetch: loadHistory };
 }

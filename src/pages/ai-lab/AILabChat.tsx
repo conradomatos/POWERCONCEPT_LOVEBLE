@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { useAIChat } from '@/hooks/ai-lab/useAIChat';
@@ -11,18 +11,53 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Bot } from 'lucide-react';
 import { AGENT_ICONS } from '@/lib/agent-icons';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AILabChat() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
-  const { messages, loading, sending, agentStatus, sendMessage, toggleFavorite } = useAIChat(threadId);
+  const { messages, loading, sending, agentStatus, respondingAgent, sendMessage, sendRound, toggleFavorite } = useAIChat(threadId);
   const { threads } = useAIThreads();
   const { agents } = useAIAgents();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [selectedAgentSlug, setSelectedAgentSlug] = useState('default');
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>(['default']);
+  const initializedRef = useRef(false);
 
   const thread = threads.find(t => t.thread_id === threadId);
-  const selectedAgent = agents.find(a => a.slug === selectedAgentSlug) || agents[0];
+
+  // Restore active_agents from thread on load
+  useEffect(() => {
+    if (thread && !initializedRef.current) {
+      const stored = (thread as any).active_agents as string[] | undefined;
+      if (stored && stored.length > 0) {
+        setSelectedSlugs(stored);
+      }
+      initializedRef.current = true;
+    }
+  }, [thread]);
+
+  // Persist active_agents when selection changes
+  const persistActiveAgents = useCallback(async (slugs: string[]) => {
+    if (!threadId) return;
+    await supabase
+      .from('ai_threads')
+      .update({ active_agents: slugs } as any)
+      .eq('thread_id', threadId);
+  }, [threadId]);
+
+  const toggleAgent = (slug: string) => {
+    setSelectedSlugs(prev => {
+      let next: string[];
+      if (prev.includes(slug)) {
+        next = prev.filter(s => s !== slug);
+        if (next.length === 0) return prev; // keep at least 1
+      } else {
+        next = [...prev, slug];
+      }
+      persistActiveAgents(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -30,14 +65,30 @@ export default function AILabChat() {
     }
   }, [messages, agentStatus]);
 
+  const activeAgents = agents.filter(a => a.is_active);
+  const selectedAgents = activeAgents.filter(a => selectedSlugs.includes(a.slug));
+  const primaryAgent = selectedAgents[0] || activeAgents[0];
+
   const handleSend = (content: string) => {
-    if (!selectedAgent) return;
-    sendMessage(content, selectedAgent.slug, {
-      id: selectedAgent.id,
-      name: selectedAgent.name,
-      color: selectedAgent.color,
-      system_prompt: selectedAgent.system_prompt,
+    if (!primaryAgent) return;
+    sendMessage(content, primaryAgent.slug, {
+      id: primaryAgent.id,
+      name: primaryAgent.name,
+      color: primaryAgent.color,
+      system_prompt: primaryAgent.system_prompt,
     });
+  };
+
+  const handleSendRound = (content: string) => {
+    if (selectedAgents.length === 0) return;
+    const agentMetas = selectedAgents.map(a => ({
+      id: a.id,
+      name: a.name,
+      color: a.color,
+      system_prompt: a.system_prompt,
+      slug: a.slug,
+    }));
+    sendRound(content, agentMetas);
   };
 
   return (
@@ -55,16 +106,16 @@ export default function AILabChat() {
           {thread && <Badge variant="outline">{thread.agent_type}</Badge>}
         </div>
 
-        {/* Agent Selector */}
-        {agents.length > 0 && (
+        {/* Agent Selector (multi-toggle) */}
+        {activeAgents.length > 0 && (
           <div className="flex gap-2 py-3 overflow-x-auto">
-            {agents.filter(a => a.is_active).map(agent => {
+            {activeAgents.map(agent => {
               const Icon = AGENT_ICONS[agent.icon] || Bot;
-              const isSelected = agent.slug === selectedAgentSlug;
+              const isSelected = selectedSlugs.includes(agent.slug);
               return (
                 <button
                   key={agent.id}
-                  onClick={() => setSelectedAgentSlug(agent.slug)}
+                  onClick={() => toggleAgent(agent.slug)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors border"
                   style={isSelected
                     ? { backgroundColor: agent.color, color: '#fff', borderColor: agent.color }
@@ -93,10 +144,20 @@ export default function AILabChat() {
         </div>
 
         {/* Status Banner */}
-        {agentStatus && <AgentStatusBanner agentType={selectedAgent?.slug} />}
+        {agentStatus && (
+          <AgentStatusBanner
+            agentName={respondingAgent?.name}
+            agentColor={respondingAgent?.color}
+          />
+        )}
 
         {/* Input */}
-        <ChatInput onSend={handleSend} disabled={sending} />
+        <ChatInput
+          onSend={handleSend}
+          onSendRound={handleSendRound}
+          showRoundButton={selectedSlugs.length > 1}
+          disabled={sending}
+        />
       </div>
     </Layout>
   );
