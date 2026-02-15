@@ -1,148 +1,46 @@
 
 
-# Fase 2 — Multi-Agente na Mesma Thread
+# Correcao do Historico no useAIChat
 
-## Resumo
+## Problema
 
-Permitir que o usuario convoque multiplos agentes numa mesma conversa. Cada agente le o historico completo (incluindo respostas de outros agentes) e responde com sua perspectiva. Inclui modo "Rodada Completa" onde todos os agentes convocados respondem em sequencia.
+A funcao `fetchHistory` (linhas 61-75) ja busca todas as mensagens da thread (user + assistant) com limit 20 e inclui `agent_name`. Porem, o campo `agent_name` e enviado como campo separado no objeto, e nao prefixado no `content`. Isso faz com que o backend (LLM) nao consiga distinguir qual agente disse o que, pois recebe apenas `role: "assistant"` sem identificacao no conteudo.
 
----
+## Solucao
 
-## 1. Modelo de Dados
+Alterar a funcao `fetchHistory` para prefixar o conteudo das mensagens assistant com `[agent_name]:` quando disponivel, e remover o campo `agent_name` separado do objeto retornado (simplificando o payload).
 
-### 1.1 Nova coluna em `ai_threads`
+## Alteracao unica
 
-Adicionar campo para rastrear quais agentes estao ativos na thread:
+**Arquivo:** `src/hooks/ai-lab/useAIChat.ts`
 
-```text
-active_agents text[] DEFAULT '{default}'
+**Trecho afetado:** funcao `fetchHistory` (linhas 61-75)
+
+Substituir o mapeamento atual:
+
+```typescript
+return (historyData || []).map(m => ({
+  role: m.role,
+  content: m.content,
+  ...(m.agent_name ? { agent_name: m.agent_name } : {}),
+}));
 ```
 
-Isso permite persistir a selecao de agentes entre sessoes.
+Por:
 
-### 1.2 Sem novas tabelas
-
-Nenhuma tabela adicional necessaria. As mensagens ja possuem `agent_id`, `agent_name`, `agent_color` da Fase 1.
-
----
-
-## 2. Mudancas na UI do Chat (`AILabChat.tsx`)
-
-### 2.1 Seletor multi-agente
-
-- Trocar selecao unica por selecao multipla (array de slugs)
-- Chips agora funcionam como toggles: clicar ativa/desativa o agente
-- Minimo 1 agente sempre ativo
-- Agentes ativos tem fundo colorido; inativos tem borda
-
-### 2.2 Modos de envio
-
-Dois botoes no input area:
-
-- **Enviar** (icone Send): envia para o primeiro agente selecionado (comportamento atual)
-- **Todos Respondem** (icone Users): dispara rodada completa com todos os agentes ativos
-
-### 2.3 Loading state por agente
-
-- Quando em rodada completa, exibir indicador de "pensando" com nome e cor do agente que esta respondendo no momento
-- Banner atualiza conforme cada agente responde
-
----
-
-## 3. Logica de Rodada Completa (`useAIChat.ts`)
-
-### 3.1 Nova funcao `sendRound`
-
-```text
-sendRound(content, agents[]) =>
-  1. Salva mensagem do usuario
-  2. Para cada agente em sequencia:
-     a. Busca historico atualizado (inclui respostas anteriores da rodada)
-     b. Chama POST /chat com agent_type e system_prompt do agente
-     c. Salva resposta com agent_id/name/color
-     d. Adiciona ao state de mensagens
-     e. Atualiza status banner com nome do proximo agente
-  3. Atualiza thread
+```typescript
+return (historyData || []).map(m => ({
+  role: m.role,
+  content: m.role === 'assistant' && m.agent_name
+    ? `[${m.agent_name}]: ${m.content}`
+    : m.content,
+}));
 ```
 
-### 3.2 Historico enriquecido
-
-No payload `history`, incluir `agent_name` junto com `role` e `content` para que cada agente saiba quem disse o que:
-
-```text
-history: [
-  { role: "user", content: "..." },
-  { role: "assistant", content: "...", agent_name: "Engenheiro de Custos" },
-  { role: "assistant", content: "...", agent_name: "Auditor Fiscal" },
-]
-```
-
-### 3.3 System prompt de reuniao
-
-Quando ha multiplos agentes ativos, adicionar prefixo ao system_prompt:
-
-```text
-"Voce esta numa reuniao virtual com outros especialistas. 
-Considere as respostas anteriores dos colegas antes de dar sua opiniao. 
-Se concordar, complemente. Se discordar, explique por que."
-```
-
----
-
-## 4. Mudancas no `ChatInput.tsx`
-
-- Receber prop `showRoundButton: boolean` (true quando mais de 1 agente ativo)
-- Adicionar botao "Todos Respondem" ao lado do botao de enviar
-- Callback `onSendRound` separado do `onSend`
-
----
-
-## 5. Persistencia de agentes ativos na thread
-
-### 5.1 Hook `useAIThreads`
-
-- Ao ativar/desativar agentes no chat, salvar array `active_agents` na thread via update
-- Ao abrir uma thread existente, restaurar selecao de agentes a partir desse campo
-
----
-
-## 6. Detalhes tecnicos
-
-### Arquivos modificados
-
-| Arquivo | Alteracao |
-|---|---|
-| Migracao SQL | Adicionar `active_agents text[]` em `ai_threads` |
-| `src/hooks/ai-lab/useAIChat.ts` | Adicionar funcao `sendRound`, enriquecer historico com `agent_name` |
-| `src/pages/ai-lab/AILabChat.tsx` | Multi-selecao de agentes, botao "Todos Respondem", loading por agente |
-| `src/components/ai-lab/ChatInput.tsx` | Novo botao de rodada completa |
-| `src/components/ai-lab/AgentStatusBanner.tsx` | Exibir nome/cor do agente respondendo |
-
-### Fluxo do modo "Todos Respondem"
-
-```text
-Usuario clica "Todos Respondem"
-  |
-  v
-Salva mensagem do usuario no Supabase
-  |
-  v
-Loop sequencial pelos agentes ativos:
-  |
-  +---> Busca historico atualizado (com respostas ja dadas nesta rodada)
-  +---> POST /chat { message, agent_type, system_prompt (com prefixo reuniao), history }
-  +---> Salva resposta do agente com metadados (agent_id, name, color)
-  +---> Atualiza UI com nova mensagem
-  +---> Atualiza banner: "Agente X respondeu. Agente Y pensando..."
-  |
-  v
-Todos responderam → limpa status, atualiza thread
-```
-
-### Consideracoes
-
-- Chamadas ao backend sao **sequenciais** (nao paralelas) para que cada agente veja as respostas anteriores
-- Se um agente falhar, os demais continuam (erro salvo como mensagem do agente que falhou)
-- Timeout de 120s por agente mantido
-- Header `ngrok-skip-browser-warning: true` mantido em todas as chamadas
+Isso garante que:
+- Mensagens do usuario continuam como `{ role: "user", content: "texto" }`
+- Mensagens de assistentes com `agent_name` sao enviadas como `{ role: "assistant", content: "[Engenheiro de Custos]: texto..." }`
+- Mensagens sem `agent_name` (antigas) permanecem sem prefixo
+- O campo `agent_name` separado e removido do payload (desnecessario, pois a informacao agora esta no content)
+- Nenhuma outra alteracao necessaria: a busca ja inclui todas as mensagens da thread, o header `ngrok-skip-browser-warning` ja esta presente, e o limit de 20 ja esta configurado
 
