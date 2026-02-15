@@ -1,156 +1,166 @@
 
 
-# Editor Detalhado de Agentes + System Prompts Dinamicos
+# Editor Completo de Agentes v2
 
 ## Resumo
 
-Tres mudancas principais:
-1. Substituir o modal de criacao/edicao de agentes por uma pagina completa e detalhada
-2. Enviar `temperature` no payload do chat
-3. Atualizar os system prompts dos 3 agentes padrao
+Expansao significativa do sistema de agentes com novos campos no banco, editor em abas profissional, payload de chat enriquecido e system prompts detalhados com nomes/personalidades.
 
 ---
 
-## 1. Modelo de Dados
+## 1. Migracao de Banco de Dados
 
-### 1.1 Novas colunas em `ai_agents`
+Adicionar 7 novas colunas a tabela `ai_agents`:
 
 ```text
-temperature FLOAT DEFAULT 0.3
-max_tokens INTEGER DEFAULT 2000
+knowledge_base       TEXT     NULL
+example_responses    TEXT     NULL
+model                TEXT     DEFAULT 'gpt-4o'
+debate_posture       TEXT     DEFAULT 'critical'
+priority_order       INTEGER  DEFAULT 0
+tags                 TEXT[]   NULL
+max_response_length  TEXT     DEFAULT 'medium'
 ```
 
-### 1.2 Atualizar system prompts dos agentes padrao
-
-Via migration SQL, atualizar os 3 agentes existentes (por slug) com os novos system prompts detalhados e temperaturas especificas:
-- `default` (Assistente Geral): temperature 0.3
-- `engineer` (Engenheiro de Custos): temperature 0.2
-- `auditor` (Auditor Fiscal): temperature 0.1
+Atualizar os 3 agentes padrao (por slug) com os system prompts completos, knowledge_base, example_responses, tags, temperature, model, debate_posture e max_response_length conforme especificado pelo usuario.
 
 ---
 
-## 2. Pagina Completa de Edicao de Agentes
+## 2. Atualizar tipo AIAgent e hook useAIAgents
 
-### 2.1 Nova rota
+**Arquivo:** `src/hooks/ai-lab/useAIAgents.ts`
 
-Adicionar em `App.tsx`:
-- `/ai-lab/agents/new` — criar novo agente
-- `/ai-lab/agents/:id/edit` — editar agente existente
+Adicionar ao interface `AIAgent`:
+- `knowledge_base: string | null`
+- `example_responses: string | null`
+- `model: string`
+- `debate_posture: string`
+- `priority_order: number`
+- `tags: string[] | null`
+- `max_response_length: string`
 
-### 2.2 Nova pagina `AgentEditor.tsx`
+Adicionar funcao `duplicateAgent` que copia um agente com nome "Copia de [nome]".
 
-Pagina completa (nao modal) com breadcrumb `AI Lab > Agentes > [Nome]` e 4 secoes:
+Atualizar `createAgent` para aceitar todos os novos campos.
 
-**Secao 1 — Identidade**
-- Nome (text input)
-- Slug (text input, auto-gerado a partir do nome, editavel)
-- Descricao curta (text input, max 200 chars com contador)
-- Icone (select com 12 opcoes: bot, calculator, shield-check, hard-hat, briefcase, scale, clipboard-check, users, brain, target, sword, flame)
-- Cor (color picker)
+---
+
+## 3. Expandir agent-icons.ts
+
+**Arquivo:** `src/lib/agent-icons.ts`
+
+Adicionar 3 novos icones: `gavel` (Gavel), `search` (Search), `alert-triangle` (AlertTriangle) ao mapa e ao array de opcoes.
+
+---
+
+## 4. Reescrever AgentEditor.tsx com Abas
+
+**Arquivo:** `src/pages/ai-lab/AgentEditor.tsx`
+
+Substituir o layout atual de Cards sequenciais por um layout com `Tabs` (5 abas):
+
+**Aba 1 - Identidade:**
+- Nome, Slug, Descricao (200 chars com contador)
+- Icone (select com 15 opcoes e preview visual)
+- Cor (color picker + input hex)
+- Tags (input de texto + chips removiveis, sugestoes pre-definidas)
 - Ativo/Inativo (switch)
+- Preview do card ao final
 
-**Secao 2 — Personalidade e Comportamento**
-- Label: "Instrucao Principal — Define quem o agente e, como se comporta, e o que ele sabe"
-- Textarea grande (min 10 linhas, com contador de caracteres)
-- Texto de ajuda abaixo
+**Aba 2 - Personalidade:**
+- Layout 2 colunas no desktop (md:grid-cols-5, coluna esquerda 3/5, direita 2/5)
+- Coluna esquerda: System Prompt (textarea 15 linhas, monospace, contador de caracteres, labels e dicas)
+- Coluna direita: Knowledge Base (textarea 10 linhas, monospace, contador, labels e dicas)
+- Abaixo (largura total): Example Responses (textarea 8 linhas, monospace, contador, labels e dicas)
 
-**Secao 3 — Parametros Tecnicos**
-- Temperatura (slider 0.0-1.0, step 0.1)
-  - Label "Criatividade"
-  - Texto auxiliar sobre o range
-- Max tokens (number input, 100-4000, default 2000)
-  - Label "Tamanho maximo da resposta"
+**Aba 3 - Parametros Tecnicos:**
+- Grid 2x2 de cards:
+  - Card 1: Modelo de IA (select: gpt-4o, gpt-4o-mini)
+  - Card 2: Temperatura (slider 0-1, step 0.05, labels visuais)
+  - Card 3: Tamanho da Resposta (select: short, medium, long, unlimited)
+  - Card 4: Postura em Debate (select: aggressive, critical, neutral, collaborative)
 
-**Secao 4 — Preview**
-- Campo de teste para digitar pergunta
-- Botao "Testar Agente" que chama `/chat` com o system_prompt configurado
-- Exibe resposta abaixo para validacao
+**Aba 4 - Acesso e Metadados:**
+- Nivel de acesso minimo (select: strategic, tactical, operational)
+- Prioridade (number input 0-10)
+- Data de criacao (readonly)
+- Ultima atualizacao (readonly)
 
-Botoes "Salvar" e "Cancelar" fixos no bottom.
+**Aba 5 - Preview e Teste:**
+- Campo de teste (textarea)
+- Botao "Testar Agente" — envia para `/chat` com system_prompt, knowledge_base, example_responses, temperature, model
+- Area de resposta
 
-### 2.3 Atualizar `AILabAgents.tsx`
-
-- Remover o `AgentCreateDialog` (modal)
-- Botao "Novo Agente" navega para `/ai-lab/agents/new`
-- Botao "Editar" no `AgentCard` navega para `/ai-lab/agents/:id/edit`
-
-### 2.4 Atualizar `agent-icons.ts`
-
-Adicionar 4 novos icones: `brain`, `target`, `sword` (Swords), `flame`
+Botoes "Salvar" e "Cancelar" fixos no bottom (sticky).
 
 ---
 
-## 3. Envio Dinamico no Chat
+## 5. Reformular AgentCard.tsx
 
-### 3.1 Atualizar `useAIChat.ts`
+**Arquivo:** `src/components/ai-lab/AgentCard.tsx`
 
-No payload do `callAgent`, adicionar o campo `temperature`:
+Cards maiores mostrando:
+- Icone colorido, nome, descricao
+- Tags como badges
+- Modelo, temperatura, postura de debate como badges menores
+- Badge de status (Ativo verde, Inativo cinza)
+- Botoes: Editar (navega), Duplicar (cria copia), Excluir (com confirmacao)
+
+---
+
+## 6. Atualizar AILabAgents.tsx
+
+**Arquivo:** `src/pages/ai-lab/AILabAgents.tsx`
+
+- Adicionar filtro por tags no topo
+- Botao Duplicar por agente
+- Confirmacao antes de excluir
+- Usar a funcao `duplicateAgent` do hook
+
+---
+
+## 7. Atualizar payload do chat
+
+**Arquivo:** `src/hooks/ai-lab/useAIChat.ts`
+
+Expandir `AgentMeta` interface com todos os novos campos:
+- `knowledge_base?: string | null`
+- `example_responses?: string | null`
+- `model?: string`
+- `debate_posture?: string`
+- `max_response_length?: string`
+
+No `callAgent`, enviar todos os campos no body (omitir null):
 
 ```text
 body: {
-  message,
-  thread_id,
-  user_id,
-  agent_type,
-  system_prompt,
-  temperature,    // NOVO
+  message, thread_id, user_id, agent_type,
+  system_prompt, knowledge_base, example_responses,
+  temperature, model, max_tokens, debate_posture,
   history
 }
 ```
 
-### 3.2 Atualizar `AgentMeta` interface
+---
 
-Adicionar `temperature` e `max_tokens` ao `AgentMeta`.
+## 8. Atualizar AILabChat.tsx
 
-### 3.3 Atualizar `AILabChat.tsx`
+**Arquivo:** `src/pages/ai-lab/AILabChat.tsx`
 
-Passar `temperature` e `max_tokens` no objeto agentMeta ao chamar `sendMessage` e `sendRound`.
-
-### 3.4 Atualizar `useAIAgents.ts`
-
-Adicionar `temperature` e `max_tokens` ao tipo `AIAgent`.
+Passar todos os novos campos do agente no objeto `agentMeta` em `handleSend` e `handleSendRound`.
 
 ---
 
-## 4. Detalhes tecnicos
+## 9. Resumo de arquivos
 
-### Arquivos criados
-
-| Arquivo | Descricao |
+| Arquivo | Acao |
 |---|---|
-| `src/pages/ai-lab/AgentEditor.tsx` | Pagina completa de edicao |
-
-### Arquivos modificados
-
-| Arquivo | Alteracao |
-|---|---|
-| Migration SQL | Colunas `temperature`, `max_tokens`; update prompts dos 3 agentes |
-| `src/App.tsx` | Rotas `/ai-lab/agents/new` e `/ai-lab/agents/:id/edit` |
-| `src/lib/agent-icons.ts` | 4 novos icones (brain, target, swords, flame) |
-| `src/hooks/ai-lab/useAIAgents.ts` | Campos `temperature`, `max_tokens` no tipo |
-| `src/hooks/ai-lab/useAIChat.ts` | Enviar `temperature` no payload; atualizar `AgentMeta` |
-| `src/pages/ai-lab/AILabAgents.tsx` | Navegacao para pagina de edicao em vez de modal |
-| `src/pages/ai-lab/AILabChat.tsx` | Passar `temperature`/`max_tokens` no agentMeta |
-| `src/components/ai-lab/AgentCard.tsx` | Link de edicao navega para rota |
-
-### Fluxo do Preview/Teste
-
-```text
-Admin preenche system_prompt + temperature
-  |
-  v
-Digita pergunta no campo de teste
-  |
-  v
-Clica "Testar Agente"
-  |
-  v
-Busca settings do usuario (api_url, api_key)
-  |
-  v
-POST /chat { message, system_prompt, temperature, agent_type: slug }
-  |
-  v
-Exibe resposta no card abaixo do botao
-```
+| Migration SQL | Novas colunas + update dos 3 agentes padrao |
+| `src/hooks/ai-lab/useAIAgents.ts` | Novos campos no tipo + duplicateAgent |
+| `src/lib/agent-icons.ts` | 3 novos icones |
+| `src/pages/ai-lab/AgentEditor.tsx` | Reescrita completa com 5 abas |
+| `src/components/ai-lab/AgentCard.tsx` | Card expandido com tags, modelo, duplicar |
+| `src/pages/ai-lab/AILabAgents.tsx` | Filtro por tags, duplicar, confirmacao |
+| `src/hooks/ai-lab/useAIChat.ts` | AgentMeta expandido, payload completo |
+| `src/pages/ai-lab/AILabChat.tsx` | Passar novos campos no agentMeta |
 
