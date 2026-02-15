@@ -1,180 +1,148 @@
 
 
-# Sistema de Agentes no AI Lab -- Fase 1
+# Fase 2 — Multi-Agente na Mesma Thread
 
 ## Resumo
 
-Reestruturar a tabela `ai_agents` para ser compartilhada (nao mais por usuario), adicionar campos de identidade visual nas mensagens, criar seletor de agente no chat e melhorar a tela de gestao de agentes.
+Permitir que o usuario convoque multiplos agentes numa mesma conversa. Cada agente le o historico completo (incluindo respostas de outros agentes) e responde com sua perspectiva. Inclui modo "Rodada Completa" onde todos os agentes convocados respondem em sequencia.
 
 ---
 
-## 1. Migracao de Banco de Dados
+## 1. Modelo de Dados
 
-### 1.1 Reestruturar `ai_agents`
+### 1.1 Nova coluna em `ai_threads`
 
-A tabela atual tem `user_id` e uma RLS por usuario. O requisito pede agentes compartilhados com leitura para todos autenticados e escrita apenas para admins.
+Adicionar campo para rastrear quais agentes estao ativos na thread:
 
-```sql
--- Remover coluna user_id e RLS antiga
-ALTER TABLE ai_agents DROP COLUMN user_id;
-DROP POLICY IF EXISTS "Users manage own agents" ON ai_agents;
-
--- Adicionar novas colunas
-ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES profiles(user_id);
-ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-
--- Renomear colunas para alinhar com o spec
-ALTER TABLE ai_agents RENAME COLUMN avatar_icon TO icon;
-ALTER TABLE ai_agents RENAME COLUMN avatar_color TO color;
-
--- Novas RLS
-CREATE POLICY "Authenticated read active agents"
-  ON ai_agents FOR SELECT TO authenticated
-  USING (is_active = true);
-
-CREATE POLICY "Admins manage agents"
-  ON ai_agents FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin') OR public.is_super_admin(auth.uid()))
-  WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.is_super_admin(auth.uid()));
+```text
+active_agents text[] DEFAULT '{default}'
 ```
 
-### 1.2 Dados seed (3 agentes padrao)
+Isso permite persistir a selecao de agentes entre sessoes.
 
-Inserir os 3 agentes diretamente na migracao, substituindo os antigos (que eram por usuario):
+### 1.2 Sem novas tabelas
 
-```sql
-DELETE FROM ai_agents; -- limpar dados antigos per-user
+Nenhuma tabela adicional necessaria. As mensagens ja possuem `agent_id`, `agent_name`, `agent_color` da Fase 1.
 
-INSERT INTO ai_agents (name, slug, icon, color, description, system_prompt) VALUES
-('Assistente Geral', 'default', 'bot', '#F59E0B',
- 'Assistente especializado em gestao de projetos de construcao civil',
- 'Voce e um assistente especializado em gestao de projetos de construcao civil. Responda sempre em portugues brasileiro. Seja direto e pratico.'),
-('Engenheiro de Custos', 'engineer', 'calculator', '#3B82F6',
- 'Especialista em orcamentacao, SINAPI, SICRO e composicoes de custo',
- 'Voce e um Engenheiro de Custos senior especializado em orcamentacao de obras. Responda em portugues brasileiro. Seja tecnico e preciso.'),
-('Auditor Fiscal', 'auditor', 'shield-check', '#EF4444',
- 'Especialista em conformidade, normas e fiscalizacao de obras',
- 'Voce e um Auditor Fiscal especializado em obras publicas e privadas. Responda em portugues brasileiro. Seja rigoroso e detalhista.');
+---
+
+## 2. Mudancas na UI do Chat (`AILabChat.tsx`)
+
+### 2.1 Seletor multi-agente
+
+- Trocar selecao unica por selecao multipla (array de slugs)
+- Chips agora funcionam como toggles: clicar ativa/desativa o agente
+- Minimo 1 agente sempre ativo
+- Agentes ativos tem fundo colorido; inativos tem borda
+
+### 2.2 Modos de envio
+
+Dois botoes no input area:
+
+- **Enviar** (icone Send): envia para o primeiro agente selecionado (comportamento atual)
+- **Todos Respondem** (icone Users): dispara rodada completa com todos os agentes ativos
+
+### 2.3 Loading state por agente
+
+- Quando em rodada completa, exibir indicador de "pensando" com nome e cor do agente que esta respondendo no momento
+- Banner atualiza conforme cada agente responde
+
+---
+
+## 3. Logica de Rodada Completa (`useAIChat.ts`)
+
+### 3.1 Nova funcao `sendRound`
+
+```text
+sendRound(content, agents[]) =>
+  1. Salva mensagem do usuario
+  2. Para cada agente em sequencia:
+     a. Busca historico atualizado (inclui respostas anteriores da rodada)
+     b. Chama POST /chat com agent_type e system_prompt do agente
+     c. Salva resposta com agent_id/name/color
+     d. Adiciona ao state de mensagens
+     e. Atualiza status banner com nome do proximo agente
+  3. Atualiza thread
 ```
 
-### 1.3 Adicionar campos de identidade nas mensagens
+### 3.2 Historico enriquecido
 
-```sql
-ALTER TABLE ai_messages
-  ADD COLUMN IF NOT EXISTS agent_id uuid REFERENCES ai_agents(id),
-  ADD COLUMN IF NOT EXISTS agent_name text,
-  ADD COLUMN IF NOT EXISTS agent_color text;
+No payload `history`, incluir `agent_name` junto com `role` e `content` para que cada agente saiba quem disse o que:
+
+```text
+history: [
+  { role: "user", content: "..." },
+  { role: "assistant", content: "...", agent_name: "Engenheiro de Custos" },
+  { role: "assistant", content: "...", agent_name: "Auditor Fiscal" },
+]
+```
+
+### 3.3 System prompt de reuniao
+
+Quando ha multiplos agentes ativos, adicionar prefixo ao system_prompt:
+
+```text
+"Voce esta numa reuniao virtual com outros especialistas. 
+Considere as respostas anteriores dos colegas antes de dar sua opiniao. 
+Se concordar, complemente. Se discordar, explique por que."
 ```
 
 ---
 
-## 2. Alteracoes no Hook `useAIAgents`
+## 4. Mudancas no `ChatInput.tsx`
 
-**Arquivo:** `src/hooks/ai-lab/useAIAgents.ts`
-
-- Remover toda logica de `user_id` (filtro e insert)
-- Remover seed automatico (agentes agora vem da migracao)
-- Atualizar interface `AIAgent` para usar `icon` e `color` em vez de `avatar_icon` e `avatar_color`, e adicionar `system_prompt`, `created_by`, `updated_at`
-- `fetchAgents`: buscar todos sem filtro de user_id, ordenar por created_at
-- `createAgent`: inserir com `created_by: user.id`
-- Verificacao de admin para operacoes de escrita fica na UI (RLS protege no banco)
+- Receber prop `showRoundButton: boolean` (true quando mais de 1 agente ativo)
+- Adicionar botao "Todos Respondem" ao lado do botao de enviar
+- Callback `onSendRound` separado do `onSend`
 
 ---
 
-## 3. Tela de Gestao de Agentes
+## 5. Persistencia de agentes ativos na thread
 
-**Arquivos:** `src/pages/ai-lab/AILabAgents.tsx`, `src/components/ai-lab/AgentCard.tsx`, `src/components/ai-lab/AgentCreateDialog.tsx`
+### 5.1 Hook `useAIThreads`
 
-### AgentCard
-- Atualizar refs de `avatar_icon`/`avatar_color` para `icon`/`color`
-- Expandir `iconMap` com os novos icones: `bot`, `calculator`, `shield-check`, `hard-hat`, `briefcase`, `scale`, `clipboard-check`, `users` (usando nomes kebab-case do Lucide mapeados para componentes)
-- Botoes de editar/excluir/toggle so aparecem se usuario `hasRole('admin')` ou `isSuperAdmin()`
-
-### AgentCreateDialog
-- Adicionar campo `system_prompt` (textarea grande)
-- Campo de icone como `<Select>` com as 8 opcoes pre-definidas
-- Atualizar refs de campo para `icon`/`color`
-- Incluir `system_prompt` no submit
-
-### AILabAgents
-- Botao "Novo Agente" visivel apenas para admins
-- Usar `useAuth().hasRole` para controlar visibilidade
+- Ao ativar/desativar agentes no chat, salvar array `active_agents` na thread via update
+- Ao abrir uma thread existente, restaurar selecao de agentes a partir desse campo
 
 ---
 
-## 4. Seletor de Agente no Chat
+## 6. Detalhes tecnicos
 
-**Arquivo:** `src/pages/ai-lab/AILabChat.tsx`
+### Arquivos modificados
 
-- Importar `useAIAgents` para buscar agentes ativos
-- Adicionar estado `selectedAgentSlug` (default: `'default'`)
-- Renderizar barra de chips horizontal entre o header e as mensagens
-- Cada chip mostra icone Lucide + nome do agente
-- Chip selecionado: `background-color` = cor do agente, texto branco
-- Chip nao selecionado: borda na cor do agente, texto na cor, fundo transparente
-- Ao enviar mensagem, usar `selectedAgentSlug` no campo `agent_type`
-
----
-
-## 5. Payload do Chat com system_prompt
-
-**Arquivo:** `src/hooks/ai-lab/useAIChat.ts`
-
-- Receber `agentId`, `agentName`, `agentColor` e `systemPrompt` como parametros opcionais em `sendMessage`
-- Incluir `system_prompt` no payload JSON enviado ao `/chat`
-- Ao salvar mensagem do assistant, incluir `agent_id`, `agent_name`, `agent_color`
-- Atualizar interface `AIMessage` com os 3 novos campos opcionais
-
----
-
-## 6. Identidade Visual nas Mensagens
-
-**Arquivo:** `src/components/ai-lab/ChatMessage.tsx`
-
-- Se `message.agent_name` e `message.agent_color` existirem, exibir badge acima do conteudo: circulo colorido + nome do agente em texto pequeno
-- Se nao existirem, exibir "Assistente"
-- Icone do avatar do assistant usa a cor do agente (se disponivel) em vez de cinza padrao
-
----
-
-## Detalhes tecnicos
-
-### Mapeamento de icones (AgentCard e Chat)
-
-```typescript
-import {
-  Bot, Calculator, ShieldCheck, HardHat,
-  Briefcase, Scale, ClipboardCheck, Users
-} from 'lucide-react';
-
-const AGENT_ICONS: Record<string, React.ComponentType<{className?: string}>> = {
-  'bot': Bot,
-  'calculator': Calculator,
-  'shield-check': ShieldCheck,
-  'hard-hat': HardHat,
-  'briefcase': Briefcase,
-  'scale': Scale,
-  'clipboard-check': ClipboardCheck,
-  'users': Users,
-};
-```
-
-### Fluxo de envio de mensagem atualizado
-
-1. Usuario seleciona agente no seletor (estado local)
-2. Ao clicar enviar, `AILabChat` chama `sendMessage(content, agent.slug, agent.id, agent.name, agent.color, agent.system_prompt)`
-3. `useAIChat.sendMessage` inclui `system_prompt` no payload e salva metadados do agente na mensagem assistant
-
-### Arquivos criados/modificados
-
-| Arquivo | Acao |
+| Arquivo | Alteracao |
 |---|---|
-| Migracao SQL | Criar (reestruturar ai_agents, seed, ai_messages cols) |
-| `src/hooks/ai-lab/useAIAgents.ts` | Modificar (remover user_id, atualizar campos) |
-| `src/hooks/ai-lab/useAIChat.ts` | Modificar (novos params, payload, salvar agent info) |
-| `src/pages/ai-lab/AILabAgents.tsx` | Modificar (admin check) |
-| `src/pages/ai-lab/AILabChat.tsx` | Modificar (seletor de agente) |
-| `src/components/ai-lab/AgentCard.tsx` | Modificar (icones, admin check) |
-| `src/components/ai-lab/AgentCreateDialog.tsx` | Modificar (system_prompt, select icone) |
-| `src/components/ai-lab/ChatMessage.tsx` | Modificar (badge do agente) |
+| Migracao SQL | Adicionar `active_agents text[]` em `ai_threads` |
+| `src/hooks/ai-lab/useAIChat.ts` | Adicionar funcao `sendRound`, enriquecer historico com `agent_name` |
+| `src/pages/ai-lab/AILabChat.tsx` | Multi-selecao de agentes, botao "Todos Respondem", loading por agente |
+| `src/components/ai-lab/ChatInput.tsx` | Novo botao de rodada completa |
+| `src/components/ai-lab/AgentStatusBanner.tsx` | Exibir nome/cor do agente respondendo |
+
+### Fluxo do modo "Todos Respondem"
+
+```text
+Usuario clica "Todos Respondem"
+  |
+  v
+Salva mensagem do usuario no Supabase
+  |
+  v
+Loop sequencial pelos agentes ativos:
+  |
+  +---> Busca historico atualizado (com respostas ja dadas nesta rodada)
+  +---> POST /chat { message, agent_type, system_prompt (com prefixo reuniao), history }
+  +---> Salva resposta do agente com metadados (agent_id, name, color)
+  +---> Atualiza UI com nova mensagem
+  +---> Atualiza banner: "Agente X respondeu. Agente Y pensando..."
+  |
+  v
+Todos responderam → limpa status, atualiza thread
+```
+
+### Consideracoes
+
+- Chamadas ao backend sao **sequenciais** (nao paralelas) para que cada agente veja as respostas anteriores
+- Se um agente falhar, os demais continuam (erro salvo como mensagem do agente que falhou)
+- Timeout de 120s por agente mantido
+- Header `ngrok-skip-browser-warning: true` mantido em todas as chamadas
 
