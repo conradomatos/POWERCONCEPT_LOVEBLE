@@ -498,8 +498,8 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
       obs.trim(),                    // S  Observações
       'Outros',                      // T  Tipo de Documento
       codigoIntegracao,              // U  Número do Documento
-      String(seqNum),                // V  Parcela
-      String(valid.length),          // W  Total de Parcelas
+      '',                            // V  Parcela (vazio - conta independente)
+      '',                            // W  Total de Parcelas (vazio)
       '',                            // X  Número do Pedido
       codigoIntegracao,              // Y  Nota Fiscal
     ]);
