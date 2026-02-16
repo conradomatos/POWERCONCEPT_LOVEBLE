@@ -258,21 +258,7 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
       L('');
     }
 
-    const nfsCobertas = r.divergencias.filter(d => d.tipo === 'H');
-    if (nfsCobertas.length > 0) {
-      L('### NFs cobertas pelo cartão (NÃO lançar)');
-      L('');
-      L('| # | Data | Valor | Fornecedor (Omie) | NF |');
-      L('|---|------|-------|-------------------|-----|');
-      nfsCobertas.forEach((d, i) => {
-        L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${(d.descricao || '').substring(0, 35)} | ${d.nf || ''} |`);
-      });
-      const totalNf = nfsCobertas.reduce((s, d) => s + Math.abs(d.valor), 0);
-      L(`| | | **${formatBRL(totalNf)}** | **${nfsCobertas.length} NFs** | |`);
-      L('');
-    }
-
-    const validImport = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf);
+    const validImport = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno);
     const totalImport = validImport.reduce((s, t) => s + Math.abs(t.valor), 0);
     L(`**Transações para importar:** ${validImport.length} transações, total ${formatBRL(totalImport)}`);
     L('');
@@ -317,7 +303,7 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L(`- [ ] **DUPLICIDADES:** ${divCounts['E']} duplicatas no Omie — remover`);
   }
 
-  const validImportCheck = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf);
+  const validImportCheck = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno);
   if (validImportCheck.length > 0) {
     const totalImportCheck = validImportCheck.reduce((s, t) => s + Math.abs(t.valor), 0);
     L(`- [ ] **CARTÃO:** Importar planilha com ${validImportCheck.length} despesas, total ${formatBRL(totalImportCheck)}`);
@@ -357,8 +343,7 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
     'E': 'DUPLICIDADE',
     'F': 'POSSÍVEL MATCH (REVISAR)',
     'G': 'PREVISTO NÃO REALIZADO',
-    'H': 'CARTÃO - COBERTO POR NF',
-    'I': 'CARTÃO - FALTANDO NO OMIE',
+    'I': 'CARTÃO - IMPORTAR',
   };
 
   const headers = [
@@ -439,7 +424,7 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
   const contaCorrente = CATEGORIAS_CONFIG.conta_corrente || 'CARTAO DE CREDITO';
 
   const valid = r.cartaoTransacoes.filter(t =>
-    !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf
+    !t.isPagamentoFatura && !t.isEstorno
   );
 
   const headers = [
@@ -545,7 +530,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     { label: 'Conciliados', value: String(r.totalConciliados), color: verde },
     { label: 'Divergências', value: String(r.divergencias.length), color: [200, 150, 30] as [number, number, number] },
     { label: 'Em Atraso', value: String(r.divergencias.filter(d => d.tipo === 'B*').length), color: vermelho },
-    { label: 'Cartão Import.', value: String(r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf).length || 0), color: azulEscuro },
+    { label: 'Cartão Import.', value: String(r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno).length || 0), color: azulEscuro },
   ];
 
   const cardW = (pageWidth - 2 * margin - 15) / 4;
@@ -723,7 +708,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
       y = (doc as any).lastAutoTable.finalY + 6;
     }
 
-    const validImport = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf);
+    const validImport = r.cartaoTransacoes.filter(t => !t.isPagamentoFatura && !t.isEstorno);
     const totalImport = validImport.reduce((s, t) => s + Math.abs(t.valor), 0);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
@@ -764,7 +749,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   if (divCounts['C']) checkItems.push({ texto: `VALORES: ${divCounts['C']} com valor divergente - corrigir`, cor: [200, 120, 0] });
   if (divCounts['E']) checkItems.push({ texto: `DUPLICIDADES: ${divCounts['E']} duplicatas no Omie - remover`, cor: [200, 50, 50] });
 
-  const validImportCheck = r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno && !t.matchedNf) || [];
+  const validImportCheck = r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno) || [];
   if (validImportCheck.length > 0) {
     const totalImportCheck = validImportCheck.reduce((s, t) => s + Math.abs(t.valor), 0);
     checkItems.push({ texto: `CARTAO: Importar planilha com ${validImportCheck.length} despesas, total ${fmt(totalImportCheck)}`, cor: [47, 84, 150] });
