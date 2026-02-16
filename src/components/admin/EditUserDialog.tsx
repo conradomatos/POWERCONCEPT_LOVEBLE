@@ -54,7 +54,6 @@ export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUser
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error updating user:', error);
       toast.error('Erro ao atualizar usuário');
     } finally {
       setIsSubmitting(false);

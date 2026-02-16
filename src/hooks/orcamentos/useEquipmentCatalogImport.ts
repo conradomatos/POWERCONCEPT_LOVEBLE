@@ -312,7 +312,6 @@ export function useEquipmentCatalogImport() {
         duplicados,
       });
     } catch (error) {
-      console.error('Error generating preview:', error);
       toast.error('Erro ao processar arquivo');
     } finally {
       setIsProcessing(false);
@@ -330,7 +329,6 @@ export function useEquipmentCatalogImport() {
       
       await generatePreview(data, mapping);
     } catch (error) {
-      console.error('Error processing file:', error);
       toast.error('Erro ao processar arquivo');
     }
   };
@@ -528,7 +526,6 @@ export function useEquipmentCatalogImport() {
             updatedCount++;
           }
         } catch (rowError) {
-          console.error('Error processing row:', row.codigo, rowError);
           errorCount++;
         }
       }
@@ -553,7 +550,6 @@ export function useEquipmentCatalogImport() {
       
       toast.success(`Importação concluída: ${createdCount} novos, ${updatedCount} atualizados, ${errorCount} erros`);
     } catch (error) {
-      console.error('Error applying import:', error);
       toast.error('Erro ao aplicar importação');
     } finally {
       setIsProcessing(false);

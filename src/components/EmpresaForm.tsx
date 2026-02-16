@@ -161,7 +161,6 @@ export default function EmpresaForm({ open, onOpenChange, empresa, onSuccess, is
 
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Error saving empresa:', error);
       toast.error('Erro ao salvar cliente: ' + error.message);
     } finally {
       setLoading(false);

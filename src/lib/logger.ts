@@ -80,10 +80,8 @@ class Logger {
         console.info(prefix, entry.message, details);
         break;
       case 'warn':
-        console.warn(prefix, entry.message, entry.error, details);
         break;
       case 'error':
-        console.error(prefix, entry.message, entry.error, details);
         break;
     }
   }

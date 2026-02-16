@@ -63,7 +63,6 @@ export default function Admin() {
       .order('created_at', { ascending: false });
 
     if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
       setLoadingUsers(false);
       return;
     }
@@ -74,7 +73,6 @@ export default function Admin() {
       .select('user_id, role');
 
     if (rolesError) {
-      console.error('Error fetching roles:', rolesError);
     }
 
     // Combine profiles with their roles
@@ -180,7 +178,6 @@ export default function Admin() {
       fetchUsers();
       setDeactivateDialogOpen(false);
     } catch (error) {
-      console.error('Error toggling user status:', error);
       toast.error('Erro ao alterar status do usuário');
     } finally {
       setActionLoading(false);
@@ -213,7 +210,6 @@ export default function Admin() {
       fetchUsers();
       setDeleteDialogOpen(false);
     } catch (error) {
-      console.error('Error deleting user:', error);
       toast.error('Erro ao remover usuário');
     } finally {
       setActionLoading(false);

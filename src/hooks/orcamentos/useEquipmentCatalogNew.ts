@@ -190,7 +190,6 @@ export function useEquipmentCatalogNew() {
       .limit(20);
 
     if (error) {
-      console.error('Error searching equipment catalog:', error);
       return [];
     }
     return data as EquipmentCatalogItem[];

@@ -391,16 +391,9 @@ export default function Planejamento() {
     
     // Skip if dates haven't changed
     if (originalBlock && originalBlock.data_inicio === novaDataInicio && originalBlock.data_fim === novaDataFim) {
-      console.log('Move skipped - no change detected');
       return;
     }
-    
-    console.log('Drag move update:', {
-      id: blockId,
-      original: originalBlock ? { inicio: originalBlock.data_inicio, fim: originalBlock.data_fim } : null,
-      novo: { inicio: novaDataInicio, fim: novaDataFim }
-    });
-    
+
     try {
       const { error, data } = await supabase
         .from('alocacoes_blocos')
@@ -413,13 +406,11 @@ export default function Planejamento() {
       
       if (error) throw error;
       
-      console.log('Move update response:', data);
       
       // Force refetch to ensure UI syncs with database
       await queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       toast.success('Alocação movida com sucesso');
     } catch (error: any) {
-      console.error('Error moving block:', error);
       toast.error(error.message || 'Erro ao mover alocação');
     }
   };
@@ -434,16 +425,9 @@ export default function Planejamento() {
     
     // Skip if dates haven't changed
     if (originalBlock && originalBlock.data_inicio === novaDataInicio && originalBlock.data_fim === novaDataFim) {
-      console.log('Resize skipped - no change detected');
       return;
     }
-    
-    console.log('Drag resize update:', {
-      id: blockId,
-      original: originalBlock ? { inicio: originalBlock.data_inicio, fim: originalBlock.data_fim } : null,
-      novo: { inicio: novaDataInicio, fim: novaDataFim }
-    });
-    
+
     try {
       const { error, data } = await supabase
         .from('alocacoes_blocos')
@@ -456,13 +440,11 @@ export default function Planejamento() {
       
       if (error) throw error;
       
-      console.log('Resize update response:', data);
       
       // Force refetch to ensure UI syncs with database
       await queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       toast.success('Alocação redimensionada com sucesso');
     } catch (error: any) {
-      console.error('Error resizing block:', error);
       toast.error(error.message || 'Erro ao redimensionar alocação');
     }
   };
@@ -639,7 +621,6 @@ export default function Planejamento() {
             .gte('data_fim', format(addDays(parseISO(minDate), -1), 'yyyy-MM-dd'));
           
           if (searchError) {
-            console.error('Error searching blocks:', searchError);
             continue;
           }
 
@@ -673,7 +654,6 @@ export default function Planejamento() {
               .eq('id', existingBlocks[0].id);
             
             if (updateError) {
-              console.error('Error updating block:', updateError);
             } else {
               updated++;
             }
@@ -700,7 +680,6 @@ export default function Planejamento() {
               });
             
             if (insertError) {
-              console.error('Error creating block:', insertError);
             } else {
               created++;
             }

@@ -103,7 +103,6 @@ export function useBudgets() {
       toast.success('Orçamento criado com sucesso');
     },
     onError: (error: any) => {
-      console.error('Error creating budget:', error);
       toast.error(error.message || 'Erro ao criar orçamento');
     },
   });

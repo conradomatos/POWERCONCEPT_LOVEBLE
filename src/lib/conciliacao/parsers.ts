@@ -87,8 +87,6 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
     }
   }
 
-  console.log('[parseOmie] Header na linha:', headerRowIdx, 'colMap:', JSON.stringify(colMap));
-
   // FALLBACK to default indices
   if (Object.keys(colMap).length === 0) {
     headerRowIdx = 2;
@@ -168,9 +166,6 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
   });
 
   const cartaoCount = lancamentos.length - lancamentosFiltrados.length;
-  if (cartaoCount > 0) {
-    console.log(`[parseOmie] ${cartaoCount} transacoes de cartao importadas filtradas (CARTAO-XXXX-XXX)`);
-  }
 
   return { lancamentos: lancamentosFiltrados, saldoAnterior };
 }

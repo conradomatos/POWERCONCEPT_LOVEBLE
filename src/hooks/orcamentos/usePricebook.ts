@@ -380,7 +380,6 @@ export function useEffectiveMaterialPrices(
         });
 
         if (error) {
-          console.error('Error fetching effective price:', error);
           results[catalogId] = null;
         } else if (data && data.length > 0) {
           results[catalogId] = data[0] as EffectiveMaterialPrice;
@@ -416,7 +415,6 @@ export function useEffectiveMOPrices(
         });
 
         if (error) {
-          console.error('Error fetching effective MO price:', error);
           results[funcaoId] = null;
         } else if (data && data.length > 0) {
           results[funcaoId] = data[0] as EffectiveMOPrice;

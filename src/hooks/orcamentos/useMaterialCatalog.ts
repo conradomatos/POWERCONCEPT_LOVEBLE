@@ -101,7 +101,6 @@ export function useMaterialCatalog() {
       .limit(20);
 
     if (error) {
-      console.error('Error searching catalog:', error);
       return [];
     }
     return data as CatalogItem[];

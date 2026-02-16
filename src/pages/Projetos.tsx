@@ -130,7 +130,6 @@ export default function Projetos() {
       toast.success('Projeto excluído com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
     } catch (error: any) {
-      console.error('Error deleting projeto:', error);
       toast.error('Erro ao excluir projeto: ' + error.message);
     } finally {
       setDeleteDialogOpen(false);
@@ -163,7 +162,6 @@ export default function Projetos() {
         toast.error(result.message || 'Erro ao sincronizar com Omie');
       }
     } catch (error: any) {
-      console.error('Error syncing to Omie:', error);
       toast.error('Erro inesperado ao sincronizar');
     } finally {
       setSyncingProjectId(null);

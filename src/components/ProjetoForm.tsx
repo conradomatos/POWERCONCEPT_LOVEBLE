@@ -245,7 +245,6 @@ export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: 
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Error saving projeto:', error);
       toast.error('Erro ao salvar projeto: ' + error.message);
     } finally {
       setLoading(false);

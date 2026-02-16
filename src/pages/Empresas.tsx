@@ -107,7 +107,6 @@ export default function Empresas() {
       toast.success('Cliente excluído com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['empresas'] });
     } catch (error: any) {
-      console.error('Error deleting empresa:', error);
       toast.error('Erro ao excluir cliente: ' + error.message);
     } finally {
       setDeleteDialogOpen(false);

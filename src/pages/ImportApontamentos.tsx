@@ -579,7 +579,6 @@ export default function ImportApontamentos() {
       .single();
     
     if (arquivoError) {
-      console.error('Erro ao criar registro de arquivo:', arquivoError);
       toast.error('Erro ao registrar arquivo de importação');
       return;
     }
@@ -682,7 +681,6 @@ export default function ImportApontamentos() {
             });
 
           if (apontamentoError) {
-            console.error('Erro ao inserir apontamento:', apontamentoError);
           }
         }
 

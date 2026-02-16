@@ -267,7 +267,6 @@ export default function ApontamentosConsolidado() {
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
       refetch();
     } catch (error: any) {
-      console.error('Error updating OS:', error);
       toast.error('Erro ao atualizar OS: ' + error.message);
     } finally {
       setBulkActionLoading(false);
@@ -318,7 +317,6 @@ export default function ApontamentosConsolidado() {
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
       refetch();
     } catch (error: any) {
-      console.error('Error updating date:', error);
       toast.error('Erro ao alterar data: ' + error.message);
     } finally {
       setBulkActionLoading(false);
@@ -364,7 +362,6 @@ export default function ApontamentosConsolidado() {
       queryClient.invalidateQueries({ queryKey: ['vw-apontamentos-consolidado'] });
       refetch();
     } catch (error: any) {
-      console.error('Error ignoring:', error);
       toast.error('Erro ao ignorar: ' + error.message);
     } finally {
       setBulkActionLoading(false);
@@ -428,7 +425,6 @@ export default function ApontamentosConsolidado() {
       queryClient.invalidateQueries({ queryKey: ['alocacoes-blocos'] });
       refetch();
     } catch (error: any) {
-      console.error('Error deleting:', error);
       toast.error('Erro ao excluir: ' + error.message);
     } finally {
       setBulkActionLoading(false);

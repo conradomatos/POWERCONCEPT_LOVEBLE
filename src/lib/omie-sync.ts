@@ -44,7 +44,6 @@ async function callOmieProjectsFunction(
   });
 
   if (error) {
-    console.error("Edge function error:", error);
     return {
       ok: false,
       error: error.message || "Erro ao chamar função de sincronização",
@@ -69,7 +68,6 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
       .single();
 
     if (fetchError || !project) {
-      console.error("Error fetching project:", fetchError);
       return {
         success: false,
         message: "Projeto não encontrado",
@@ -138,7 +136,6 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
         .eq('id', projectId);
 
       if (updateError) {
-        console.error("Error updating project after sync:", updateError);
         // Still return success since Omie sync worked
       }
 
@@ -159,7 +156,6 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
         .eq('id', projectId);
 
       if (updateError) {
-        console.error("Error updating project error status:", updateError);
       }
 
       return {
@@ -168,7 +164,6 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
       };
     }
   } catch (error) {
-    console.error("Unexpected error in syncProjectToOmie:", error);
     
     // Try to update error status
     try {
@@ -180,7 +175,6 @@ export async function syncProjectToOmie(projectId: string): Promise<SyncResult> 
         })
         .eq('id', projectId);
     } catch (updateError) {
-      console.error("Failed to update error status:", updateError);
     }
 
     return {

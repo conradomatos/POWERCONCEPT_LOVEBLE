@@ -24,16 +24,12 @@ function executarMatchingEClassificacao(
   const divergencias: Divergencia[] = [];
 
   matchCamadaA(banco, omie, matches);
-  console.log('=== APÓS CAMADA A === Matches:', matches.length);
 
   matchCamadaB(banco, omie, matches);
-  console.log('=== APÓS CAMADA B === Matches:', matches.length);
 
   matchCamadaC(banco, omie, matches);
-  console.log('=== APÓS CAMADA C === Matches:', matches.length);
 
   matchCamadaD(banco, omie, matches);
-  console.log('=== APÓS CAMADA D === Matches:', matches.length);
 
   matchFaturaCartao(banco, omie, matches);
 
@@ -88,10 +84,6 @@ export function executarConciliacaoFromData(
   for (const b of banco) { b.matched = false; b.matchType = null; b.matchCamada = null; b.matchOmieIdx = null; }
   for (const o of omie) { o.matched = false; o.matchType = null; o.matchCamada = null; o.matchBancoIdx = null; }
 
-  console.log('=== CONCILIAÇÃO FROM DATA ===');
-  console.log('Total lançamentos banco:', banco.length);
-  console.log('Total lançamentos Omie:', omie.length);
-
   return executarMatchingEClassificacao(banco, omie, cartaoTransacoes, cartaoInfo, saldoBanco, saldoOmie);
 }
 
@@ -127,19 +119,6 @@ export async function executarConciliacao(
       cartaoInfo = result.info;
     }
   }
-
-  // === DIAGNÓSTICO BANCO ===
-  console.log('=== DIAGNÓSTICO BANCO ===');
-  console.log('Total lançamentos banco:', banco.length);
-  const bancoComCnpj = banco.filter(b => b.cnpjCpf && b.cnpjCpf.length > 0);
-  console.log('Banco com CNPJ:', bancoComCnpj.length);
-  if (banco.length > 0) {
-    console.log('Amostra banco[0]:', JSON.stringify({ desc: banco[0].descricao, cnpj: banco[0].cnpjCpf, nome: banco[0].nome, tipo: banco[0].tipo, valor: banco[0].valor, data: banco[0].dataStr }));
-  }
-
-  // === DIAGNÓSTICO OMIE ===
-  console.log('=== DIAGNÓSTICO OMIE ===');
-  console.log('Total lançamentos Omie:', omie.length);
 
   return executarMatchingEClassificacao(banco, omie, cartaoTransacoes, cartaoInfo, saldoBanco, saldoOmie);
 }
