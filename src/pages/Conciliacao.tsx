@@ -2,17 +2,14 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Building2,
   FileSpreadsheet,
   CreditCard,
-  Upload,
-  X,
   Play,
   Download,
   CheckCircle2,
@@ -21,22 +18,22 @@ import {
   ArrowLeftRight,
   Loader2,
   FileText,
-  Database,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { executarConciliacao, executarConciliacaoFromData } from '@/lib/conciliacao/engine';
 import type { ResultadoConciliacao, LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo } from '@/lib/conciliacao/types';
 import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
 import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateCartao } from '@/hooks/useConciliacaoStorage';
+import ImportPreviewCard from '@/components/conciliacao/ImportPreviewCard';
+import ResultTabs from '@/components/conciliacao/ResultTabs';
 
 interface ParsedFileInfo {
-  file: File | null; // null when loaded from DB
+  file: File | null;
   rowCount: number;
   period?: string;
   contasCorrentes?: string[];
   valorTotal?: number;
   fileName: string;
-  // Parsed data for persistence and execution
   parsedBanco?: LancamentoBanco[];
   parsedOmie?: LancamentoOmie[];
   parsedCartao?: TransacaoCartao[];
@@ -164,28 +161,24 @@ export default function Conciliacao() {
 
   const [periodoRef, setPeriodoRef] = useState(initialPeriodo);
   const [files, setFiles] = useState<Record<FileType, ParsedFileInfo | null>>({
-    banco: null,
-    omie: null,
-    cartao: null,
+    banco: null, omie: null, cartao: null,
   });
   const [savedSources, setSavedSources] = useState<Record<FileType, boolean>>({
-    banco: false,
-    omie: false,
-    cartao: false,
+    banco: false, omie: false, cartao: false,
   });
 
   const [resultado, setResultado] = useState<ResultadoConciliacao | null>(null);
   const [processando, setProcessando] = useState(false);
   const [loadingImports, setLoadingImports] = useState(false);
+  const [activeTab, setActiveTab] = useState('conciliados');
 
   const bancoRef = useRef<HTMLInputElement>(null);
   const omieRef = useRef<HTMLInputElement>(null);
   const cartaoRef = useRef<HTMLInputElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const refs: Record<FileType, React.RefObject<HTMLInputElement>> = {
-    banco: bancoRef,
-    omie: omieRef,
-    cartao: cartaoRef,
+    banco: bancoRef, omie: omieRef, cartao: cartaoRef,
   };
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
@@ -203,7 +196,6 @@ export default function Conciliacao() {
 
       try {
         const imports = await loadImports(periodoRef);
-
         if (cancelled) return;
 
         const newFiles: Record<FileType, ParsedFileInfo | null> = { banco: null, omie: null, cartao: null };
@@ -212,8 +204,7 @@ export default function Conciliacao() {
         if (imports.extratoBanco) {
           const d = imports.extratoBanco;
           newFiles.banco = {
-            file: null,
-            fileName: d.nome_arquivo || 'Extrato banco',
+            file: null, fileName: d.nome_arquivo || 'Extrato banco',
             rowCount: d.total_lancamentos,
             parsedBanco: rehydrateBanco(d.dados as any[]),
             saldoAnterior: d.saldo_anterior,
@@ -224,8 +215,7 @@ export default function Conciliacao() {
         if (imports.extratoOmie) {
           const d = imports.extratoOmie;
           newFiles.omie = {
-            file: null,
-            fileName: d.nome_arquivo || 'Extrato Omie',
+            file: null, fileName: d.nome_arquivo || 'Extrato Omie',
             rowCount: d.total_lancamentos,
             parsedOmie: rehydrateOmie(d.dados as any[]),
             saldoAnterior: d.saldo_anterior,
@@ -236,10 +226,8 @@ export default function Conciliacao() {
         if (imports.faturaCartao) {
           const d = imports.faturaCartao;
           newFiles.cartao = {
-            file: null,
-            fileName: d.nome_arquivo || 'Fatura cartão',
-            rowCount: d.total_lancamentos,
-            valorTotal: d.valor_total,
+            file: null, fileName: d.nome_arquivo || 'Fatura cartão',
+            rowCount: d.total_lancamentos, valorTotal: d.valor_total,
             parsedCartao: rehydrateCartao(d.dados as any[]),
             parsedCartaoInfo: d.metadata?.cartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 },
           };
@@ -260,8 +248,6 @@ export default function Conciliacao() {
   }, [periodoRef, user]);
 
   const handleFile = useCallback((type: FileType, file: File) => {
-    // We need to also parse with the conciliacao parsers for banco/omie to get the actual data
-    // For the preview card, we use XLSX sheet_to_json; for persistence we store the parsed data
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -282,7 +268,6 @@ export default function Conciliacao() {
           info.period = detectPeriod(rows);
         }
 
-        // Now parse with conciliacao parsers for persistence
         const { parseBanco, parseOmie, parseCartaoFromText, workbookToRows, csvToText } = await import('@/lib/conciliacao/parsers');
 
         if (type === 'banco') {
@@ -316,7 +301,6 @@ export default function Conciliacao() {
         setFiles((prev) => ({ ...prev, [type]: info }));
         setSavedSources((prev) => ({ ...prev, [type]: false }));
 
-        // Save to database
         try {
           const valorTotal = type === 'cartao'
             ? (info.parsedCartaoInfo?.valorTotal || 0)
@@ -374,23 +358,16 @@ export default function Conciliacao() {
   );
 
   const removeFile = useCallback(async (type: FileType) => {
-    // Delete from database
     try {
       await deleteImport(TIPO_MAP[type], periodoRef);
       toast.success('Arquivo removido');
     } catch (err) {
       console.error('Erro ao remover:', err);
     }
-
     setFiles((prev) => ({ ...prev, [type]: null }));
     setSavedSources((prev) => ({ ...prev, [type]: false }));
     if (resultado) setResultado(null);
   }, [resultado, periodoRef, deleteImport]);
-
-  const mesReferencia = useMemo(() => {
-    if (resultado) return `${resultado.mesLabel}/${resultado.anoLabel}`;
-    return periodoRefToLabel(periodoRef);
-  }, [resultado, periodoRef]);
 
   if (!user) {
     navigate('/auth');
@@ -401,46 +378,26 @@ export default function Conciliacao() {
 
   const handleDownloadRelatorio = () => {
     if (!resultado) return;
-    try {
-      gerarRelatorioMD(resultado);
-      toast.success('Download do relatório .md iniciado');
-    } catch (error) {
-      console.error('Erro ao gerar relatório:', error);
-      toast.error('Falha ao gerar relatório');
-    }
+    try { gerarRelatorioMD(resultado); toast.success('Download do relatório .md iniciado'); }
+    catch (error) { console.error('Erro ao gerar relatório:', error); toast.error('Falha ao gerar relatório'); }
   };
 
   const handleDownloadDivergencias = () => {
     if (!resultado) return;
-    try {
-      gerarExcelDivergencias(resultado);
-      toast.success('Download do Excel de divergências iniciado');
-    } catch (error) {
-      console.error('Erro ao gerar divergências:', error);
-      toast.error('Falha ao gerar Excel de divergências');
-    }
+    try { gerarExcelDivergencias(resultado); toast.success('Download do Excel de divergências iniciado'); }
+    catch (error) { console.error('Erro ao gerar divergências:', error); toast.error('Falha ao gerar Excel de divergências'); }
   };
 
   const handleDownloadImportacao = () => {
     if (!resultado) return;
-    try {
-      gerarExcelImportacaoCartao(resultado);
-      toast.success('Download do Excel de importação iniciado');
-    } catch (error) {
-      console.error('Erro ao gerar importação:', error);
-      toast.error('Falha ao gerar Excel de importação');
-    }
+    try { gerarExcelImportacaoCartao(resultado); toast.success('Download do Excel de importação iniciado'); }
+    catch (error) { console.error('Erro ao gerar importação:', error); toast.error('Falha ao gerar Excel de importação'); }
   };
 
   const handleDownloadPDF = () => {
     if (!resultado) return;
-    try {
-      gerarRelatorioPDF(resultado);
-      toast.success('Download do relatório PDF iniciado');
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      toast.error('Falha ao gerar PDF');
-    }
+    try { gerarRelatorioPDF(resultado); toast.success('Download do relatório PDF iniciado'); }
+    catch (error) { console.error('Erro ao gerar PDF:', error); toast.error('Falha ao gerar PDF'); }
   };
 
   const handleExecute = async () => {
@@ -452,34 +409,25 @@ export default function Conciliacao() {
     setResultado(null);
     try {
       let result: ResultadoConciliacao;
-
-      // Check if we have pre-parsed data (from DB or from upload)
       const hasParsedData = bancoInfo.parsedBanco && omieInfo.parsedOmie;
 
       if (hasParsedData) {
         const cartaoTransacoes = files.cartao?.parsedCartao || [];
         const cartaoInfo = files.cartao?.parsedCartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 };
-
         result = executarConciliacaoFromData(
-          bancoInfo.parsedBanco!,
-          omieInfo.parsedOmie!,
-          cartaoTransacoes,
-          cartaoInfo,
-          bancoInfo.saldoAnterior ?? null,
-          omieInfo.saldoAnterior ?? null,
+          bancoInfo.parsedBanco!, omieInfo.parsedOmie!,
+          cartaoTransacoes, cartaoInfo,
+          bancoInfo.saldoAnterior ?? null, omieInfo.saldoAnterior ?? null,
         );
       } else if (bancoInfo.file && omieInfo.file) {
-        result = await executarConciliacao(
-          bancoInfo.file,
-          omieInfo.file,
-          files.cartao?.file || null,
-        );
+        result = await executarConciliacao(bancoInfo.file, omieInfo.file, files.cartao?.file || null);
       } else {
         toast.error('Dados insuficientes para executar a conciliação');
         return;
       }
 
       setResultado(result);
+      setActiveTab('conciliados');
       toast.success(`Conciliação concluída: ${result.totalConciliados} matches, ${result.totalDivergencias} divergências`);
     } catch (err: any) {
       console.error(err);
@@ -487,6 +435,12 @@ export default function Conciliacao() {
     } finally {
       setProcessando(false);
     }
+  };
+
+  const handleKPIClick = (tab: string) => {
+    if (!resultado) return;
+    setActiveTab(tab);
+    tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const cardConfigs: {
@@ -523,9 +477,7 @@ export default function Conciliacao() {
               </SelectTrigger>
               <SelectContent>
                 {periodOptions.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -542,116 +494,59 @@ export default function Conciliacao() {
 
         {/* Upload Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {cardConfigs.map(({ type, title, icon: Icon, headerClass, iconClass }) => {
-            const info = files[type];
-            const isSaved = savedSources[type];
-            return (
-              <Card key={type} className="overflow-hidden">
-                <CardHeader className={`${headerClass} py-3 px-4`}>
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Icon className={`h-4 w-4 ${iconClass}`} />
-                    {title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  {info ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate max-w-[180px]">{info.fileName}</span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(type)}>
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="text-xs text-muted-foreground space-y-0.5">
-                        <p>{info.rowCount} lançamentos</p>
-                        {info.period && info.period !== '--' && <p>Período: {info.period}</p>}
-                        {info.contasCorrentes && info.contasCorrentes.length > 0 && (
-                          <p>Contas: {info.contasCorrentes.join(', ')}</p>
-                        )}
-                        {info.valorTotal != null && <p>Total: {formatCurrency(info.valorTotal)}</p>}
-                      </div>
-                      {isSaved ? (
-                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-200">
-                          <Database className="h-3 w-3 mr-1" /> Salvo
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-green-600 border-green-200">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Carregado
-                        </Badge>
-                      )}
-                    </div>
-                  ) : (
-                    <div
-                      className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center cursor-pointer hover:border-primary/40 hover:bg-accent/30 transition-colors"
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      onDrop={handleDrop(type)}
-                      onClick={() => refs[type].current?.click()}
-                    >
-                      <Upload className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                      <p className="text-sm text-muted-foreground">Arraste ou clique para carregar</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">
-                        {ACCEPT_MAP[type].replace(/\./g, '').toUpperCase().replace(/,/g, ', ')}
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    ref={refs[type]}
-                    type="file"
-                    accept={ACCEPT_MAP[type]}
-                    className="hidden"
-                    onChange={handleInputChange(type)}
-                  />
-                </CardContent>
-              </Card>
-            );
-          })}
+          {cardConfigs.map(({ type, title, icon, headerClass, iconClass }) => (
+            <ImportPreviewCard
+              key={type}
+              type={type}
+              title={title}
+              icon={icon}
+              headerClass={headerClass}
+              iconClass={iconClass}
+              info={files[type]}
+              isSaved={savedSources[type]}
+              accept={ACCEPT_MAP[type]}
+              onRemove={() => removeFile(type)}
+              onDrop={handleDrop(type)}
+              onInputChange={handleInputChange(type)}
+              inputRef={refs[type]}
+            />
+          ))}
         </div>
 
         {/* Action + Results */}
         <div className="space-y-4">
-          <Button
-            onClick={handleExecute}
-            disabled={!canExecute}
-            className="gap-2"
-            size="lg"
-          >
+          <Button onClick={handleExecute} disabled={!canExecute} className="gap-2" size="lg">
             {processando ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Processando...
-              </>
+              <><Loader2 className="h-4 w-4 animate-spin" /> Processando...</>
             ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Executar Conciliação
-              </>
+              <><Play className="h-4 w-4" /> Executar Conciliação</>
             )}
           </Button>
 
-          {/* KPI Cards */}
+          {/* KPI Cards — clickable */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
+            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'conciliados' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('conciliados')}>
               <CardContent className="p-4 text-center">
                 <CheckCircle2 className="h-5 w-5 mx-auto text-green-500 mb-1" />
                 <p className="text-2xl font-bold">{resultado?.totalConciliados ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Conciliados</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'divergencias' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('divergencias')}>
               <CardContent className="p-4 text-center">
                 <AlertTriangle className="h-5 w-5 mx-auto text-yellow-500 mb-1" />
                 <p className="text-2xl font-bold">{resultado?.totalDivergencias ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Divergências</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'sem-match' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('sem-match')}>
               <CardContent className="p-4 text-center">
                 <Clock className="h-5 w-5 mx-auto text-red-500 mb-1" />
                 <p className="text-2xl font-bold">{resultado?.contasAtraso ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Em Atraso</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'cartao' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('cartao')}>
               <CardContent className="p-4 text-center">
                 <CreditCard className="h-5 w-5 mx-auto text-purple-500 mb-1" />
                 <p className="text-2xl font-bold">{resultado?.cartaoImportaveis ?? 0}</p>
@@ -675,6 +570,13 @@ export default function Conciliacao() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Result Tabs */}
+          {resultado && (
+            <div ref={tabsRef}>
+              <ResultTabs resultado={resultado} activeTab={activeTab} onTabChange={setActiveTab} />
+            </div>
           )}
 
           {/* Download buttons */}
