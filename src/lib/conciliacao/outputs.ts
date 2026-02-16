@@ -428,13 +428,31 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
   );
 
   const headers = [
-    '', 'Código de Integração',
-    'Fornecedor * (Razão Social, Nome Fantasia, CNPJ ou CPF)',
-    'Categoria *', 'Conta Corrente *', 'Valor da Conta *',
-    'Vendedor', 'Projeto', 'Data de Emissão',
-    'Data de Registro *', 'Data de Vencimento *',
-    'Data de Previsão', 'Data do Pagamento', 'Valor do Pagamento',
-    'Juros', 'Multa', 'Desconto', 'Data de Conciliação', 'Observações',
+    '',                                                          // A
+    'Código de Integração',                                      // B
+    'Fornecedor * (Razão Social, Nome Fantasia, CNPJ ou CPF)',   // C
+    'Categoria *',                                               // D
+    'Conta Corrente *',                                          // E
+    'Valor da Conta *',                                          // F
+    'Vendedor',                                                  // G
+    'Projeto',                                                   // H
+    'Data de Emissão',                                           // I
+    'Data de Registro *',                                        // J
+    'Data de Vencimento *',                                      // K
+    'Data de Previsão',                                          // L
+    'Data do Pagamento',                                         // M
+    'Valor do Pagamento',                                        // N
+    'Juros',                                                     // O
+    'Multa',                                                     // P
+    'Desconto',                                                  // Q
+    'Data de Conciliação',                                       // R
+    'Observações',                                               // S
+    'Tipo de Documento',                                         // T
+    'Número do Documento',                                       // U
+    'Parcela',                                                   // V
+    'Total de Parcelas',                                         // W
+    'Número do Pedido',                                          // X
+    'Nota Fiscal',                                               // Y
   ];
 
   const row1 = ['', 'IMPORTAÇÃO DE CONTAS A PAGAR - OMIE'];
@@ -459,10 +477,31 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
     obs += ` | Ref: ${codigoIntegracao}`;
 
     rows.push([
-      '', codigoIntegracao, 'CARTAO DE CREDITO', cat, contaCorrente,
-      Math.abs(t.valor), '', '', '',
-      t.dataStr, dataVencimento, '', dataVencimento,
-      Math.abs(t.valor), 0, 0, 0, dataVencimento, obs.trim(),
+      '',                            // A
+      codigoIntegracao,              // B  Código de Integração
+      'CARTAO DE CREDITO',           // C  Fornecedor
+      cat,                           // D  Categoria
+      contaCorrente,                 // E  Conta Corrente
+      Math.abs(t.valor),             // F  Valor da Conta
+      '',                            // G  Vendedor
+      '',                            // H  Projeto
+      '',                            // I  Data de Emissão
+      t.dataStr,                     // J  Data de Registro
+      dataVencimento,                // K  Data de Vencimento
+      '',                            // L  Data de Previsão
+      dataVencimento,                // M  Data do Pagamento
+      Math.abs(t.valor),             // N  Valor do Pagamento
+      0,                             // O  Juros
+      0,                             // P  Multa
+      0,                             // Q  Desconto
+      dataVencimento,                // R  Data de Conciliação
+      obs.trim(),                    // S  Observações
+      'Outros',                      // T  Tipo de Documento
+      codigoIntegracao,              // U  Número do Documento
+      String(seqNum),                // V  Parcela
+      String(valid.length),          // W  Total de Parcelas
+      '',                            // X  Número do Pedido
+      codigoIntegracao,              // Y  Nota Fiscal
     ]);
     seqNum++;
   }
@@ -470,11 +509,31 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
   ws['!cols'] = [
-    { wch: 3 }, { wch: 18 }, { wch: 45 }, { wch: 40 }, { wch: 22 },
-    { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 14 },
-    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-    { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
-    { wch: 14 }, { wch: 30 },
+    { wch: 3 },   // A
+    { wch: 20 },  // B  Código de Integração
+    { wch: 45 },  // C  Fornecedor
+    { wch: 40 },  // D  Categoria
+    { wch: 22 },  // E  Conta Corrente
+    { wch: 14 },  // F  Valor da Conta
+    { wch: 10 },  // G  Vendedor
+    { wch: 10 },  // H  Projeto
+    { wch: 14 },  // I  Data de Emissão
+    { wch: 14 },  // J  Data de Registro
+    { wch: 16 },  // K  Data de Vencimento
+    { wch: 14 },  // L  Data de Previsão
+    { wch: 14 },  // M  Data do Pagamento
+    { wch: 14 },  // N  Valor do Pagamento
+    { wch: 8 },   // O  Juros
+    { wch: 8 },   // P  Multa
+    { wch: 8 },   // Q  Desconto
+    { wch: 14 },  // R  Data de Conciliação
+    { wch: 50 },  // S  Observações
+    { wch: 14 },  // T  Tipo de Documento
+    { wch: 20 },  // U  Número do Documento
+    { wch: 8 },   // V  Parcela
+    { wch: 10 },  // W  Total de Parcelas
+    { wch: 14 },  // X  Número do Pedido
+    { wch: 20 },  // Y  Nota Fiscal
   ];
 
   const wb = XLSX.utils.book_new();
