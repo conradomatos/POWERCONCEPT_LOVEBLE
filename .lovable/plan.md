@@ -1,47 +1,36 @@
 
 
-# Fix: Planilha importacao cartao vazia + duplicatas no Omie
+# Fix: Estender template da planilha de importacao do cartao para 25 colunas (A-Y)
 
-## Diagnostico
+## Problema
 
-Apos revisar os arquivos:
-
-- **engine.ts**: OK -- `suggestCategoria` ja e chamada (linha 55), `cartaoTransacoes` esta no retorno (linha 105)
-- **classifier.ts**: OK -- bloco tipo I funciona corretamente (linha 169-183), sem referencia a `matchedNf`
-- **outputs.ts**: PROBLEMA -- na funcao `gerarExcelImportacaoCartao`, o campo "Codigo de Integracao" esta vazio (linha 454: `''`), causando rejeicao por duplicata no Omie
-
-O Problema 1 (planilha vazia) pode nao ser reprodutivel no codigo atual -- o fluxo parece correto. Se persistir, sera um problema no parse do CSV do cartao. O Problema 2 (duplicatas no Omie) e claro e reprodutivel.
+O Omie valida unicidade por Categoria + NF + Fornecedor + Valor + Parcela + Vencimento. Nossa planilha tem apenas 19 colunas (A-S), mas os campos validadores "Numero do Documento" (col U), "Parcela" (col V) e "Nota Fiscal" (col Y) ficam apos a coluna S. Sem eles, o Omie rejeita transacoes com mesmos valores como duplicatas.
 
 ## Alteracao unica
 
-### `src/lib/conciliacao/outputs.ts` -- funcao `gerarExcelImportacaoCartao` (linhas 447-459)
+### `src/lib/conciliacao/outputs.ts` -- funcao `gerarExcelImportacaoCartao`
 
-Substituir o loop que gera as linhas da planilha para:
+Tres blocos a substituir:
 
-1. Adicionar contador sequencial (`seqNum`)
-2. Gerar "Codigo de Integracao" unico: `CARTAO-{MMAA}-{SEQ}` (ex: `CARTAO-0126-001`)
-3. Incluir referencia ao codigo nas Observacoes como seguranca extra
+**1. Headers (linhas 430-438)**: Adicionar 6 colunas novas (T-Y):
+- T: Tipo de Documento
+- U: Numero do Documento (validador)
+- V: Parcela (validador)
+- W: Total de Parcelas
+- X: Numero do Pedido
+- Y: Nota Fiscal (validador)
 
-```text
--- ANTES (linha 454):
-rows.push(['', '', 'CARTAO DE CREDITO', cat, ...])
+**2. rows.push (linhas 461-466)**: Estender cada linha com os 6 campos novos:
+- T: `'Outros'`
+- U: `codigoIntegracao` (ex: CARTAO-0126-001)
+- V: `String(seqNum)` (1, 2, 3...)
+- W: `String(valid.length)` (total de transacoes)
+- X: `''` (vazio)
+- Y: `codigoIntegracao`
 
--- DEPOIS:
-let seqNum = 1;
-for (const t of valid) {
-  const codigoIntegracao = `CARTAO-${mesAnoRef}-${String(seqNum).padStart(3, '0')}`;
-  // ...obs inclui `| Ref: ${codigoIntegracao}`
-  rows.push(['', codigoIntegracao, 'CARTAO DE CREDITO', cat, ...])
-  seqNum++;
-}
-```
+**3. ws['!cols'] (linhas 472-478)**: Adicionar larguras para as 6 colunas novas.
 
-## Nenhuma alteracao em
+## Nenhum outro arquivo alterado
 
-| Arquivo | Motivo |
-|---|---|
-| engine.ts | suggestCategoria ja chamada, cartaoTransacoes no retorno |
-| classifier.ts | Tipo I ja funciona sem matchedNf |
-| types.ts | Nenhuma mudanca necessaria |
-| matcher.ts | matchFaturaCartao mantida |
+Apenas `outputs.ts`, apenas a funcao `gerarExcelImportacaoCartao`.
 
