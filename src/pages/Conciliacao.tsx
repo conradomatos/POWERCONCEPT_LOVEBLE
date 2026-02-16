@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import { executarConciliacao, executarConciliacaoFromData } from '@/lib/conciliacao/engine';
 import type { ResultadoConciliacao, LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo } from '@/lib/conciliacao/types';
 import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
-import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateCartao } from '@/hooks/useConciliacaoStorage';
+import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateCartao, rehydrateResultado } from '@/hooks/useConciliacaoStorage';
 import ImportPreviewCard from '@/components/conciliacao/ImportPreviewCard';
 import ResultTabs from '@/components/conciliacao/ResultTabs';
 
@@ -154,7 +154,7 @@ function periodoRefToLabel(ref: string): string {
 export default function Conciliacao() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { saveImport, loadImports, deleteImport } = useConciliacaoStorage();
+  const { saveImport, loadImports, deleteImport, saveResultado, loadResultado, invalidateResultado } = useConciliacaoStorage();
 
   const now = new Date();
   const initialPeriodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -236,6 +236,17 @@ export default function Conciliacao() {
 
         setFiles(newFiles);
         setSavedSources(newSaved);
+
+        // Load saved resultado
+        try {
+          const savedResultado = await loadResultado(periodoRef);
+          if (!cancelled && savedResultado) {
+            const rehydrated = rehydrateResultado(savedResultado);
+            setResultado(rehydrated);
+          }
+        } catch (err) {
+          console.error('Erro ao carregar resultado:', err);
+        }
       } catch (err) {
         console.error('Erro ao carregar imports:', err);
       } finally {
@@ -301,6 +312,14 @@ export default function Conciliacao() {
         setFiles((prev) => ({ ...prev, [type]: info }));
         setSavedSources((prev) => ({ ...prev, [type]: false }));
 
+        // Invalidate saved resultado since source data changed
+        try {
+          await invalidateResultado(periodoRef);
+          setResultado(null);
+        } catch (err) {
+          console.error('Erro ao invalidar resultado:', err);
+        }
+
         try {
           const valorTotal = type === 'cartao'
             ? (info.parsedCartaoInfo?.valorTotal || 0)
@@ -360,14 +379,15 @@ export default function Conciliacao() {
   const removeFile = useCallback(async (type: FileType) => {
     try {
       await deleteImport(TIPO_MAP[type], periodoRef);
+      await invalidateResultado(periodoRef);
       toast.success('Arquivo removido');
     } catch (err) {
       console.error('Erro ao remover:', err);
     }
     setFiles((prev) => ({ ...prev, [type]: null }));
     setSavedSources((prev) => ({ ...prev, [type]: false }));
-    if (resultado) setResultado(null);
-  }, [resultado, periodoRef, deleteImport]);
+    setResultado(null);
+  }, [periodoRef, deleteImport, invalidateResultado]);
 
   if (!user) {
     navigate('/auth');
@@ -429,6 +449,16 @@ export default function Conciliacao() {
       setResultado(result);
       setActiveTab('conciliados');
       toast.success(`Conciliação concluída: ${result.totalConciliados} matches, ${result.totalDivergencias} divergências`);
+
+      // Save resultado to Supabase
+      try {
+        await saveResultado(periodoRef, result);
+        const label = periodoRefToLabel(periodoRef);
+        toast.success(`Conciliação salva para ${label}`);
+      } catch (saveErr) {
+        console.error('Erro ao salvar resultado:', saveErr);
+        toast.error('Erro ao salvar resultado no banco de dados');
+      }
     } catch (err: any) {
       console.error(err);
       toast.error('Erro na conciliação: ' + (err.message || 'erro desconhecido'));

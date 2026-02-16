@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo } from '@/lib/conciliacao/types';
+import type { LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo, ResultadoConciliacao } from '@/lib/conciliacao/types';
 
 interface SaveImportParams {
   tipo: 'extrato_banco' | 'extrato_omie' | 'fatura_cartao';
@@ -44,6 +44,26 @@ export function rehydrateOmie(dados: any[]): LancamentoOmie[] {
 
 export function rehydrateCartao(dados: any[]): TransacaoCartao[] {
   return rehydrateDates(dados) as TransacaoCartao[];
+}
+
+export function rehydrateResultado(raw: any): ResultadoConciliacao {
+  const r = raw.resultado || raw;
+  return {
+    ...r,
+    matches: (r.matches || []).map((m: any) => ({
+      ...m,
+      banco: m.banco ? { ...m.banco, data: new Date(m.banco.data) } : m.banco,
+      omie: m.omie ? { ...m.omie, data: new Date(m.omie.data) } : m.omie,
+    })),
+    divergencias: (r.divergencias || []).map((d: any) => ({
+      ...d,
+      banco: d.banco ? { ...d.banco, data: new Date(d.banco.data) } : d.banco,
+      omie: d.omie ? { ...d.omie, data: new Date(d.omie.data) } : d.omie,
+    })),
+    banco: rehydrateDates(r.banco || []),
+    omieSicredi: rehydrateDates(r.omieSicredi || []),
+    cartaoTransacoes: rehydrateDates(r.cartaoTransacoes || []),
+  } as ResultadoConciliacao;
 }
 
 export function useConciliacaoStorage() {
@@ -113,5 +133,55 @@ export function useConciliacaoStorage() {
     if (error) throw error;
   }
 
-  return { saveImport, loadImports, deleteImport };
+  async function saveResultado(periodoRef: string, resultado: ResultadoConciliacao) {
+    // Mark previous as 'substituido'
+    await supabase
+      .from('conciliacao_resultados' as any)
+      .update({ status: 'substituido', updated_at: new Date().toISOString() } as any)
+      .eq('periodo_ref', periodoRef)
+      .eq('status', 'ativo');
+
+    const { data, error } = await supabase
+      .from('conciliacao_resultados' as any)
+      .insert({
+        periodo_ref: periodoRef,
+        total_conciliados: resultado.totalConciliados || 0,
+        total_divergencias: resultado.totalDivergencias || 0,
+        total_em_atraso: resultado.contasAtraso || 0,
+        total_cartao_importaveis: resultado.cartaoImportaveis || 0,
+        camada_a: resultado.camadaCounts?.['A'] || 0,
+        camada_b: resultado.camadaCounts?.['B'] || 0,
+        camada_c: resultado.camadaCounts?.['C'] || 0,
+        camada_d: resultado.camadaCounts?.['D'] || 0,
+        resultado: resultado as any,
+        status: 'ativo',
+      } as any)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async function loadResultado(periodoRef: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('conciliacao_resultados' as any)
+      .select('*')
+      .eq('periodo_ref', periodoRef)
+      .eq('status', 'ativo')
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function invalidateResultado(periodoRef: string) {
+    await supabase
+      .from('conciliacao_resultados' as any)
+      .update({ status: 'substituido', updated_at: new Date().toISOString() } as any)
+      .eq('periodo_ref', periodoRef)
+      .eq('status', 'ativo');
+  }
+
+  return { saveImport, loadImports, deleteImport, saveResultado, loadResultado, invalidateResultado };
 }
