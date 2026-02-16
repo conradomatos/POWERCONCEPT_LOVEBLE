@@ -444,18 +444,27 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
 
   const rows: unknown[][] = [row1, row2, row3, row4, headers];
 
+  const mesAnoRef = dataVencimento
+    ? dataVencimento.replace(/\//g, '').substring(2, 6)
+    : new Date().toISOString().substring(5, 7) + new Date().toISOString().substring(2, 4);
+
+  let seqNum = 1;
   for (const t of valid) {
     const cat = t.categoriaSugerida || suggestCategoria(t.descricao) || CATEGORIAS_CONFIG.categoria_padrao;
+    const codigoIntegracao = `CARTAO-${mesAnoRef}-${String(seqNum).padStart(3, '0')}`;
+
     let obs = t.titular || '';
     if (t.descricao) obs += ` | ${t.descricao.trim()}`;
     if (t.parcela) obs += ` | ${t.parcela}`;
+    obs += ` | Ref: ${codigoIntegracao}`;
 
     rows.push([
-      '', '', 'CARTAO DE CREDITO', cat, contaCorrente,
+      '', codigoIntegracao, 'CARTAO DE CREDITO', cat, contaCorrente,
       Math.abs(t.valor), '', '', '',
       t.dataStr, dataVencimento, '', dataVencimento,
       Math.abs(t.valor), 0, 0, 0, dataVencimento, obs.trim(),
     ]);
+    seqNum++;
   }
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
