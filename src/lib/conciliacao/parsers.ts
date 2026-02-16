@@ -159,7 +159,20 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
     });
   }
 
-  return { lancamentos, saldoAnterior };
+  // Filtrar transações de cartão importadas (CARTAO-XXXX-XXX) que não participam da conciliação
+  const cartaoPattern = /^CARTAO-\d{4}-\d{3}/;
+  const lancamentosFiltrados = lancamentos.filter(l => {
+    const doc = (l.documento || '').toUpperCase();
+    const nf = (l.notaFiscal || '').toUpperCase();
+    return !cartaoPattern.test(doc) && !cartaoPattern.test(nf);
+  });
+
+  const cartaoCount = lancamentos.length - lancamentosFiltrados.length;
+  if (cartaoCount > 0) {
+    console.log(`[parseOmie] ${cartaoCount} transacoes de cartao importadas filtradas (CARTAO-XXXX-XXX)`);
+  }
+
+  return { lancamentos: lancamentosFiltrados, saldoAnterior };
 }
 
 // ============================================================
