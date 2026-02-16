@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Building2,
@@ -20,18 +21,27 @@ import {
   ArrowLeftRight,
   Loader2,
   FileText,
+  Database,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { executarConciliacao } from '@/lib/conciliacao/engine';
-import type { ResultadoConciliacao } from '@/lib/conciliacao/types';
+import { executarConciliacao, executarConciliacaoFromData } from '@/lib/conciliacao/engine';
+import type { ResultadoConciliacao, LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo } from '@/lib/conciliacao/types';
 import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
+import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateCartao } from '@/hooks/useConciliacaoStorage';
 
 interface ParsedFileInfo {
-  file: File;
+  file: File | null; // null when loaded from DB
   rowCount: number;
   period?: string;
   contasCorrentes?: string[];
   valorTotal?: number;
+  fileName: string;
+  // Parsed data for persistence and execution
+  parsedBanco?: LancamentoBanco[];
+  parsedOmie?: LancamentoOmie[];
+  parsedCartao?: TransacaoCartao[];
+  parsedCartaoInfo?: CartaoInfo;
+  saldoAnterior?: number | null;
 }
 
 type FileType = 'banco' | 'omie' | 'cartao';
@@ -40,6 +50,14 @@ const ACCEPT_MAP: Record<FileType, string> = {
   banco: '.xlsx,.xls,.csv',
   omie: '.xlsx,.xls',
   cartao: '.xlsx,.xls,.csv',
+};
+
+const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+const TIPO_MAP: Record<FileType, 'extrato_banco' | 'extrato_omie' | 'fatura_cartao'> = {
+  banco: 'extrato_banco',
+  omie: 'extrato_omie',
+  cartao: 'fatura_cartao',
 };
 
 function parseExcelDate(value: unknown): Date | null {
@@ -119,20 +137,46 @@ function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+function buildPeriodOptions(): { label: string; value: string }[] {
+  const now = new Date();
+  const options: { label: string; value: string }[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    options.push({ label, value });
+  }
+  return options;
+}
+
+function periodoRefToLabel(ref: string): string {
+  const [year, month] = ref.split('-');
+  return `${MONTHS[Number(month) - 1]} ${year}`;
+}
 
 export default function Conciliacao() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { saveImport, loadImports, deleteImport } = useConciliacaoStorage();
 
+  const now = new Date();
+  const initialPeriodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const [periodoRef, setPeriodoRef] = useState(initialPeriodo);
   const [files, setFiles] = useState<Record<FileType, ParsedFileInfo | null>>({
     banco: null,
     omie: null,
     cartao: null,
   });
+  const [savedSources, setSavedSources] = useState<Record<FileType, boolean>>({
+    banco: false,
+    omie: false,
+    cartao: false,
+  });
 
   const [resultado, setResultado] = useState<ResultadoConciliacao | null>(null);
   const [processando, setProcessando] = useState(false);
+  const [loadingImports, setLoadingImports] = useState(false);
 
   const bancoRef = useRef<HTMLInputElement>(null);
   const omieRef = useRef<HTMLInputElement>(null);
@@ -144,16 +188,89 @@ export default function Conciliacao() {
     cartao: cartaoRef,
   };
 
+  const periodOptions = useMemo(() => buildPeriodOptions(), []);
+
+  // Load saved imports when period changes
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function load() {
+      setLoadingImports(true);
+      setFiles({ banco: null, omie: null, cartao: null });
+      setSavedSources({ banco: false, omie: false, cartao: false });
+      setResultado(null);
+
+      try {
+        const imports = await loadImports(periodoRef);
+
+        if (cancelled) return;
+
+        const newFiles: Record<FileType, ParsedFileInfo | null> = { banco: null, omie: null, cartao: null };
+        const newSaved: Record<FileType, boolean> = { banco: false, omie: false, cartao: false };
+
+        if (imports.extratoBanco) {
+          const d = imports.extratoBanco;
+          newFiles.banco = {
+            file: null,
+            fileName: d.nome_arquivo || 'Extrato banco',
+            rowCount: d.total_lancamentos,
+            parsedBanco: rehydrateBanco(d.dados as any[]),
+            saldoAnterior: d.saldo_anterior,
+          };
+          newSaved.banco = true;
+        }
+
+        if (imports.extratoOmie) {
+          const d = imports.extratoOmie;
+          newFiles.omie = {
+            file: null,
+            fileName: d.nome_arquivo || 'Extrato Omie',
+            rowCount: d.total_lancamentos,
+            parsedOmie: rehydrateOmie(d.dados as any[]),
+            saldoAnterior: d.saldo_anterior,
+          };
+          newSaved.omie = true;
+        }
+
+        if (imports.faturaCartao) {
+          const d = imports.faturaCartao;
+          newFiles.cartao = {
+            file: null,
+            fileName: d.nome_arquivo || 'Fatura cartão',
+            rowCount: d.total_lancamentos,
+            valorTotal: d.valor_total,
+            parsedCartao: rehydrateCartao(d.dados as any[]),
+            parsedCartaoInfo: d.metadata?.cartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 },
+          };
+          newSaved.cartao = true;
+        }
+
+        setFiles(newFiles);
+        setSavedSources(newSaved);
+      } catch (err) {
+        console.error('Erro ao carregar imports:', err);
+      } finally {
+        if (!cancelled) setLoadingImports(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [periodoRef, user]);
+
   const handleFile = useCallback((type: FileType, file: File) => {
+    // We need to also parse with the conciliacao parsers for banco/omie to get the actual data
+    // For the preview card, we use XLSX sheet_to_json; for persistence we store the parsed data
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target!.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
-        const info: ParsedFileInfo = { file, rowCount: rows.length };
+        const info: ParsedFileInfo = { file, fileName: file.name, rowCount: rows.length };
 
         if (type === 'banco') {
           info.period = detectPeriod(rows);
@@ -165,14 +282,77 @@ export default function Conciliacao() {
           info.period = detectPeriod(rows);
         }
 
+        // Now parse with conciliacao parsers for persistence
+        const { parseBanco, parseOmie, parseCartaoFromText, workbookToRows, csvToText } = await import('@/lib/conciliacao/parsers');
+
+        if (type === 'banco') {
+          const bancoRows = await workbookToRows(file);
+          const { lancamentos, saldoAnterior } = parseBanco(bancoRows);
+          info.parsedBanco = lancamentos;
+          info.saldoAnterior = saldoAnterior;
+          info.rowCount = lancamentos.length;
+        } else if (type === 'omie') {
+          const omieRows = await workbookToRows(file);
+          const { lancamentos, saldoAnterior } = parseOmie(omieRows);
+          info.parsedOmie = lancamentos;
+          info.saldoAnterior = saldoAnterior;
+          info.rowCount = lancamentos.length;
+        } else if (type === 'cartao') {
+          const fileName = file.name.toLowerCase();
+          let text: string;
+          if (fileName.endsWith('.csv')) {
+            text = await csvToText(file);
+          } else {
+            const cartaoRows = await workbookToRows(file);
+            text = cartaoRows.map(r => (r || []).join(';')).join('\n');
+          }
+          const result = parseCartaoFromText(text);
+          info.parsedCartao = result.transacoes;
+          info.parsedCartaoInfo = result.info;
+          info.rowCount = result.transacoes.length;
+          info.valorTotal = result.info.valorTotal;
+        }
+
         setFiles((prev) => ({ ...prev, [type]: info }));
-        toast.success(`${file.name} carregado — ${rows.length} registros`);
+        setSavedSources((prev) => ({ ...prev, [type]: false }));
+
+        // Save to database
+        try {
+          const valorTotal = type === 'cartao'
+            ? (info.parsedCartaoInfo?.valorTotal || 0)
+            : (type === 'banco'
+              ? (info.parsedBanco || []).reduce((s, b) => s + Math.abs(b.valor), 0)
+              : (info.parsedOmie || []).reduce((s, o) => s + Math.abs(o.valor), 0));
+
+          const dados = type === 'banco' ? info.parsedBanco
+            : type === 'omie' ? info.parsedOmie
+            : info.parsedCartao;
+
+          await saveImport({
+            tipo: TIPO_MAP[type],
+            periodoRef,
+            nomeArquivo: file.name,
+            totalLancamentos: info.rowCount,
+            valorTotal,
+            saldoAnterior: info.saldoAnterior ?? undefined,
+            dados: dados || [],
+            metadata: type === 'cartao' ? { cartaoInfo: info.parsedCartaoInfo } : undefined,
+          });
+
+          setSavedSources((prev) => ({ ...prev, [type]: true }));
+          const label = periodoRefToLabel(periodoRef);
+          toast.success(`${file.name} salvo para ${label}`);
+        } catch (saveErr) {
+          console.error('Erro ao salvar no banco:', saveErr);
+          toast.success(`${file.name} carregado — ${info.rowCount} registros`);
+          toast.error('Erro ao salvar no banco de dados');
+        }
       } catch {
         toast.error(`Erro ao parsear ${file.name}`);
       }
     };
     reader.readAsArrayBuffer(file);
-  }, []);
+  }, [periodoRef, saveImport]);
 
   const handleDrop = useCallback(
     (type: FileType) => (e: React.DragEvent) => {
@@ -193,18 +373,24 @@ export default function Conciliacao() {
     [handleFile]
   );
 
-  const removeFile = useCallback((type: FileType) => {
+  const removeFile = useCallback(async (type: FileType) => {
+    // Delete from database
+    try {
+      await deleteImport(TIPO_MAP[type], periodoRef);
+      toast.success('Arquivo removido');
+    } catch (err) {
+      console.error('Erro ao remover:', err);
+    }
+
     setFiles((prev) => ({ ...prev, [type]: null }));
+    setSavedSources((prev) => ({ ...prev, [type]: false }));
     if (resultado) setResultado(null);
-  }, [resultado]);
+  }, [resultado, periodoRef, deleteImport]);
 
   const mesReferencia = useMemo(() => {
     if (resultado) return `${resultado.mesLabel}/${resultado.anoLabel}`;
-    const period = files.banco?.period || files.omie?.period || files.cartao?.period;
-    if (!period || period === '--') return null;
-    const [mm, yyyy] = period.split('/');
-    return `${MONTHS[Number(mm) - 1]} ${yyyy}`;
-  }, [files, resultado]);
+    return periodoRefToLabel(periodoRef);
+  }, [resultado, periodoRef]);
 
   if (!user) {
     navigate('/auth');
@@ -258,15 +444,41 @@ export default function Conciliacao() {
   };
 
   const handleExecute = async () => {
-    if (!files.banco?.file || !files.omie?.file) return;
+    const bancoInfo = files.banco;
+    const omieInfo = files.omie;
+    if (!bancoInfo || !omieInfo) return;
+
     setProcessando(true);
     setResultado(null);
     try {
-      const result = await executarConciliacao(
-        files.banco.file,
-        files.omie.file,
-        files.cartao?.file || null
-      );
+      let result: ResultadoConciliacao;
+
+      // Check if we have pre-parsed data (from DB or from upload)
+      const hasParsedData = bancoInfo.parsedBanco && omieInfo.parsedOmie;
+
+      if (hasParsedData) {
+        const cartaoTransacoes = files.cartao?.parsedCartao || [];
+        const cartaoInfo = files.cartao?.parsedCartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 };
+
+        result = executarConciliacaoFromData(
+          bancoInfo.parsedBanco!,
+          omieInfo.parsedOmie!,
+          cartaoTransacoes,
+          cartaoInfo,
+          bancoInfo.saldoAnterior ?? null,
+          omieInfo.saldoAnterior ?? null,
+        );
+      } else if (bancoInfo.file && omieInfo.file) {
+        result = await executarConciliacao(
+          bancoInfo.file,
+          omieInfo.file,
+          files.cartao?.file || null,
+        );
+      } else {
+        toast.error('Dados insuficientes para executar a conciliação');
+        return;
+      }
+
       setResultado(result);
       toast.success(`Conciliação concluída: ${result.totalConciliados} matches, ${result.totalDivergencias} divergências`);
     } catch (err: any) {
@@ -303,15 +515,36 @@ export default function Conciliacao() {
               Cruze extrato bancário, Omie e fatura do cartão para identificar divergências
             </p>
           </div>
-          <Badge variant="secondary" className="text-sm self-start">
-            Ref: {mesReferencia || '—'}
-          </Badge>
+          <div className="flex items-center gap-2 self-start">
+            <span className="text-sm text-muted-foreground">Ref:</span>
+            <Select value={periodoRef} onValueChange={setPeriodoRef}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {periodOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {/* Loading indicator */}
+        {loadingImports && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Carregando dados salvos...
+          </div>
+        )}
 
         {/* Upload Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {cardConfigs.map(({ type, title, icon: Icon, headerClass, iconClass }) => {
             const info = files[type];
+            const isSaved = savedSources[type];
             return (
               <Card key={type} className="overflow-hidden">
                 <CardHeader className={`${headerClass} py-3 px-4`}>
@@ -324,7 +557,7 @@ export default function Conciliacao() {
                   {info ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate max-w-[180px]">{info.file.name}</span>
+                        <span className="text-sm font-medium truncate max-w-[180px]">{info.fileName}</span>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(type)}>
                           <X className="h-3 w-3" />
                         </Button>
@@ -337,9 +570,15 @@ export default function Conciliacao() {
                         )}
                         {info.valorTotal != null && <p>Total: {formatCurrency(info.valorTotal)}</p>}
                       </div>
-                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Carregado
-                      </Badge>
+                      {isSaved ? (
+                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-200">
+                          <Database className="h-3 w-3 mr-1" /> Salvo
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Carregado
+                        </Badge>
+                      )}
                     </div>
                   ) : (
                     <div

@@ -2311,6 +2311,57 @@ export type Database = {
         }
         Relationships: []
       }
+      conciliacao_imports: {
+        Row: {
+          created_at: string | null
+          dados: Json
+          id: string
+          metadata: Json | null
+          nome_arquivo: string | null
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          periodo_ref: string
+          saldo_anterior: number | null
+          status: string | null
+          tipo: string
+          total_lancamentos: number | null
+          updated_at: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          dados: Json
+          id?: string
+          metadata?: Json | null
+          nome_arquivo?: string | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          periodo_ref: string
+          saldo_anterior?: number | null
+          status?: string | null
+          tipo: string
+          total_lancamentos?: number | null
+          updated_at?: string | null
+          valor_total?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          dados?: Json
+          id?: string
+          metadata?: Json | null
+          nome_arquivo?: string | null
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          periodo_ref?: string
+          saldo_anterior?: number | null
+          status?: string | null
+          tipo?: string
+          total_lancamentos?: number | null
+          updated_at?: string | null
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
       custo_projeto_dia: {
         Row: {
           colaborador_id: string
