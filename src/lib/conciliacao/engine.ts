@@ -2,8 +2,100 @@ import { matchCamadaA, matchCamadaB, matchCamadaC, matchCamadaD, matchFaturaCart
 import { detectDuplicates, classifyDivergencias } from './classifier';
 import { parseBanco, parseOmie, parseCartaoFromText, workbookToRows, csvToText } from './parsers';
 import { suggestCategoria } from './categorias';
-import type { LancamentoBanco, TransacaoCartao, CartaoInfo, Match, Divergencia, ResultadoConciliacao } from './types';
+import type { LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo, Match, Divergencia, ResultadoConciliacao } from './types';
 
+// Core matching logic shared between file-based and data-based flows
+function executarMatchingEClassificacao(
+  banco: LancamentoBanco[],
+  omie: LancamentoOmie[],
+  cartaoTransacoes: TransacaoCartao[],
+  cartaoInfo: CartaoInfo,
+  saldoBanco: number | null,
+  saldoOmie: number | null,
+): ResultadoConciliacao {
+  // Sugestão de categoria para cartão
+  for (const t of cartaoTransacoes) {
+    if (!t.isPagamentoFatura && !t.isEstorno) {
+      t.categoriaSugerida = suggestCategoria(t.descricao);
+    }
+  }
+
+  const matches: Match[] = [];
+  const divergencias: Divergencia[] = [];
+
+  matchCamadaA(banco, omie, matches);
+  console.log('=== APÓS CAMADA A === Matches:', matches.length);
+
+  matchCamadaB(banco, omie, matches);
+  console.log('=== APÓS CAMADA B === Matches:', matches.length);
+
+  matchCamadaC(banco, omie, matches);
+  console.log('=== APÓS CAMADA C === Matches:', matches.length);
+
+  matchCamadaD(banco, omie, matches);
+  console.log('=== APÓS CAMADA D === Matches:', matches.length);
+
+  matchFaturaCartao(banco, omie, matches);
+
+  detectDuplicates(omie, divergencias);
+  classifyDivergencias(banco, omie, cartaoTransacoes, divergencias, matches);
+
+  const camadaCounts: Record<string, number> = {};
+  for (const m of matches) {
+    camadaCounts[m.camada] = (camadaCounts[m.camada] || 0) + 1;
+  }
+
+  const divCounts: Record<string, number> = {};
+  for (const d of divergencias) {
+    divCounts[d.tipo] = (divCounts[d.tipo] || 0) + 1;
+  }
+
+  const contasAtraso = divergencias.filter(d => d.tipo === 'B*').length;
+  const cartaoImportaveis = divergencias.filter(d => d.tipo === 'I').length;
+
+  const mesAno = detectarMesAno(banco);
+
+  return {
+    matches,
+    divergencias,
+    banco,
+    omieSicredi: omie,
+    cartaoTransacoes,
+    cartaoInfo,
+    saldoBanco,
+    saldoOmie,
+    camadaCounts,
+    divCounts,
+    totalConciliados: matches.length,
+    totalDivergencias: divergencias.length,
+    contasAtraso,
+    cartaoImportaveis,
+    mesLabel: mesAno.mesLabel,
+    anoLabel: mesAno.anoLabel,
+  };
+}
+
+// Execute reconciliation from pre-parsed data (loaded from database)
+export function executarConciliacaoFromData(
+  banco: LancamentoBanco[],
+  omie: LancamentoOmie[],
+  cartaoTransacoes: TransacaoCartao[],
+  cartaoInfo: CartaoInfo,
+  saldoBanco: number | null,
+  saldoOmie: number | null,
+): ResultadoConciliacao {
+  // Reset matched flags
+  for (const b of banco) { b.matched = false; b.matchType = null; b.matchCamada = null; b.matchOmieIdx = null; }
+  for (const o of omie) { o.matched = false; o.matchType = null; o.matchCamada = null; o.matchBancoIdx = null; }
+
+  console.log('=== CONCILIAÇÃO FROM DATA ===');
+  console.log('Total lançamentos banco:', banco.length);
+  console.log('Total lançamentos Omie:', omie.length);
+
+  return executarMatchingEClassificacao(banco, omie, cartaoTransacoes, cartaoInfo, saldoBanco, saldoOmie);
+}
+
+// Execute reconciliation from uploaded files (original flow)
 export async function executarConciliacao(
   bancoFile: File,
   omieFile: File,
@@ -49,72 +141,7 @@ export async function executarConciliacao(
   console.log('=== DIAGNÓSTICO OMIE ===');
   console.log('Total lançamentos Omie:', omie.length);
 
-  // Sugestão de categoria para cartão
-  for (const t of cartaoTransacoes) {
-    if (!t.isPagamentoFatura && !t.isEstorno) {
-      t.categoriaSugerida = suggestCategoria(t.descricao);
-    }
-  }
-
-  // 2. Executar matching em camadas
-  const matches: Match[] = [];
-  const divergencias: Divergencia[] = [];
-
-  matchCamadaA(banco, omie, matches);
-  console.log('=== APÓS CAMADA A === Matches:', matches.length);
-
-  matchCamadaB(banco, omie, matches);
-  console.log('=== APÓS CAMADA B === Matches:', matches.length);
-
-  matchCamadaC(banco, omie, matches);
-  console.log('=== APÓS CAMADA C === Matches:', matches.length);
-
-  matchCamadaD(banco, omie, matches);
-  console.log('=== APÓS CAMADA D === Matches:', matches.length);
-
-  matchFaturaCartao(banco, omie, matches);
-
-  // 3. Detectar duplicidades
-  detectDuplicates(omie, divergencias);
-
-  // 4. Classificar divergências
-  classifyDivergencias(banco, omie, cartaoTransacoes, divergencias, matches);
-
-  // 7. Calcular métricas
-  const camadaCounts: Record<string, number> = {};
-  for (const m of matches) {
-    camadaCounts[m.camada] = (camadaCounts[m.camada] || 0) + 1;
-  }
-
-  const divCounts: Record<string, number> = {};
-  for (const d of divergencias) {
-    divCounts[d.tipo] = (divCounts[d.tipo] || 0) + 1;
-  }
-
-  const contasAtraso = divergencias.filter(d => d.tipo === 'B*').length;
-  const cartaoImportaveis = divergencias.filter(d => d.tipo === 'I').length;
-
-  // 8. Detectar mês/ano
-  const mesAno = detectarMesAno(banco);
-
-  return {
-    matches,
-    divergencias,
-    banco,
-    omieSicredi: omie,
-    cartaoTransacoes,
-    cartaoInfo,
-    saldoBanco,
-    saldoOmie,
-    camadaCounts,
-    divCounts,
-    totalConciliados: matches.length,
-    totalDivergencias: divergencias.length,
-    contasAtraso,
-    cartaoImportaveis,
-    mesLabel: mesAno.mesLabel,
-    anoLabel: mesAno.anoLabel,
-  };
+  return executarMatchingEClassificacao(banco, omie, cartaoTransacoes, cartaoInfo, saldoBanco, saldoOmie);
 }
 
 function detectarMesAno(banco: LancamentoBanco[]): { mesLabel: string; anoLabel: string } {
