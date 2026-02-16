@@ -1,119 +1,128 @@
 
 
-# Persistir dados da Conciliacao no banco de dados
+# UX -- Visualizacao de dados e tabelas interativas na Conciliacao
 
 ## Resumo
 
-Salvar os dados parseados dos 3 arquivos (banco, Omie, cartao) no banco de dados para que, ao abrir a tela ou selecionar um periodo, os dados carreguem automaticamente sem reimportar.
+Adicionar tabelas interativas para visualizar os dados importados (preview nos cards) e os resultados da conciliacao (abas navegaveis), sem alterar a logica de negocio.
 
-## 1. Nova tabela: `conciliacao_imports`
+## 1. Novo componente reutilizavel: `ConciliacaoDataTable`
 
-Criar via migration:
+Criar `src/components/conciliacao/DataTable.tsx` -- componente base para todas as tabelas da tela.
+
+Funcionalidades:
+- Campo de busca (filtra case-insensitive em todas as colunas)
+- Ordenacao por coluna (click no header alterna ASC/DESC, seta visual)
+- Paginacao interna: mostra 50 linhas, botao "Carregar mais"
+- Rodape fixo com total e contador "Mostrando X de Y"
+- Formatacao: valores em R$ (formato brasileiro), positivo verde, negativo vermelho, datas DD/MM/YYYY
+- Scroll horizontal em telas menores, header sticky
+- Usa os componentes Table/TableHeader/TableRow/etc existentes do shadcn
+
+Props genericas:
+- `columns`: array de definicoes (key, label, render, sortable, align)
+- `data`: array de objetos
+- `searchKeys`: quais campos buscar
+- `totalLabel`/`totalValue`: para rodape
+- `pageSize`: default 50
+
+## 2. Cards de upload expandiveis
+
+### Novo componente: `src/components/conciliacao/ImportPreviewCard.tsx`
+
+Encapsula a logica do card atual + expansao com Collapsible do Radix (ja instalado).
+
+Comportamento:
+- Estado colapsado: identico ao card atual (nome, total, badge, botao X)
+- Botao "Ver dados" (icone ChevronDown) ao lado do badge
+- Ao expandir: mostra DataTable com os dados parseados abaixo do card info
+
+Colunas por tipo:
+
+**Extrato Bancario**: Data | Descricao | Valor | Saldo
+
+**Extrato Omie**: Data | Descricao | Valor | Categoria | NF
+
+**Fatura Cartao**: Data | Descricao | Valor | Categoria Mapeada
+
+## 3. Abas de resultados da conciliacao
+
+### Novo componente: `src/components/conciliacao/ResultTabs.tsx`
+
+Usa Tabs do shadcn (ja instalado). Renderiza 4 abas apos executar conciliacao:
+
+**Aba "Conciliados"** (usa `resultado.matches`)
+- Colunas: # | Data Banco | Descricao Banco | Valor Banco | <-> | Data Omie | Descricao Omie | Valor Omie | Camada
+- Cor de fundo por camada: A=verde, B=amarelo, C=laranja, D=vermelho (tons claros/sutis para dark theme)
+- Valores com diferenca de centavos ficam destacados (bold/sublinhado)
+
+**Aba "Divergencias"** (usa `resultado.divergencias`)
+- Colunas: # | Origem | Data | Descricao | Valor | Tipo Divergencia
+- Dropdown adicional para filtrar por tipo de divergencia
+- Coluna "Origem" = fonte do item (Banco/Omie)
+
+**Aba "Sem Match"** (derivado de `resultado.banco` e `resultado.omieSicredi` onde matched=false)
+- Duas sub-secoes com headers: "No Banco mas nao no Omie" e "No Omie mas nao no Banco"
+- Cada sub-secao usa DataTable
+
+**Aba "Cartao p/ Importacao"** (derivado de `resultado.divergencias` tipo 'I')
+- Colunas: # | Data | Descricao | Valor | Categoria | Cod. Integracao
+- Total no rodape
+
+### Contadores nas abas
+Cada aba mostra o count no label: "Conciliados (360)", "Divergencias (226)", etc.
+
+## 4. KPI cards clicaveis
+
+Os 4 cards de resumo (Conciliados, Divergencias, Em Atraso, Cartao Importaveis) ganham `cursor-pointer` e `onClick` que seta a aba ativa correspondente + scroll suave ate o componente de abas.
+
+## 5. Alteracoes em `src/pages/Conciliacao.tsx`
+
+- Substituir renderizacao inline dos cards de upload por `ImportPreviewCard`
+- Adicionar `ResultTabs` abaixo do resumo de matching, visivel quando `resultado` nao e null
+- Novo estado `activeTab` para controlar aba ativa (vinculado aos KPI cards)
+- Ref no container de abas para scroll automatico
+
+## 6. Estrutura de arquivos
 
 ```text
-conciliacao_imports
-  id              UUID PK
-  tipo            TEXT ('extrato_banco' | 'extrato_omie' | 'fatura_cartao')
-  periodo_ref     TEXT ('YYYY-MM')
-  periodo_inicio  DATE (nullable)
-  periodo_fim     DATE (nullable)
-  status          TEXT DEFAULT 'ativo'
-  nome_arquivo    TEXT
-  total_lancamentos  INTEGER DEFAULT 0
-  valor_total     NUMERIC(15,2) DEFAULT 0
-  saldo_anterior  NUMERIC(15,2) (nullable)
-  dados           JSONB (array de lancamentos parseados)
-  metadata        JSONB (nullable, info extra como cartaoInfo)
-  created_at      TIMESTAMPTZ DEFAULT NOW()
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+src/components/conciliacao/
+  DataTable.tsx           -- componente base reutilizavel
+  ImportPreviewCard.tsx   -- card expandivel com preview
+  ResultTabs.tsx          -- abas de resultados
 ```
 
-- Partial unique index: `(tipo, periodo_ref) WHERE status = 'ativo'` -- permite multiplos registros 'substituido'
-- Index: `(periodo_ref, status)` para busca rapida
-- RLS: authenticated users can manage (FOR ALL, USING true, WITH CHECK true)
-- Trigger `update_updated_at_column` para manter updated_at atualizado
+## 7. Arquivos NAO alterados
 
-## 2. Novo hook: `src/hooks/useConciliacaoStorage.ts`
+- engine.ts, matcher.ts, classifier.ts, parsers.ts, outputs.ts
+- useConciliacaoStorage.ts
+- Nenhum componente UI base (table.tsx, tabs.tsx, etc.)
+- Nenhuma migration SQL
 
-Funcoes:
-- **saveImport(params)**: marca imports anteriores do mesmo tipo+periodo como 'substituido', insere novo como 'ativo'
-- **loadImports(periodoRef)**: busca os 3 tipos ativos para o periodo, retorna `{ extratoBanco, extratoOmie, faturaCartao }`
-- **deleteImport(tipo, periodoRef)**: marca como 'substituido'
+## Detalhes tecnicos
 
-O hook usa `supabase` client diretamente (sem react-query, operacoes pontuais).
+### DataTable - logica de ordenacao
+- Estado interno: `sortKey` e `sortDir` ('asc'|'desc')
+- Click no header: se mesma coluna, inverte direcao; se outra, seta asc
+- Ordenacao aplica sobre dados filtrados antes de paginar
 
-## 3. Seletor de periodo na tela
+### DataTable - logica de busca
+- Estado interno `search`
+- Filtra rows onde qualquer campo em `searchKeys` contem o texto (toLowerCase)
+- Debounce de 200ms no input
 
-Adicionar um seletor de mes/ano no header da pagina (ao lado do badge "Ref:"). O seletor:
-- Mostra os ultimos 12 meses como opcoes
-- Ao mudar, limpa os cards e resultado, e chama `loadImports()` para o novo periodo
-- O periodo selecionado determina o `periodoRef` para salvar (nao mais extraido dos arquivos)
+### Formatacao de valores
+- Funcao `formatBRL(v: number)` retorna string "R$ 1.234,56"
+- Classe condicional: `text-green-500` se v > 0, `text-red-500` se v < 0
 
-Componente: dois `<Select>` inline (mes + ano) ou um unico `<Select>` com opcoes tipo "Janeiro 2026", "Dezembro 2025", etc.
+### Cor por camada (aba Conciliados)
+- Camada A: `bg-green-500/10`
+- Camada B: `bg-yellow-500/10`
+- Camada C: `bg-orange-500/10`
+- Camada D: `bg-red-500/10`
 
-## 4. Alteracoes na pagina `src/pages/Conciliacao.tsx`
-
-### Novo estado
-- `periodoRef`: string no formato "YYYY-MM", inicializado com mes atual
-- `loadingImports`: boolean para loading state ao carregar do banco
-- `savedSources`: Record indicando quais cards vieram do banco (para mostrar badge "Salvo" vs "Carregado")
-
-### Ao abrir / mudar periodo
-1. Converter selecao para "YYYY-MM"
-2. Chamar `loadImports(periodoRef)`
-3. Se encontrar dados, preencher os cards automaticamente com dados do banco (criar `ParsedFileInfo` virtual com nome do arquivo salvo, rowCount, etc.)
-4. Se nao encontrar, cards ficam vazios (upload normal)
-
-### Ao importar arquivo (upload)
-1. Parse normal (sem alterar parsers)
-2. Apos parse bem-sucedido, chamar `saveImport()` com os dados parseados
-3. Toast: "Extrato bancario salvo para Janeiro/2026"
-
-### Ao remover (X)
-1. Chamar `deleteImport(tipo, periodoRef)`
-2. Limpar estado local do card
-3. Toast: "Extrato bancario removido"
-
-### Executar Conciliacao
-- Quando dados vem do banco (sem File object), o `executarConciliacao` precisa aceitar arrays de dados diretamente em vez de File objects
-- Criar uma funcao alternativa ou adaptar para aceitar dados ja parseados
-
-### Badge visual
-- Dados do upload manual: badge verde "Carregado" (como hoje)
-- Dados do banco: badge azul "Salvo" com icone de banco de dados
-
-## 5. Adaptacao do engine para aceitar dados pre-parseados
-
-Criar uma funcao `executarConciliacaoFromData()` em `engine.ts` que aceita os arrays de lancamentos diretamente (em vez de File objects). A funcao `executarConciliacao` original continua funcionando para o fluxo de upload.
-
-```text
-executarConciliacaoFromData(
-  banco: LancamentoBanco[],
-  omie: LancamentoOmie[],
-  cartaoTransacoes: TransacaoCartao[],
-  cartaoInfo: CartaoInfo,
-  saldoBanco: number | null,
-  saldoOmie: number | null
-): ResultadoConciliacao
-```
-
-A logica de matching/classificacao e extraida para ser compartilhada entre as duas funcoes.
-
-## 6. Serializacao/deserializacao de datas
-
-Os objetos `LancamentoBanco`, `LancamentoOmie` e `TransacaoCartao` contem campos `data: Date`. Ao salvar no JSONB, as datas viram strings ISO. Ao carregar, precisam ser reconstituidas como Date objects. O hook tera funcoes auxiliares para isso.
-
-## Arquivos alterados
-
-| Arquivo | O que muda |
-|---|---|
-| Migration SQL | Cria tabela `conciliacao_imports` com indexes e RLS |
-| `src/hooks/useConciliacaoStorage.ts` | NOVO -- hook de persistencia |
-| `src/pages/Conciliacao.tsx` | Seletor de periodo, auto-load, save on upload, badge visual |
-| `src/lib/conciliacao/engine.ts` | Nova funcao `executarConciliacaoFromData()` |
-
-## Arquivos NAO alterados
-
-- parsers.ts, matcher.ts, classifier.ts, outputs.ts, types.ts
-- Nenhum outro arquivo do projeto
+### Responsividade
+- Container das tabelas com `overflow-x-auto`
+- TableHeader com `sticky top-0` (ja configurado no table.tsx base)
+- Em mobile, cards de upload empilham (ja funciona com grid-cols-1)
 
