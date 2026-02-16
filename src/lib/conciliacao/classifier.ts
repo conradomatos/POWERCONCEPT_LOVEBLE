@@ -46,8 +46,7 @@ export function detectDuplicates(omie: LancamentoOmie[], divergencias: Divergenc
 // ============================================================
 export function classifyDivergencias(
   banco: LancamentoBanco[],
-  omieSicredi: LancamentoOmie[],
-  omieCartao: LancamentoOmie[],
+  omie: LancamentoOmie[],
   cartao: TransacaoCartao[],
   divergencias: Divergencia[],
   matches: Match[]
@@ -75,7 +74,7 @@ export function classifyDivergencias(
   }
 
   // B / B* — A MAIS NO OMIE / CONTA EM ATRASO
-  for (const o of omieSicredi) {
+  for (const o of omie) {
     if (o.matched) continue;
 
     if (o.situacao === 'Atrasado' && o.origem.includes('Previsão')) {
@@ -166,30 +165,12 @@ export function classifyDivergencias(
     }
   }
 
-  // H — CARTÃO COBERTO POR NF
+  // I — CARTÃO PARA IMPORTAR
   for (const t of cartao) {
-    if (t.matchedNf) {
-      divergencias.push({
-        tipo: 'H',
-        tipoNome: 'CARTÃO - COBERTO POR NF',
-        fonte: 'Cartão',
-        data: t.dataStr,
-        valor: t.valor,
-        descricao: t.descricao,
-        titular: t.titular,
-        fornecedorOmie: t.matchFornecedorOmie,
-        tipoDoc: t.matchTipoDoc,
-        nf: t.matchNf,
-      });
-    }
-  }
-
-  // I — CARTÃO FALTANDO NO OMIE (para importar)
-  for (const t of cartao) {
-    if (!t.matchedNf && !t.isPagamentoFatura && !t.isEstorno) {
+    if (!t.isPagamentoFatura && !t.isEstorno) {
       divergencias.push({
         tipo: 'I',
-        tipoNome: 'CARTÃO - FALTANDO NO OMIE',
+        tipoNome: 'CARTÃO - IMPORTAR',
         fonte: 'Cartão',
         data: t.dataStr,
         valor: t.valor,

@@ -49,11 +49,6 @@ export interface TransacaoCartao {
   cartao: string;
   isPagamentoFatura: boolean;
   isEstorno: boolean;
-  matchedNf: boolean;
-  matchOmieIdx: number | null;
-  matchFornecedorOmie: string;
-  matchTipoDoc: string;
-  matchNf: string;
   categoriaSugerida: string;
 }
 
@@ -107,7 +102,6 @@ export interface ResultadoConciliacao {
   divergencias: Divergencia[];
   banco: LancamentoBanco[];
   omieSicredi: LancamentoOmie[];
-  omieCartao: LancamentoOmie[];
   cartaoTransacoes: TransacaoCartao[];
   cartaoInfo: CartaoInfo;
   saldoBanco: number | null;

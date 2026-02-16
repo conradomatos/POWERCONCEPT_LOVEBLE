@@ -1,6 +1,5 @@
-import { normalizeCnpjCpf, nomeCompativel, nomeCompativelCartao, daysDiff } from './utils';
-import { suggestCategoria } from './categorias';
-import type { LancamentoBanco, LancamentoOmie, TransacaoCartao, Match } from './types';
+import { normalizeCnpjCpf, nomeCompativel, daysDiff } from './utils';
+import type { LancamentoBanco, LancamentoOmie, Match } from './types';
 
 function markMatch(b: LancamentoBanco, o: LancamentoOmie, camada: string, tipo: string, matches: Match[]) {
   b.matched = true;
@@ -242,51 +241,3 @@ export function matchFaturaCartao(banco: LancamentoBanco[], omie: LancamentoOmie
   }
 }
 
-// ============================================================
-// MATCH CARTÃO ↔ NF
-// ============================================================
-export function matchCartaoNf(cartao: TransacaoCartao[], omieCartao: LancamentoOmie[]) {
-  for (const t of cartao) {
-    if (t.isPagamentoFatura || t.isEstorno) continue;
-    for (const o of omieCartao) {
-      if (o.matched) continue;
-      if (o.origem.includes('Transferência') || o.categoria.includes('Transferência')) continue;
-
-      if (Math.abs(Math.abs(o.valor) - Math.abs(t.valor)) < 0.01) {
-        if (nomeCompativelCartao(t.descricao, o.clienteFornecedor, o.razaoSocial)) {
-          t.matchedNf = true;
-          t.matchOmieIdx = o.idx;
-          t.matchFornecedorOmie = o.clienteFornecedor;
-          t.matchTipoDoc = o.tipoDoc;
-          t.matchNf = o.notaFiscal;
-          o.matched = true;
-          break;
-        }
-      }
-    }
-  }
-
-  for (const t of cartao) {
-    if (t.matchedNf || t.isPagamentoFatura || t.isEstorno) continue;
-    for (const o of omieCartao) {
-      if (o.matched) continue;
-      if (o.origem.includes('Transferência') || o.categoria.includes('Transferência')) continue;
-
-      if (Math.abs(Math.abs(o.valor) - Math.abs(t.valor)) < 0.01) {
-        t.matchedNf = true;
-        t.matchOmieIdx = o.idx;
-        t.matchFornecedorOmie = o.clienteFornecedor;
-        t.matchTipoDoc = o.tipoDoc;
-        t.matchNf = o.notaFiscal;
-        o.matched = true;
-        break;
-      }
-    }
-  }
-
-  for (const t of cartao) {
-    if (!t.matchedNf && !t.isPagamentoFatura && !t.isEstorno) {
-      t.categoriaSugerida = suggestCategoria(t.descricao);
-    }
-  }
-}

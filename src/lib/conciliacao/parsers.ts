@@ -224,11 +224,6 @@ export function parseCartaoFromText(text: string): { transacoes: TransacaoCartao
         cartao: currentCartao,
         isPagamentoFatura: descricao.includes('Pag Fat Deb Cc'),
         isEstorno: valor < 0 && !descricao.includes('Pag Fat'),
-        matchedNf: false,
-        matchOmieIdx: null,
-        matchFornecedorOmie: '',
-        matchTipoDoc: '',
-        matchNf: '',
         categoriaSugerida: '',
       });
     }
