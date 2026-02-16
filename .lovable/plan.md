@@ -1,88 +1,47 @@
 
 
-# Simplificar conciliacao do cartao -- remover deduplicacao NF
+# Fix: Planilha importacao cartao vazia + duplicatas no Omie
 
-## Resumo
+## Diagnostico
 
-Remover toda a logica de cruzamento cartao x NF do Omie. Agora toda transacao do cartao (exceto pagamento de fatura e estorno) e importavel diretamente. A funcao `matchFaturaCartao` (banco x fatura) continua inalterada.
+Apos revisar os arquivos:
 
----
+- **engine.ts**: OK -- `suggestCategoria` ja e chamada (linha 55), `cartaoTransacoes` esta no retorno (linha 105)
+- **classifier.ts**: OK -- bloco tipo I funciona corretamente (linha 169-183), sem referencia a `matchedNf`
+- **outputs.ts**: PROBLEMA -- na funcao `gerarExcelImportacaoCartao`, o campo "Codigo de Integracao" esta vazio (linha 454: `''`), causando rejeicao por duplicata no Omie
 
-## Alteracoes
+O Problema 1 (planilha vazia) pode nao ser reprodutivel no codigo atual -- o fluxo parece correto. Se persistir, sera um problema no parse do CSV do cartao. O Problema 2 (duplicatas no Omie) e claro e reprodutivel.
 
-### 1. `src/lib/conciliacao/types.ts`
+## Alteracao unica
 
-- Remover campos de `TransacaoCartao`: `matchedNf`, `matchOmieIdx`, `matchFornecedorOmie`, `matchTipoDoc`, `matchNf`
-- Remover `omieCartao` de `ResultadoConciliacao`
-- Renomear `omieSicredi` para `omie` em `ResultadoConciliacao` (ou manter como `omieSicredi` para compatibilidade -- manter como `omieSicredi` para minimizar impacto nos outputs)
+### `src/lib/conciliacao/outputs.ts` -- funcao `gerarExcelImportacaoCartao` (linhas 447-459)
 
-### 2. `src/lib/conciliacao/matcher.ts`
+Substituir o loop que gera as linhas da planilha para:
 
-- Remover a funcao `matchCartaoNf` inteira (linhas 248-292)
-- Remover import de `nomeCompativelCartao` (nao usado em mais nenhum lugar)
-- Remover import de `suggestCategoria` (movido para engine.ts)
-- Remover `TransacaoCartao` do import de types
-
-### 3. `src/lib/conciliacao/engine.ts`
-
-- Remover import de `matchCartaoNf`
-- Remover a separacao `omieSicredi` / `omieCartao` (variaveis `contaCartaoKeywords`, `omieSicredi`, `omieCartao` e console.logs associados)
-- Usar `omie` diretamente em todas as chamadas de matching (camadas A-D) e em `matchFaturaCartao`
-- Remover chamada `matchCartaoNf(cartaoTransacoes, omieCartao)`
-- Adicionar import de `suggestCategoria` e chamar apos parse do cartao:
+1. Adicionar contador sequencial (`seqNum`)
+2. Gerar "Codigo de Integracao" unico: `CARTAO-{MMAA}-{SEQ}` (ex: `CARTAO-0126-001`)
+3. Incluir referencia ao codigo nas Observacoes como seguranca extra
 
 ```text
-for (const t of cartaoTransacoes) {
-  if (!t.isPagamentoFatura && !t.isEstorno) {
-    t.categoriaSugerida = suggestCategoria(t.descricao);
-  }
+-- ANTES (linha 454):
+rows.push(['', '', 'CARTAO DE CREDITO', cat, ...])
+
+-- DEPOIS:
+let seqNum = 1;
+for (const t of valid) {
+  const codigoIntegracao = `CARTAO-${mesAnoRef}-${String(seqNum).padStart(3, '0')}`;
+  // ...obs inclui `| Ref: ${codigoIntegracao}`
+  rows.push(['', codigoIntegracao, 'CARTAO DE CREDITO', cat, ...])
+  seqNum++;
 }
 ```
 
-- Atualizar chamada `classifyDivergencias` removendo parametro `omieCartao`
-- Remover `omieCartao` do retorno; manter `omieSicredi: omie` (apontando para o array completo)
+## Nenhuma alteracao em
 
-### 4. `src/lib/conciliacao/classifier.ts`
-
-- Remover parametro `omieCartao` da assinatura de `classifyDivergencias`
-- Renomear parametro `omieSicredi` para `omie`
-- Remover bloco tipo H inteiro (loop que gera "CARTAO - COBERTO POR NF")
-- No bloco tipo I, remover condicao `!t.matchedNf`, ficando apenas `!t.isPagamentoFatura && !t.isEstorno`
-- Renomear tipoNome de "CARTAO - FALTANDO NO OMIE" para "CARTAO - IMPORTAR"
-
-### 5. `src/lib/conciliacao/outputs.ts`
-
-Atualizar todas as referencias:
-- Remover filtro `!t.matchedNf` de todas as contagens de transacoes importaveis (linhas 275, 320, 442, 548, 726, 767)
-- Remover secao "NFs cobertas pelo cartao" do relatorio MD (bloco que filtra tipo H, linhas ~261-273)
-- Manter referencias a `r.omieSicredi` pois o campo continua existindo no tipo (apenas aponta para o array completo agora)
-
-### 6. `src/pages/Conciliacao.tsx`
-
-Nenhuma alteracao necessaria -- a pagina nao referencia `omieCartao` nem `matchedNf` diretamente. Os KPIs usam `resultado.cartaoImportaveis` que e calculado no engine.
-
----
-
-## O que NAO muda
-
-| Item | Status |
+| Arquivo | Motivo |
 |---|---|
-| `matchFaturaCartao()` no matcher.ts | Mantida |
-| Camadas de matching A, B, C, D | Inalteradas |
-| Tipo T (transferencia entre contas) | Inalterado |
-| `parsers.ts` | Inalterado |
-| `suggestCategoria` em categorias.ts | Mantida, agora chamada no engine |
-| `nomeCompativelCartao` em utils.ts | Pode ficar (nao causa problema), mas nao e mais usada |
-
----
-
-## Arquivos afetados
-
-| Arquivo | Acao |
-|---|---|
-| `src/lib/conciliacao/types.ts` | Remover 5 campos de TransacaoCartao, remover omieCartao do resultado |
-| `src/lib/conciliacao/matcher.ts` | Remover funcao matchCartaoNf, limpar imports |
-| `src/lib/conciliacao/engine.ts` | Remover separacao omie/cartao, adicionar suggestCategoria, simplificar fluxo |
-| `src/lib/conciliacao/classifier.ts` | Remover param omieCartao, remover tipo H, simplificar tipo I |
-| `src/lib/conciliacao/outputs.ts` | Remover filtros matchedNf e secao tipo H |
+| engine.ts | suggestCategoria ja chamada, cartaoTransacoes no retorno |
+| classifier.ts | Tipo I ja funciona sem matchedNf |
+| types.ts | Nenhuma mudanca necessaria |
+| matcher.ts | matchFaturaCartao mantida |
 
