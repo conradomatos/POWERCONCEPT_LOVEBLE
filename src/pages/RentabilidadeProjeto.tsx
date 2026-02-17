@@ -52,7 +52,7 @@ export default function RentabilidadeProjeto() {
       const { data, error } = await supabase
         .from('vw_rentabilidade_projeto')
         .select('*')
-        .eq('projeto_id', id)
+        .eq('projeto_id', id!)
         .single();
       
       if (error) throw error;

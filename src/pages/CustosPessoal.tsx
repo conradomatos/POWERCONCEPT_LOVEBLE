@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { formatCurrency, parseCurrency } from '@/lib/currency';
+import { formatCurrency } from '@/lib/currency';
 import { formatCPF } from '@/lib/cpf';
 import { CustoForm } from '@/components/CustoForm';
 import { CustoColaborador, calcularCustos } from '@/lib/custos';
@@ -21,13 +21,12 @@ import {
   DollarSign, 
   History, 
   Pencil,
-  Users,
   Wallet,
   Receipt,
   Calculator,
   UserCheck
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parse, isValid } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -78,9 +77,9 @@ function useDebounce<T>(value: T, delay: number): T {
 const HORAS_MENSAIS_PADRAO = 220;
 
 export default function CustosPessoal() {
-  const navigate = useNavigate();
+  void useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, loading: authLoading, hasRole, hasAnyRole } = useAuth();
+  const { user, loading: authLoading, hasRole } = useAuth();
 
   // Check access
   const canAccess = hasRole('super_admin') || hasRole('admin') || hasRole('rh') || hasRole('financeiro');

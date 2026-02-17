@@ -34,7 +34,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Plus, Pencil, Trash2, FolderTree, Folder, FileText, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, FolderTree, Folder, FileText } from 'lucide-react';
 import { useMaterialGroups, MaterialGroup } from '@/hooks/orcamentos/useMaterialGroups';
 import { useMaterialCategories, MaterialCategory } from '@/hooks/orcamentos/useMaterialCategories';
 import { useMaterialSubcategories, MaterialSubcategory } from '@/hooks/orcamentos/useMaterialSubcategories';

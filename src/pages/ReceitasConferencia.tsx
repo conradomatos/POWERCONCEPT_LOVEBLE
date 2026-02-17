@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Download, FileSpreadsheet, ChevronUp, ChevronDown, Link2 } from "lucide-react";
+import { ArrowLeft, Download, ChevronUp, ChevronDown, Link2 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -297,15 +297,15 @@ export default function ReceitasConferencia() {
               <p className="text-xs text-muted-foreground">Não incluso nos totais</p>
             </CardContent>
           </Card>
-          <Card className={totals.semProjeto > 0 ? 'border-warning' : ''}>
+          <Card className={(totals.semProjeto ?? 0) > 0 ? 'border-warning' : ''}>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground uppercase font-medium">Vínculos</p>
               <p className="text-sm">
                 <span className="font-medium text-green-600">{totals.comProjeto}</span> com projeto
               </p>
               <p className="text-sm">
-                <span className={`font-medium ${totals.semProjeto > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
-                  {totals.semProjeto}
+                <span className={`font-medium ${(totals.semProjeto ?? 0) > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
+                  {totals.semProjeto ?? 0}
                 </span> sem projeto
               </p>
             </CardContent>
@@ -340,7 +340,7 @@ export default function ReceitasConferencia() {
             </SelectContent>
           </Select>
 
-          {projetoFilter === 'sem' && totals.semProjeto > 0 && (
+          {projetoFilter === 'sem' && (totals.semProjeto ?? 0) > 0 && (
             <Button
               variant="outline"
               size="sm"

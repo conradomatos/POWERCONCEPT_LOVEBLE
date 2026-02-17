@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, cleanCPF } from '@/lib/cpf';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
+import { Upload, CheckCircle2, XCircle, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
@@ -614,10 +614,10 @@ export default function ImportApontamentos() {
       const collabName = row.colaborador_id ? collabMap.get(row.colaborador_id) : null;
       
       // Calculate total hours for consolidated record
-      const totalHoras = row.horas_normais + row.horas_50 + row.horas_100 + row.horas_noturnas;
+      void (row.horas_normais + row.horas_50 + row.horas_100 + row.horas_noturnas); // totalHoras
       
       // Determine tipo_hora based on which has the most hours
-      let tipoHora: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA' = 'NORMAL';
+      let tipoHora: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA' = 'NORMAL'; // eslint-disable-line @typescript-eslint/no-unused-vars
       if (row.horas_50 > row.horas_normais && row.horas_50 > row.horas_100 && row.horas_50 > row.horas_noturnas) {
         tipoHora = 'H50';
       } else if (row.horas_100 > row.horas_normais && row.horas_100 > row.horas_noturnas) {

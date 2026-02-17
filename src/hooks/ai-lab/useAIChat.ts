@@ -184,7 +184,7 @@ export function useAIChat(threadId: string | undefined) {
         ? { ...agentMeta, slug: agentType || 'default' }
         : { id: '', name: 'Assistente', color: '#F59E0B', system_prompt: '', slug: agentType || 'default' };
 
-      const assistantContent = await callAgent(content, meta, history, settings, false);
+      const assistantContent = await callAgent(content, meta, history, { api_url: settings.api_url ?? '', api_key: settings.api_key }, false);
       const msg = await saveAssistantMessage(assistantContent, meta);
       if (msg) setMessages(prev => [...prev, msg]);
 
@@ -242,7 +242,7 @@ export function useAIChat(threadId: string | undefined) {
 
       try {
         const history = await fetchHistory();
-        const assistantContent = await callAgent(content, agent, history, settings, isMultiAgent);
+        const assistantContent = await callAgent(content, agent, history, { api_url: settings.api_url ?? '', api_key: settings.api_key }, isMultiAgent);
         const msg = await saveAssistantMessage(assistantContent, agent);
         if (msg) setMessages(prev => [...prev, msg]);
       } catch (err: any) {

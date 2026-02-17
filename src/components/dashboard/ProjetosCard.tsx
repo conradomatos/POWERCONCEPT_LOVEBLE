@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FolderKanban, CheckCircle, AlertTriangle, XCircle, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,38 +33,6 @@ interface ProjetosCardProps {
   isLoading?: boolean;
 }
 
-const statusIcons = {
-  ok: CheckCircle,
-  alerta: AlertTriangle,
-  critico: XCircle,
-};
-
-const statusColors = {
-  ok: 'text-emerald-500',
-  alerta: 'text-amber-500',
-  critico: 'text-destructive',
-};
-
-function getMargemColor(margem: number | null) {
-  if (margem === null) return 'text-muted-foreground';
-  if (margem >= 20) return 'text-emerald-500';
-  if (margem >= 0) return 'text-amber-500';
-  return 'text-destructive';
-}
-
-function getPrazoBadgeClasses(dias: number | null): string {
-  if (dias === null) return 'bg-muted text-muted-foreground border-muted';
-  if (dias < 0) return 'bg-destructive/10 text-destructive border-destructive/30';
-  if (dias < 5) return 'bg-destructive/10 text-destructive border-destructive/30';
-  if (dias <= 15) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
-  return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
-}
-
-function formatPrazo(dias: number | null): string {
-  if (dias === null) return '-';
-  if (dias < 0) return 'Vencido';
-  return `${dias}d`;
-}
 
 export function ProjetosCard({ contadores, projetos, isLoading }: ProjetosCardProps) {
   const navigate = useNavigate();

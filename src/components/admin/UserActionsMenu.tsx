@@ -10,6 +10,7 @@ interface UserWithRole {
   email: string;
   full_name: string | null;
   roles: AppRole[];
+  created_at?: string;
   is_active?: boolean;
 }
 

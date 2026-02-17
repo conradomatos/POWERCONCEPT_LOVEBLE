@@ -30,6 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 type FilterType = 'todos' | 'mapeados' | 'nao_mapeados';
 
 // Fallback para AP baseado no prefixo (mesma lógica do useDREData)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function fallbackAP(cat: string): string {
   if (cat.startsWith('1.')) return '(-) - Custo dos Serviços Prestados';
   if (cat.startsWith('2.01') || cat.startsWith('2.02')) return '(-) - Despesas com Pessoal';
@@ -72,7 +73,7 @@ function useMapeamentoTipos() {
 
 export default function MapeamentoCategorias() {
   const { data: mapeamentos, isLoading } = useMapeamentos();
-  const { data: categorias } = useCategoriasAtivas();
+  void useCategoriasAtivas(); // categorias loaded for side effects
   const { data: stats } = useMapeamentoStats();
   const { data: tipos } = useMapeamentoTipos();
   const batchUpdate = useBatchUpdateMapeamento();

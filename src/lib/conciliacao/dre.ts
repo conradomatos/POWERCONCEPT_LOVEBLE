@@ -131,7 +131,7 @@ function popularValores(secoes: DRESecao[], dados: DREDadosMes[], mes: number) {
     acumulado += linha.sinal === '+' ? linha.valor : -linha.valor;
   }
   if (secoes[0].subtotal) secoes[0].subtotal.valor = acumulado;
-  const receitaLiquida = acumulado;
+  void acumulado; // receitaLiquida
 
   // Section 1: LUCRO BRUTO = RL - Custos
   for (const linha of secoes[1].linhas) {

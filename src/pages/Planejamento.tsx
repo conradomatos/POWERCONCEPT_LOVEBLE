@@ -55,7 +55,7 @@ import {
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
-import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, eachDayOfInterval, addDays } from 'date-fns';
+import { format, addMonths, subMonths, addWeeks, subWeeks, parseISO, addDays } from 'date-fns';
 import { getGanttPeriod, PeriodType, groupConsecutiveDates } from '@/lib/gantt-utils';
 import { Database } from '@/integrations/supabase/types';
 
@@ -395,7 +395,7 @@ export default function Planejamento() {
     }
 
     try {
-      const { error, data } = await supabase
+      const { error } = await supabase
         .from('alocacoes_blocos')
         .update({
           data_inicio: novaDataInicio,
@@ -429,7 +429,7 @@ export default function Planejamento() {
     }
 
     try {
-      const { error, data } = await supabase
+      const { error } = await supabase
         .from('alocacoes_blocos')
         .update({
           data_inicio: novaDataInicio,
