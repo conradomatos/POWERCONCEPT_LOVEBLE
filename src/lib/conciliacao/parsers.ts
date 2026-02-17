@@ -65,7 +65,7 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
     if (rowStr.includes('SITUAÇ') || rowStr.includes('SITUACAO') || (rowStr.includes('CLIENTE') && rowStr.includes('DATA'))) {
       headerRowIdx = i;
       for (let j = 0; j < row.length; j++) {
-        const cn = String(row[j] || '').toUpperCase().trim();
+        const cn = String(row[j] || '').toUpperCase().trim().replace(/[^\x20-\x7E\u00C0-\u024F]/g, '');
         if (cn.includes('SITUAÇ') || cn === 'SITUACAO') colMap['situacao'] = j;
         else if (cn === 'DATA' || cn.includes('DATA LANÇ') || cn.includes('DATA LANC')) colMap['data'] = j;
         else if (cn.includes('CLIENTE') || cn.includes('FORNECEDOR')) colMap['cliente'] = j;
@@ -75,11 +75,11 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
         else if (cn.includes('SALDO')) colMap['saldo'] = j;
         else if (cn.includes('TIPO DOC') || cn.includes('TIPO DE DOC')) colMap['tipoDoc'] = j;
         else if (cn === 'DOCUMENTO' || cn === 'DOC') colMap['documento'] = j;
-        else if (cn.includes('NOTA FISCAL') || cn === 'NF') colMap['notaFiscal'] = j;
+        else if (cn.includes('NOTA FISCAL') || cn.includes('NF-E') || cn === 'NF' || cn === 'NOTA') colMap['notaFiscal'] = j;
         else if (cn.includes('PARCELA')) colMap['parcela'] = j;
         else if (cn.includes('ORIGEM')) colMap['origem'] = j;
         else if (cn.includes('PROJETO')) colMap['projeto'] = j;
-        else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && !colMap['cliente']) colMap['razaoSocial'] = j;
+        else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && colMap['cliente'] !== j) colMap['razaoSocial'] = j;
         else if (cn.includes('CNPJ') || cn.includes('CPF')) colMap['cnpjCpf'] = j;
         else if (cn.includes('OBSERV')) colMap['observacoes'] = j;
       }
