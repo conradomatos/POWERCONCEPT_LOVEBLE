@@ -126,7 +126,6 @@ export default function AprovacoesProjetos() {
       setSelectedProjeto(null);
       setActionType(null);
     } catch (error: any) {
-      console.error('Error approving projeto:', error);
       toast.error('Erro ao aprovar projeto: ' + error.message);
     } finally {
       setLoading(false);
@@ -163,7 +162,6 @@ export default function AprovacoesProjetos() {
       setActionType(null);
       setMotivoReprovacao('');
     } catch (error: any) {
-      console.error('Error rejecting projeto:', error);
       toast.error('Erro ao reprovar projeto: ' + error.message);
     } finally {
       setLoading(false);

@@ -93,7 +93,6 @@ export function ResetPasswordDialog({ open, onOpenChange, user, onSuccess }: Res
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error resetting password:', error);
       toast.error('Erro ao redefinir senha');
     } finally {
       setIsSubmitting(false);

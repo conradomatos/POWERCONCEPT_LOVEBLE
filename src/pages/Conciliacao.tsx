@@ -245,10 +245,8 @@ export default function Conciliacao() {
             setResultado(rehydrated);
           }
         } catch (err) {
-          console.error('Erro ao carregar resultado:', err);
         }
       } catch (err) {
-        console.error('Erro ao carregar imports:', err);
       } finally {
         if (!cancelled) setLoadingImports(false);
       }
@@ -317,7 +315,6 @@ export default function Conciliacao() {
           await invalidateResultado(periodoRef);
           setResultado(null);
         } catch (err) {
-          console.error('Erro ao invalidar resultado:', err);
         }
 
         try {
@@ -346,7 +343,6 @@ export default function Conciliacao() {
           const label = periodoRefToLabel(periodoRef);
           toast.success(`${file.name} salvo para ${label}`);
         } catch (saveErr) {
-          console.error('Erro ao salvar no banco:', saveErr);
           toast.success(`${file.name} carregado — ${info.rowCount} registros`);
           toast.error('Erro ao salvar no banco de dados');
         }
@@ -382,7 +378,6 @@ export default function Conciliacao() {
       await invalidateResultado(periodoRef);
       toast.success('Arquivo removido');
     } catch (err) {
-      console.error('Erro ao remover:', err);
     }
     setFiles((prev) => ({ ...prev, [type]: null }));
     setSavedSources((prev) => ({ ...prev, [type]: false }));
@@ -399,25 +394,25 @@ export default function Conciliacao() {
   const handleDownloadRelatorio = () => {
     if (!resultado) return;
     try { gerarRelatorioMD(resultado); toast.success('Download do relatório .md iniciado'); }
-    catch (error) { console.error('Erro ao gerar relatório:', error); toast.error('Falha ao gerar relatório'); }
+    catch { toast.error('Falha ao gerar relatório'); }
   };
 
   const handleDownloadDivergencias = () => {
     if (!resultado) return;
     try { gerarExcelDivergencias(resultado); toast.success('Download do Excel de divergências iniciado'); }
-    catch (error) { console.error('Erro ao gerar divergências:', error); toast.error('Falha ao gerar Excel de divergências'); }
+    catch { toast.error('Falha ao gerar Excel de divergências'); }
   };
 
   const handleDownloadImportacao = () => {
     if (!resultado) return;
     try { gerarExcelImportacaoCartao(resultado); toast.success('Download do Excel de importação iniciado'); }
-    catch (error) { console.error('Erro ao gerar importação:', error); toast.error('Falha ao gerar Excel de importação'); }
+    catch { toast.error('Falha ao gerar Excel de importação'); }
   };
 
   const handleDownloadPDF = () => {
     if (!resultado) return;
     try { gerarRelatorioPDF(resultado); toast.success('Download do relatório PDF iniciado'); }
-    catch (error) { console.error('Erro ao gerar PDF:', error); toast.error('Falha ao gerar PDF'); }
+    catch { toast.error('Falha ao gerar PDF'); }
   };
 
   const handleExecute = async () => {
@@ -456,11 +451,9 @@ export default function Conciliacao() {
         const label = periodoRefToLabel(periodoRef);
         toast.success(`Conciliação salva para ${label}`);
       } catch (saveErr) {
-        console.error('Erro ao salvar resultado:', saveErr);
         toast.error('Erro ao salvar resultado no banco de dados');
       }
     } catch (err: any) {
-      console.error(err);
       toast.error('Erro na conciliação: ' + (err.message || 'erro desconhecido'));
     } finally {
       setProcessando(false);

@@ -74,7 +74,6 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
         .maybeSingle();
 
       if (diaError) {
-        console.error('Error loading apontamento_dia:', diaError);
         setItems([]);
         setDiaInfo(null);
         setIsInitialized(true);
@@ -103,7 +102,6 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
         .eq('apontamento_dia_id', dia.id);
 
       if (itemsError) {
-        console.error('Error loading items:', itemsError);
         setItems([]);
         setIsInitialized(true);
         setLastLoadKey(loadKey);
@@ -288,7 +286,6 @@ export function useApontamentoSimplificado(colaboradorId: string | null, data: s
 
       toast.success('Horas salvas com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar:', error);
       toast.error('Erro ao salvar horas');
     } finally {
       setIsSaving(false);

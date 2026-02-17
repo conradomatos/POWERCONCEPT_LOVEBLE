@@ -179,7 +179,6 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isSuperAdmin }: A
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error creating user:', error);
       toast.error('Erro ao criar usuário');
     } finally {
       setIsSubmitting(false);

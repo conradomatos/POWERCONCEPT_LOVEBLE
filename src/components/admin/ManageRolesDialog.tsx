@@ -85,7 +85,6 @@ export function ManageRolesDialog({ open, onOpenChange, user, onSuccess, isSuper
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error updating roles:', error);
       toast.error('Erro ao atualizar papéis');
     } finally {
       setIsSubmitting(false);

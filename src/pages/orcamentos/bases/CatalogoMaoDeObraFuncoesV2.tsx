@@ -459,7 +459,7 @@ export default function CatalogoMaoDeObraFuncoesV2() {
     if (!editingCell) return;
     
     const col = COLUMNS[editingCell.col];
-    let updateData: Partial<BudgetLaborCatalogItem> = { id: item.id };
+    const updateData: Partial<BudgetLaborCatalogItem> = { id: item.id };
 
     switch (col) {
       case 'codigo':

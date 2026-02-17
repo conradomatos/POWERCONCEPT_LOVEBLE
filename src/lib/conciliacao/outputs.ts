@@ -416,7 +416,6 @@ export function gerarExcelImportacaoCartao(resultado: ResultadoConciliacao): voi
   const r = resultado;
 
   if (!r.cartaoInfo || !r.cartaoTransacoes) {
-    console.warn('Sem dados de cartão para gerar importação');
     return;
   }
 

@@ -82,7 +82,7 @@ export function parseCurrencyToNumber(value: string): number {
 // Format number to BRL display (20.000,00)
 export function formatCurrencyInput(value: string): string {
   // Remove non-numeric chars except comma and dot
-  let cleaned = value.replace(/[^\d]/g, '');
+  const cleaned = value.replace(/[^\d]/g, '');
   
   if (!cleaned) return '';
   

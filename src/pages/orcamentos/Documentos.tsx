@@ -75,7 +75,6 @@ export default function Documentos() {
         }
       }
     } catch (error) {
-      console.error('Error generating PDF:', error);
       toast({
         title: 'Erro ao gerar proposta',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -98,7 +97,6 @@ export default function Documentos() {
 
       setPreviewHtml(data);
     } catch (error) {
-      console.error('Error previewing:', error);
       toast({
         title: 'Erro ao visualizar',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
@@ -119,7 +117,6 @@ export default function Documentos() {
         window.open(data.signedUrl, '_blank');
       }
     } catch (error) {
-      console.error('Error downloading:', error);
       toast({
         title: 'Erro ao baixar documento',
         description: 'Não foi possível obter o link do arquivo.',
@@ -134,7 +131,6 @@ export default function Documentos() {
     try {
       await deleteDocument.mutateAsync(documentId);
     } catch (error) {
-      console.error('Error deleting document:', error);
     }
   };
 

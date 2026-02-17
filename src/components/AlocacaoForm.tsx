@@ -167,7 +167,6 @@ export default function AlocacaoForm({
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error saving allocation:', error);
       // Parse error message for conflicts
       if (error.message?.includes('sobreposta')) {
         toast.error('Conflito: ' + error.message);
@@ -195,7 +194,6 @@ export default function AlocacaoForm({
       setShowDeleteConfirm(false);
       onSuccess();
     } catch (error: any) {
-      console.error('Error deleting allocation:', error);
       toast.error(error.message || 'Erro ao excluir alocação');
     } finally {
       setIsDeleting(false);

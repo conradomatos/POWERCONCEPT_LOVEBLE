@@ -109,7 +109,6 @@ export default function AlocacaoPadraoForm({
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error saving padrao:', error);
       toast.error(error.message || 'Erro ao salvar padrão');
     } finally {
       setIsSubmitting(false);

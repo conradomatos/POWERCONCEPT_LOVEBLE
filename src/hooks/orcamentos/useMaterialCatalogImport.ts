@@ -497,7 +497,6 @@ export function useMaterialCatalogImport() {
       setSummary({ total: data.length, novos, novasVariantes, updates, iguais, conflitos, erros });
     } catch (error) {
       toast.error('Erro ao gerar prévia');
-      console.error(error);
     } finally {
       setIsProcessing(false);
     }
@@ -807,7 +806,6 @@ export function useMaterialCatalogImport() {
       return true;
     } catch (error) {
       toast.error('Erro ao aplicar importação');
-      console.error(error);
       return false;
     } finally {
       setIsProcessing(false);

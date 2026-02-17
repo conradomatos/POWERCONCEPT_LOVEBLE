@@ -43,7 +43,6 @@ export function SyncButton({ lastSyncAt, onSyncComplete, className }: SyncButton
         throw new Error(data?.error || 'Erro desconhecido');
       }
     } catch (error) {
-      console.error('Sync error:', error);
       setSyncResult('error');
       toast.error('Erro na sincronização', {
         description: error instanceof Error ? error.message : 'Erro ao sincronizar com Omie',
