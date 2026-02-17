@@ -95,6 +95,7 @@ export interface Divergencia {
   obs?: string;
   banco?: LancamentoBanco | null;
   omie?: LancamentoOmie | null;
+  confianca?: 'alta' | 'media' | 'baixa';
 }
 
 export interface ResultadoConciliacao {
@@ -115,9 +116,10 @@ export interface ResultadoConciliacao {
   mesLabel: string;
   anoLabel: string;
   contaCorrenteSelecionada?: string;
-  contasExcluidas?: { nome: string; count: number }[];
+  contasExcluidas?: { nome: string; count: number; entradas: LancamentoOmie[] }[];
   totalOmieOriginal?: number;
   totalOmieFiltrado?: number;
+  lancamentosZerados?: { banco: number; omie: number; total: number };
 }
 
 // ===== DRE =====

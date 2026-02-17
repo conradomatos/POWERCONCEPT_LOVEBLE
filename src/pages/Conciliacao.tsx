@@ -490,6 +490,20 @@ export default function Conciliacao() {
           </Card>
         )}
 
+        {/* Banner de lançamentos zerados */}
+        {resultado && resultado.lancamentosZerados && resultado.lancamentosZerados.total > 0 && (
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  {resultado.lancamentosZerados.total} lançamentos com valor R$ 0,00 foram ignorados ({resultado.lancamentosZerados.banco} do banco, {resultado.lancamentosZerados.omie} do Omie).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Action + Results */}
         <div className="space-y-4">
           <Button onClick={handleExecute} disabled={!canExecute} className="gap-2" size="lg">

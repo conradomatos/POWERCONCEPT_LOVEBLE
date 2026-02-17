@@ -13,7 +13,7 @@ function filtrarPorContaCorrente(
 ): {
   omieFiltrado: LancamentoOmie[];
   contaCorrenteSelecionada: string;
-  contasExcluidas: { nome: string; count: number }[];
+  contasExcluidas: { nome: string; count: number; entradas: LancamentoOmie[] }[];
   totalOmieOriginal: number;
   totalOmieFiltrado: number;
 } {
@@ -66,17 +66,17 @@ function filtrarPorContaCorrente(
   }
 
   const omieFiltrado = omieFiltered.filter(o => (o.contaCorrente || '').trim() === bestConta);
-  const contasExcluidas: { nome: string; count: number }[] = [];
+  const contasExcluidas: { nome: string; count: number; entradas: LancamentoOmie[] }[] = [];
   for (const [conta, entries] of contaGroups) {
     if (conta !== bestConta) {
-      contasExcluidas.push({ nome: conta, count: entries.length });
+      contasExcluidas.push({ nome: conta, count: entries.length, entradas: entries });
     }
   }
 
   // Also count CARTAO-filtered entries
   const cartaoFiltered = omie.length - omieFiltered.length;
   if (cartaoFiltered > 0) {
-    contasExcluidas.push({ nome: 'CARTAO (individual)', count: cartaoFiltered });
+    contasExcluidas.push({ nome: 'CARTAO (individual)', count: cartaoFiltered, entradas: [] });
   }
 
   return {
@@ -97,6 +97,12 @@ function executarMatchingEClassificacao(
   saldoBanco: number | null,
   saldoOmie: number | null,
 ): ResultadoConciliacao {
+  // Filtrar lançamentos com valor zero (não participam da conciliação)
+  const bancoFiltrado = banco.filter(b => Math.abs(b.valor) >= 0.01);
+  const omieFiltradoZero = omie.filter(o => Math.abs(o.valor) >= 0.01);
+  const zeradosBanco = banco.length - bancoFiltrado.length;
+  const zeradosOmie = omie.length - omieFiltradoZero.length;
+
   // Sugestão de categoria para cartão (only if cartao data present)
   if (cartaoTransacoes.length > 0) {
     for (const t of cartaoTransacoes) {
@@ -107,20 +113,20 @@ function executarMatchingEClassificacao(
   }
 
   // Auto-detect and filter by conta corrente
-  const filtro = filtrarPorContaCorrente(banco, omie);
+  const filtro = filtrarPorContaCorrente(bancoFiltrado, omieFiltradoZero);
   const omieFiltrado = filtro.omieFiltrado;
 
   const matches: Match[] = [];
   const divergencias: Divergencia[] = [];
 
-  matchCamadaA(banco, omieFiltrado, matches);
-  matchCamadaB(banco, omieFiltrado, matches);
-  matchCamadaC(banco, omieFiltrado, matches);
-  matchCamadaD(banco, omieFiltrado, matches);
-  matchFaturaCartao(banco, omieFiltrado, matches);
+  matchCamadaA(bancoFiltrado, omieFiltrado, matches);
+  matchCamadaB(bancoFiltrado, omieFiltrado, matches);
+  matchCamadaC(bancoFiltrado, omieFiltrado, matches);
+  matchCamadaD(bancoFiltrado, omieFiltrado, matches);
+  matchFaturaCartao(bancoFiltrado, omieFiltrado, matches);
 
   detectDuplicates(omieFiltrado, divergencias);
-  classifyDivergencias(banco, omieFiltrado, cartaoTransacoes, divergencias, matches);
+  classifyDivergencias(bancoFiltrado, omieFiltrado, cartaoTransacoes, divergencias, matches, filtro.contasExcluidas);
 
   const camadaCounts: Record<string, number> = {};
   for (const m of matches) {
@@ -135,12 +141,12 @@ function executarMatchingEClassificacao(
   const contasAtraso = divergencias.filter(d => d.tipo === 'B*').length;
   const cartaoImportaveis = divergencias.filter(d => d.tipo === 'I').length;
 
-  const mesAno = detectarMesAno(banco);
+  const mesAno = detectarMesAno(bancoFiltrado);
 
   return {
     matches,
     divergencias,
-    banco,
+    banco: bancoFiltrado,
     omieSicredi: omieFiltrado,
     cartaoTransacoes,
     cartaoInfo,
@@ -158,6 +164,7 @@ function executarMatchingEClassificacao(
     contasExcluidas: filtro.contasExcluidas,
     totalOmieOriginal: filtro.totalOmieOriginal,
     totalOmieFiltrado: filtro.totalOmieFiltrado,
+    lancamentosZerados: { banco: zeradosBanco, omie: zeradosOmie, total: zeradosBanco + zeradosOmie },
   };
 }
 
