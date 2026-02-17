@@ -96,6 +96,18 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
       } else {
         console.warn('[Parser Omie] Nota Fiscal NAO encontrada no header');
       }
+      if (colMap['observacoes'] !== undefined) {
+        console.log('[Parser Omie] ✅ Coluna Observacoes mapeada para indice', colMap['observacoes']);
+      } else {
+        console.warn('[Parser Omie] ⚠️ Coluna OBSERVACOES NAO ENCONTRADA no header! O matching FOPAG por nome do colaborador NAO funcionará.');
+        const headerRow = rows[headerRowIdx];
+        if (headerRow) {
+          for (let j = 0; j < headerRow.length; j++) {
+            const cn = String(headerRow[j] || '').toUpperCase().trim();
+            console.log(`[Parser Omie] Col ${j}: "${cn}"`);
+          }
+        }
+      }
       break;
     }
   }
