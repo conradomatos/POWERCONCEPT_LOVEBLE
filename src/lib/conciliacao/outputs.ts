@@ -38,7 +38,7 @@ function downloadFile(content: string | Blob, filename: string, mimeType: string
 function descricaoLegivel(d: Divergencia): string {
   const omie = d.omie;
   if (omie) {
-    const nome = omie.clienteFornecedor || omie.razaoSocial || '';
+    const nome = omie.razaoSocial || omie.clienteFornecedor || '';
     if (nome && nome.length > 3 &&
         !nome.toUpperCase().includes('SALDO') &&
         !/^\d{2}\.\d{3}\.\d{3}/.test(nome)) {
@@ -937,7 +937,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   if (checkItems.length > 0) {
     autoTable(doc, {
       startY: y,
-      body: checkItems.map(item => [`●  ${item.texto}`]),
+      body: checkItems.map(item => [`- ${item.texto}`]),
       theme: 'plain',
       styles: {
         fontSize: 9,
