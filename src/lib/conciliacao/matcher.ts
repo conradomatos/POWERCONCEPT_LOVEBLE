@@ -150,7 +150,7 @@ export function matchCamadaC(banco: LancamentoBanco[], omie: LancamentoOmie[], m
     }
   }
 
-  // === Match individual FOPAG via observações ===
+  // === Match individual FOPAG — Tentativa 1: via observações (nome) ===
   for (const b of banco) {
     if (b.matched) continue;
     if (b.tipo !== 'PIX_ENVIADO' && b.tipo !== 'FOLHA') continue;
@@ -161,9 +161,30 @@ export function matchCamadaC(banco: LancamentoBanco[], omie: LancamentoOmie[], m
       
       if (Math.abs(b.valor - o.valor) < 0.01 && daysDiff(b.data, o.data) <= 3) {
         if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)) {
+          console.log(`[FOPAG] Match por obs: banco="${b.nome}" ↔ omie="${o.clienteFornecedor}" obs="${(o.observacoes||'').substring(0,50)}" val=${b.valor}`);
           markMatch(b, o, 'B', 'FOPAG_Obs+Valor', matches);
           break;
         }
+      }
+    }
+  }
+
+  // === Match individual FOPAG — Tentativa 2: FALLBACK por valor exato + data ===
+  for (const b of banco) {
+    if (b.matched) continue;
+    if (b.tipo !== 'PIX_ENVIADO') continue;
+    if (b.valor >= 0) continue;
+    
+    for (const o of unmatchedOmie) {
+      if (o.matched) continue;
+      if (!/FOPAG|FOLHA|SALARIO|SALÁRIO/i.test(o.categoria)) continue;
+      const clienteUpper = (o.clienteFornecedor || '').toUpperCase();
+      if (!clienteUpper.includes('FOLHA') && !clienteUpper.includes('PAGAMENTO') && !clienteUpper.includes('FOPAG')) continue;
+      
+      if (Math.abs(b.valor - o.valor) < 0.01 && daysDiff(b.data, o.data) <= 2) {
+        console.log(`[FOPAG Fallback] Match por valor: banco="${b.nome}" val=${b.valor} ↔ omie="${o.clienteFornecedor}" val=${o.valor}`);
+        markMatch(b, o, 'B', 'FOPAG_Valor+Data', matches);
+        break;
       }
     }
   }
