@@ -1,171 +1,151 @@
 
-
-# Reestruturacao: Nova tela Cartao de Credito + Reorganizacao da Conciliacao
+# Melhorias no Motor de Conciliacao e Relatorio PDF (v2)
 
 ## Resumo
 
-Separar responsabilidades em duas telas independentes:
-- **Cartao de Credito** (`/financeiro/cartao-de-credito`): gerencia faturas, categoriza transacoes, gera planilha de importacao Omie
-- **Conciliacao** (`/financeiro/conciliacao`): compara extrato bancario vs Omie (apenas 2 arquivos)
-
-Ambas compartilham o mesmo backend (tabela `conciliacao_imports`) e reutilizam funcoes existentes sem duplicacao.
+Seis melhorias no motor de conciliacao baseadas na analise real do relatorio Jan/2026: filtrar valores zero, detectar lancamentos na conta errada (tipo F), melhorar agrupamento de CT-e/fretes, sinalizar NF-e parceladas, melhorar layout do PDF, e adicionar tipo F ao sistema de cores/labels.
 
 ---
 
 ## Etapas de Implementacao
 
-### 1. Corrigir erros de build pendentes
+### 1. Atualizar tipos (`src/lib/conciliacao/types.ts`)
 
-Antes de iniciar a reestruturacao, resolver os ~50 erros de TypeScript restantes (imports nao utilizados em `ProjetosCard`, `Cronograma`, `Histograma`, `MaoDeObra`, `CatalogoEquipamentos`, `CatalogoMaoDeObraFuncoesV2`, `IncidenciasMO`, `WbsTemplates`, `Documentos`, `Estrutura`, `Parametros`, `ResumoPrecos`, `VisaoGeral`, `OrcamentoDetail`, `Materiais`, `Admin`, `RentabilidadeProjeto`, etc). Sao majoritariamente remocoes de imports nao utilizados e conversoes de `null` para `undefined`.
+Adicionar ao `Divergencia`:
+- Campo `confianca?: 'alta' | 'media' | 'baixa'`
 
-### 2. Migrar banco de dados
+Adicionar ao `ResultadoConciliacao`:
+- Campo `lancamentosZerados: { banco: number; omie: number; total: number }`
 
-Adicionar coluna `origem` a tabela `conciliacao_imports`:
+O campo `tipo` no `Divergencia` ja e `string`, entao o tipo 'F' funciona sem alteracao no union.
 
-```sql
-ALTER TABLE conciliacao_imports 
-ADD COLUMN IF NOT EXISTS origem TEXT DEFAULT 'upload';
+### 2. Filtrar valor zero no engine (`src/lib/conciliacao/engine.ts`)
+
+Em `executarMatchingEClassificacao`, ANTES de chamar `filtrarPorContaCorrente`:
+- Filtrar lancamentos com `Math.abs(valor) < 0.01` de banco e omie
+- Contar zerados de cada fonte
+- Incluir `lancamentosZerados` no resultado retornado
+
+Em `executarConciliacaoFromData`, aplicar o mesmo filtro apos o reset de flags.
+
+Em `executarConciliacao`, aplicar apos o parse dos arquivos.
+
+### 3. Expandir `contasExcluidas` no engine para incluir entradas
+
+Atualmente `contasExcluidas` so tem `{ nome, count }`. Para a deteccao de tipo F, o classifier precisa das entradas reais da conta do cartao.
+
+Alterar `filtrarPorContaCorrente` para retornar tambem as entradas de cada conta excluida:
+```
+contasExcluidas: { nome: string; count: number; entradas: LancamentoOmie[] }[]
 ```
 
-### 3. Criar nova pagina `CartaoCredito.tsx`
+Atualizar `ResultadoConciliacao` em `types.ts` para refletir essa mudanca.
 
-**Arquivo:** `src/pages/financeiro/CartaoCredito.tsx`
+Passar `contasExcluidas` para `classifyDivergencias` como parametro adicional.
 
-Funcionalidades:
-- Seletor de periodo (mesmo componente reutilizado da Conciliacao)
-- Card de upload de fatura CSV do Sicredi
-- Parse via `parseCartaoFromText` (importado de `src/lib/conciliacao/parsers.ts`)
-- Categorizacao automatica via `suggestCategoria` (importado de `src/lib/conciliacao/categorias.ts`)
-- Persistencia via `useConciliacaoStorage.saveImport()` com tipo `fatura_cartao`
-- Auto-load ao abrir (carrega fatura salva do periodo)
-- 6 cards de resumo: Total, Brasil, Exterior, Transacoes, Importaveis, Estornos
-- 3 abas:
-  - **Transacoes**: lista importaveis com busca/ordenacao
-  - **Pagamentos/Estornos**: pagamentos de fatura e estornos
-  - **Por Categoria**: agrupamento colapsavel com subtotais
-- Botao "Gerar Importacao Omie" usando `gerarExcelImportacaoCartao` de `outputs.ts`
-- Funciona independentemente da tela de Conciliacao
+### 4. Agrupamento CT-e no matcher (`src/lib/conciliacao/matcher.ts`)
 
-### 4. Registrar rota e navegacao
+Na funcao `matchCamadaC`, APOS os blocos existentes de agrupamento, adicionar:
+- Bloco de agrupamento para CT-e/fretes com janela de 45 dias
+- Primeiro tenta soma total de todos os CT-es do mesmo CNPJ
+- Se nao bater, tenta subconjuntos por quinzena (dias 1-15 e 16-31)
+- Usa `markMatch` com camada 'C' e tipo `CT-e_Agrupamento` ou `CT-e_Quinzena`
 
-**Arquivo:** `src/App.tsx`
-- Adicionar import de `CartaoCredito`
-- Adicionar rota: `<Route path="/financeiro/cartao-de-credito" element={<CartaoCredito />} />`
+### 5. Novas classificacoes no classifier (`src/lib/conciliacao/classifier.ts`)
 
-**Arquivo:** `src/components/AppSidebar.tsx`
-- Adicionar item "Cartao de Credito" com icone `CreditCard` entre "Conciliacao" e "Categorias"
+Atualizar assinatura de `classifyDivergencias` para receber `contasExcluidas`.
 
-**Arquivo:** `src/components/Layout.tsx`
-- Adicionar `'/financeiro/cartao-de-credito': 'financeiro'` ao `routeToArea`
+**5a. Tipo F -- Possivel conta errada (cartao no banco)**
 
-### 5. Reorganizar tela de Conciliacao
+Apos o bloco de tipo B, adicionar deteccao:
+- Metodo 1 (alta confianca): cruzar valor com entradas da conta de cartao excluida
+- Metodo 2 (media confianca): heuristica -- obs contem "RECEBIMENTO DA NF" + valor < R$500 + saida
+- Reclassifica de B para F, define `confianca`, `tipoNome` e `acao`
 
-**Arquivo:** `src/pages/Conciliacao.tsx`
+**5b. Acao melhorada para CT-e tipo B**
 
-Remocoes:
-- Card de upload "Fatura Cartao de Credito" (terceiro card)
-- Estado `cartao` do `files` e `savedSources` (FileType passa a ser `'banco' | 'omie'`)
-- Ref `cartaoRef`
-- Bloco de parse de cartao no `handleFile`
-- Card KPI "Cartao Importaveis" (quarto card)
-- Botao "Importacao Cartao (.xlsx)" nos downloads
-- Import de `CreditCard` do lucide
+Apos classificacao, percorrer divergencias tipo B e melhorar acao quando obs contem "CT-E" ou "RECEBIMENTO DO CT".
 
-Alteracoes:
-- Grid de cards: `md:grid-cols-3` para `md:grid-cols-2`
-- Descricao do header: "Compare extrato bancario vs Omie para identificar divergencias"
-- `cardConfigs` fica com 2 itens (banco + omie)
-- KPIs ficam com 3 cards: Conciliados, Divergencias, Em Atraso
+**5c. Acao melhorada para NF-e parcelada tipo B**
 
-### 6. Reorganizar ResultTabs
+Para tipo B com obs contendo "RECEBIMENTO DA NF" + valor > R$400 + saida, definir acao especifica sobre verificar parcelamento.
 
-**Arquivo:** `src/components/conciliacao/ResultTabs.tsx`
+### 6. Atualizar chamada no engine (`src/lib/conciliacao/engine.ts`)
 
-- Remover aba "Cartao p/ Importacao"
-- Remover variaveis `cartaoImport`, `cartaoCols`, `cartaoTotal`
-- Ficam 3 abas: Conciliados, Divergencias, Sem Match
-
-### 7. Adaptar engine para cartao opcional
-
-**Arquivo:** `src/lib/conciliacao/engine.ts`
-
-- Parametros `cartaoTransacoes` e `cartaoInfo` passam a ser opcionais (com defaults vazios)
-- Se `cartaoTransacoes` estiver vazio, nao executa `suggestCategoria` loop nem gera divergencias tipo I
-
-**Arquivo:** `src/lib/conciliacao/classifier.ts`
-
-- Remover bloco "I -- CARTAO PARA IMPORTAR" (linhas 168-183)
-- O parametro `cartao` continua existindo na assinatura mas nao gera mais divergencias tipo I na conciliacao
-
-### 8. Filtro por Conta Corrente (engine)
-
-**Arquivo:** `src/lib/conciliacao/engine.ts`
-
-Implementar auto-deteccao da conta corrente correspondente ao extrato bancario:
-- Analisar campo `contaCorrente` dos lancamentos Omie
-- Identificar a conta mais frequente que tenha matches com o banco
-- Filtrar lancamentos Omie pela conta selecionada antes do matching
-- Adicionar ao `ResultadoConciliacao`:
-  - `contaCorrenteSelecionada: string`
-  - `contasExcluidas: { nome: string; count: number }[]`
-  - `totalOmieOriginal: number`
-  - `totalOmieFiltrado: number`
-
-**Arquivo:** `src/lib/conciliacao/types.ts`
-
-Adicionar campos ao `ResultadoConciliacao`:
+Passar `filtro.contasExcluidas` para `classifyDivergencias`:
 ```typescript
-contaCorrenteSelecionada?: string;
-contasExcluidas?: { nome: string; count: number }[];
-totalOmieOriginal?: number;
-totalOmieFiltrado?: number;
+classifyDivergencias(banco, omieFiltrado, cartaoTransacoes, divergencias, matches, filtro.contasExcluidas);
 ```
 
-**Arquivo:** `src/pages/Conciliacao.tsx`
+### 7. Melhorar relatorio PDF (`src/lib/conciliacao/outputs.ts`)
 
-Exibir info-box abaixo dos cards de upload mostrando:
-- Conta selecionada e quantidade de lancamentos
-- Contas excluidas com quantidades
+**7a. Funcao `descricaoLegivel`**: nova funcao auxiliar que prioriza nome do fornecedor (`clienteFornecedor` ou `razaoSocial`) sobre obs/descricao bruta. Fallback limpa prefixos como "LIQUIDACAO BOLETO", "PAGAMENTO PIX".
+
+**7b. Tabelas de divergencia no PDF**: trocar colunas de `['#', 'Data', 'Valor', 'Descricao', 'CNPJ/CPF', 'Acao']` para `['#', 'Data', 'Valor', 'Fornecedor', 'Categoria', 'Acao']`. Usar `descricaoLegivel()` para Fornecedor. Categoria vem de `d.omie?.categoria`.
+
+**7c. Ajustar larguras de coluna**: `#(8)`, `Data(20)`, `Valor(25, right)`, `Fornecedor(45)`, `Categoria(35)`, `Acao(47)`.
+
+**7d. Tipo F no tipoConfig**: adicionar `['F', 'Tipo F -- Possivel Conta Errada', [255, 235, 238]]` apos tipo A e antes de tipo B.
+
+**7e. Omitir secao Cartao vazia**: condicionar secao 3 (Cartao de Credito) a `r.cartaoTransacoes?.length > 0` em vez de apenas `r.cartaoInfo`.
+
+**7f. Checklist sem cartao zero**: so mostrar item CARTAO no checklist se `validImportCheck.length > 0` (ja existe, mas garantir que a secao 3 do cartao tambem respeita).
+
+**7g. KPIs no PDF**: remover card "Cartao Import." (quarto KPI). Ficam 3 cards: Conciliados, Divergencias, Em Atraso. Ajustar largura dos cards para 3 colunas.
+
+**7h. Banner de zerados**: apos KPIs, se `lancamentosZerados.total > 0`, adicionar linha de texto informando quantos lancamentos zerados foram ignorados.
+
+### 8. Melhorar relatorio Markdown (`src/lib/conciliacao/outputs.ts`)
+
+- Tipo F nas tabelas de divergencia do MD
+- Omitir secao Cartao se nao houver transacoes
+- Checklist sem cartao zero
+- Adicionar banner de zerados
+
+### 9. Excel de divergencias (`src/lib/conciliacao/outputs.ts`)
+
+- Adicionar 'F': 'POSSIVEL CONTA ERRADA' ao `tipoDescricoes`
+
+### 10. Atualizar UI da tela de Conciliacao (`src/pages/Conciliacao.tsx`)
+
+- Adicionar banner informativo sobre lancamentos zerados (abaixo do info-box de conta corrente)
+- Condicao: `resultado.lancamentosZerados?.total > 0`
+
+### 11. Tipo F na aba Divergencias (`src/components/conciliacao/ResultTabs.tsx`)
+
+O tipo F ja aparece automaticamente na aba Divergencias pois usa `tipoNome` dinamico. Adicionar badge visual:
+- Na coluna `tipoNome`, detectar tipo F e renderizar com cor rosa/vermelho claro
+- Se `confianca === 'alta'`, badge solido. Se `media`, badge outline.
 
 ---
 
 ## Detalhes Tecnicos
 
-### Reutilizacao (sem duplicacao)
-
-| Funcao | Arquivo original | Usado por |
-|--------|-----------------|-----------|
-| `parseCartaoFromText` | `src/lib/conciliacao/parsers.ts` | CartaoCredito.tsx |
-| `suggestCategoria` | `src/lib/conciliacao/categorias.ts` | CartaoCredito.tsx |
-| `gerarExcelImportacaoCartao` | `src/lib/conciliacao/outputs.ts` | CartaoCredito.tsx |
-| `useConciliacaoStorage` | `src/hooks/useConciliacaoStorage.ts` | Ambas as telas |
-| `csvToText`, `workbookToRows` | `src/lib/conciliacao/parsers.ts` | CartaoCredito.tsx |
-
-### Funcao `gerarExcelImportacaoCartao` na tela do Cartao
-
-A funcao atual recebe `ResultadoConciliacao`. Para funcionar independente, o botao na tela do Cartao montara um objeto parcial com apenas `cartaoTransacoes` e `cartaoInfo`, que sao os unicos campos que a funcao utiliza internamente.
-
 ### Arquivos modificados
 
-| Arquivo | Acao |
-|---------|------|
-| ~15 arquivos com erros de build | Corrigir imports/tipos |
-| `src/pages/financeiro/CartaoCredito.tsx` | Criar |
-| `src/App.tsx` | Adicionar rota |
-| `src/components/AppSidebar.tsx` | Adicionar item sidebar |
-| `src/components/Layout.tsx` | Adicionar mapeamento de rota |
-| `src/pages/Conciliacao.tsx` | Remover cartao, simplificar |
-| `src/components/conciliacao/ResultTabs.tsx` | Remover aba cartao |
-| `src/lib/conciliacao/engine.ts` | Cartao opcional + filtro conta |
-| `src/lib/conciliacao/classifier.ts` | Remover divergencias tipo I |
-| `src/lib/conciliacao/types.ts` | Adicionar campos multi-conta |
-| Migracao SQL | Adicionar coluna `origem` |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/lib/conciliacao/types.ts` | Adicionar `confianca` em Divergencia, `lancamentosZerados` em ResultadoConciliacao, expandir `contasExcluidas` com entradas |
+| `src/lib/conciliacao/engine.ts` | Filtrar zeros, passar contasExcluidas para classifier |
+| `src/lib/conciliacao/matcher.ts` | Bloco CT-e quinzenal na Camada C |
+| `src/lib/conciliacao/classifier.ts` | Tipo F (2 metodos), acao CT-e, acao NF-e parcelada |
+| `src/lib/conciliacao/outputs.ts` | PDF: descricaoLegivel, colunas Fornecedor+Categoria, tipo F, omitir cartao vazio, banner zerados. MD: mesmas melhorias. Excel: tipo F |
+| `src/pages/Conciliacao.tsx` | Banner zerados |
+| `src/components/conciliacao/ResultTabs.tsx` | Badge tipo F com cor por confianca |
 
 ### Arquivos NAO alterados
 
-- `matcher.ts` -- matchers continuam iguais
-- `parsers.ts` -- parsers continuam iguais (apenas importados pela nova pagina)
-- `outputs.ts` -- funcao de geracao continua igual
-- `utils.ts` -- utilitarios continuam iguais
-- `categorias.ts` -- funcao de sugestao continua igual
+- `parsers.ts` -- nenhuma alteracao
+- `utils.ts` -- nenhuma alteracao
+- `categorias.ts` -- nenhuma alteracao
+- `CartaoCredito.tsx` -- nenhuma alteracao
 
+### Ordem de implementacao
+
+1. types.ts (base para tudo)
+2. engine.ts (filtro zeros + contasExcluidas expandido)
+3. matcher.ts (CT-e)
+4. classifier.ts (tipo F + acoes melhoradas)
+5. outputs.ts (PDF + MD + Excel)
+6. Conciliacao.tsx (banner zerados)
+7. ResultTabs.tsx (badge tipo F)
