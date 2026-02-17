@@ -74,49 +74,94 @@ export function classifyDivergencias(
     }
   }
 
-  // B / B* — A MAIS NO OMIE / CONTA EM ATRASO
+  // B / B* / G — A MAIS NO OMIE / CONTAS EM ATRASO (RECEBER vs PAGAR)
   for (const o of omie) {
     if (o.matched) continue;
 
-    if (o.situacao === 'Atrasado' && o.origem.includes('Previsão')) {
+    const isAtrasado = o.situacao.toLowerCase() === 'atrasado';
+    const isReceber = o.origem.toLowerCase().includes('receber');
+    const isPagar = o.origem.toLowerCase().includes('pagar');
+    const isPrevisao = o.origem.toLowerCase().includes('previs');
+
+    if (isAtrasado && isReceber) {
       divergencias.push({
-        tipo: 'G',
-        tipoNome: 'PREVISTO – NÃO REALIZADO',
+        tipo: 'B*',
+        tipoNome: 'CONTA A RECEBER EM ATRASO',
         fonte: 'Omie',
         data: o.dataStr,
         valor: o.valor,
-        descricao: o.clienteFornecedor,
+        descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || '',
         cnpjCpf: o.cnpjCpf,
         nome: o.clienteFornecedor,
+        situacao: o.situacao,
+        origem: o.origem,
+        acao: 'Conta a receber em atraso — cobrar cliente',
+        obs: o.observacoes || '',
         banco: null,
         omie: o,
       });
       continue;
     }
 
-    const isAtrasado = o.situacao.toLowerCase() === 'atrasado';
-    const tipoDivergencia = isAtrasado ? 'B*' : 'B';
-    const tipoNome = isAtrasado ? 'CONTA EM ATRASO' : 'A MAIS NO OMIE';
-
-    let acao = 'Investigar';
-    if (isAtrasado) {
-      acao = o.origem.toLowerCase().includes('receber')
-        ? 'Conta a receber em atraso — cobrar cliente'
-        : 'Conta a pagar em atraso — verificar pagamento';
+    if (isAtrasado && (isPagar || isPrevisao)) {
+      divergencias.push({
+        tipo: 'G',
+        tipoNome: 'CONTA A PAGAR EM ATRASO',
+        fonte: 'Omie',
+        data: o.dataStr,
+        valor: o.valor,
+        descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || '',
+        cnpjCpf: o.cnpjCpf,
+        nome: o.clienteFornecedor,
+        situacao: o.situacao,
+        origem: o.origem,
+        acao: 'Conta a pagar em atraso — verificar pagamento ao fornecedor',
+        obs: o.observacoes || '',
+        banco: null,
+        omie: o,
+      });
+      continue;
     }
 
+    if (isAtrasado) {
+      const tipoDiv = o.valor > 0 ? 'B*' : 'G';
+      const tipoNome = o.valor > 0 ? 'CONTA A RECEBER EM ATRASO' : 'CONTA A PAGAR EM ATRASO';
+      const acao = o.valor > 0
+        ? 'Conta a receber em atraso — cobrar cliente'
+        : 'Conta a pagar em atraso — verificar pagamento';
+
+      divergencias.push({
+        tipo: tipoDiv,
+        tipoNome,
+        fonte: 'Omie',
+        data: o.dataStr,
+        valor: o.valor,
+        descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || '',
+        cnpjCpf: o.cnpjCpf,
+        nome: o.clienteFornecedor,
+        situacao: o.situacao,
+        origem: o.origem,
+        acao,
+        obs: o.observacoes || '',
+        banco: null,
+        omie: o,
+      });
+      continue;
+    }
+
+    // NÃO ATRASADO — tipo B normal
     divergencias.push({
-      tipo: tipoDivergencia,
-      tipoNome,
+      tipo: 'B',
+      tipoNome: 'A MAIS NO OMIE',
       fonte: 'Omie',
       data: o.dataStr,
       valor: o.valor,
-      descricao: o.observacoes || o.clienteFornecedor || o.cnpjCpf || '',
+      descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || '',
       cnpjCpf: o.cnpjCpf,
       nome: o.clienteFornecedor,
       situacao: o.situacao,
       origem: o.origem,
-      acao,
+      acao: 'Investigar',
       obs: o.observacoes || '',
       banco: null,
       omie: o,

@@ -504,6 +504,22 @@ export default function Conciliacao() {
           </Card>
         )}
 
+        {/* Banner de lançamentos futuros */}
+        {resultado && resultado.lancamentosFuturos && resultado.lancamentosFuturos.quantidade > 0 && (
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-blue-600 shrink-0" />
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Período: até <strong>{resultado.lancamentosFuturos.ultimaDataBanco}</strong> (última data do extrato).{' '}
+                  {resultado.lancamentosFuturos.quantidade} lançamentos futuros do Omie excluídos
+                  (R$ {resultado.lancamentosFuturos.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Action + Results */}
         <div className="space-y-4">
           <Button onClick={handleExecute} disabled={!canExecute} className="gap-2" size="lg">
@@ -515,7 +531,7 @@ export default function Conciliacao() {
           </Button>
 
           {/* KPI Cards — clickable */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'conciliados' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('conciliados')}>
               <CardContent className="p-4 text-center">
                 <CheckCircle2 className="h-5 w-5 mx-auto text-green-500 mb-1" />
@@ -530,11 +546,22 @@ export default function Conciliacao() {
                 <p className="text-xs text-muted-foreground">Divergências</p>
               </CardContent>
             </Card>
-            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'sem-match' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('sem-match')}>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => handleKPIClick('divergencias')}>
               <CardContent className="p-4 text-center">
                 <Clock className="h-5 w-5 mx-auto text-red-500 mb-1" />
-                <p className="text-2xl font-bold">{resultado?.contasAtraso ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Em Atraso</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {resultado?.divergencias.filter(d => d.tipo === 'B*').length ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">A Receber (atraso)</p>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => handleKPIClick('divergencias')}>
+              <CardContent className="p-4 text-center">
+                <Clock className="h-5 w-5 mx-auto text-orange-500 mb-1" />
+                <p className="text-2xl font-bold text-orange-600">
+                  {resultado?.divergencias.filter(d => d.tipo === 'G').length ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">A Pagar (atraso)</p>
               </CardContent>
             </Card>
           </div>
