@@ -8,7 +8,6 @@ import {
   GanttPeriod,
   calculateStackedBlocks,
   type Block,
-  type StackedBlock,
 } from '@/lib/gantt-utils';
 import {
   Tooltip,

@@ -17,7 +17,7 @@ interface ProjetoCardProps {
 }
 
 export function ProjetoCard({
-  projetoId,
+  projetoId: _projetoId,
   projetoOs,
   projetoNome,
   isSistema,

@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -53,7 +53,7 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
     duplicates,
     columnMapping,
     headers,
-    canImport,
+    canImport: _canImport,
     canFullUpdate,
     processFile,
     applyImport,
@@ -106,7 +106,7 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
     return true;
   });
 
-  const getStatusBadge = (status: ImportPreviewRow['status']) => {
+  const getStatusBadge = (status: ImportPreviewRow['status']): React.ReactNode => {
     switch (status) {
       case 'NOVO':
         return <Badge className="bg-primary text-primary-foreground"><CheckCircle2 className="h-3 w-3 mr-1" />Novo</Badge>;
@@ -116,6 +116,7 @@ export function MaterialImportModal({ open, onOpenChange, onSuccess }: MaterialI
         return <Badge variant="secondary"><Minus className="h-3 w-3 mr-1" />Igual</Badge>;
       case 'ERRO':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
+      default: return null;
     }
   };
 

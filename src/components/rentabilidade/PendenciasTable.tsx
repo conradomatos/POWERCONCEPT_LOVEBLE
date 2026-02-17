@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle, ExternalLink } from "lucide-react";
+import { AlertTriangle, CheckCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
 interface Pendencia {
@@ -41,7 +41,7 @@ const origemLabels: Record<string, string> = {
   AP: 'Contas a Pagar',
 };
 
-export function PendenciasTable({ data, projetoId }: PendenciasTableProps) {
+export function PendenciasTable({ data, projetoId: _projetoId }: PendenciasTableProps) {
   if (data.length === 0) {
     return (
       <Card>
@@ -95,16 +95,16 @@ export function PendenciasTable({ data, projetoId }: PendenciasTableProps) {
                   <TableCell className="max-w-[300px]">
                     {pendencia.detalhes && typeof pendencia.detalhes === 'object' ? (
                       <div className="text-xs text-muted-foreground space-y-1">
-                        {(pendencia.detalhes as Record<string, unknown>).cliente && (
+                        {(pendencia.detalhes as Record<string, unknown>).cliente != null && (
                           <div>Cliente: {String((pendencia.detalhes as Record<string, unknown>).cliente)}</div>
                         )}
-                        {(pendencia.detalhes as Record<string, unknown>).fornecedor && (
+                        {(pendencia.detalhes as Record<string, unknown>).fornecedor != null && (
                           <div>Fornecedor: {String((pendencia.detalhes as Record<string, unknown>).fornecedor)}</div>
                         )}
-                        {(pendencia.detalhes as Record<string, unknown>).valor && (
+                        {(pendencia.detalhes as Record<string, unknown>).valor != null && (
                           <div>Valor: {formatCurrency(Number((pendencia.detalhes as Record<string, unknown>).valor))}</div>
                         )}
-                        {(pendencia.detalhes as Record<string, unknown>).numero_documento && (
+                        {(pendencia.detalhes as Record<string, unknown>).numero_documento != null && (
                           <div>Doc: {String((pendencia.detalhes as Record<string, unknown>).numero_documento)}</div>
                         )}
                       </div>

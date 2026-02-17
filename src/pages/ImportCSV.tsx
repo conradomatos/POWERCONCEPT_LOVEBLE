@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, cleanCPF } from '@/lib/cpf';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
 import { useEffect } from 'react';
 import * as XLSX from 'xlsx';
 

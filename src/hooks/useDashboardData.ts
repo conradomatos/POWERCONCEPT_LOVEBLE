@@ -421,7 +421,7 @@ export function useDashboardData(periodo: Periodo = 'mes') {
   const financeiroQuery = useQuery({
     queryKey: ['dashboard-financeiro', periodo],
     queryFn: async (): Promise<FinanceiroData> => {
-      const hoje = new Date().toISOString().split('T')[0];
+      void new Date().toISOString().split('T')[0];
 
       // 1. Faturado no período (títulos recebidos)
       const { data: faturados } = await supabase

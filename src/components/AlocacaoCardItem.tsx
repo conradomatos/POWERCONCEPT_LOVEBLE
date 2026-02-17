@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

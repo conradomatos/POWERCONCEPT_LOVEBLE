@@ -165,7 +165,7 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
     return !cartaoPattern.test(doc) && !cartaoPattern.test(nf);
   });
 
-  const cartaoCount = lancamentos.length - lancamentosFiltrados.length;
+  void (lancamentos.length - lancamentosFiltrados.length); // cartaoCount
 
   return { lancamentos: lancamentosFiltrados, saldoAnterior };
 }

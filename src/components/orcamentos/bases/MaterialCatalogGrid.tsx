@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Search, X, ChevronDown, Filter, Factory } from 'lucide-react';
+import { Trash2, Plus, Search, X, Filter, Factory } from 'lucide-react';
 import { useMaterialCatalog, type CatalogItem, type CatalogFormData } from '@/hooks/orcamentos/useMaterialCatalog';
 import { useMaterialGroups } from '@/hooks/orcamentos/useMaterialGroups';
 import { useMaterialCategories } from '@/hooks/orcamentos/useMaterialCategories';
@@ -75,7 +75,7 @@ interface TagInputProps {
   onCreate: (nome: string) => Promise<string>;
 }
 
-function TagInput({ materialId, currentTags, allTags, onAdd, onRemove, onCreate }: TagInputProps) {
+function TagInput({ materialId: _materialId, currentTags, allTags, onAdd, onRemove, onCreate }: TagInputProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
@@ -604,7 +604,7 @@ export function MaterialCatalogGrid({ empresaId = null, regiaoId = null }: Mater
     // Fabricantes column - show badge with count and open drawer
     if (col === 'fabricantes') {
       const variants = variantsMap.get(item.id) || [];
-      const minPrice = variants.length > 0 ? Math.min(...variants.map(v => v.preco_ref)) : null;
+      const minPrice = variants.length > 0 ? Math.min(...variants.map((v: { preco_ref: number }) => v.preco_ref)) : null;
       
       return (
         <Tooltip>

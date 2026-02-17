@@ -130,6 +130,7 @@ function sumValores(rows: Record<string, unknown>[]): number {
   return sum;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }

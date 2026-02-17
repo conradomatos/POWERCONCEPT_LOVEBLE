@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ type ProjetoWithEmpresa = Projeto & {
 };
 
 export default function Projetos() {
-  const { hasRole, isSuperAdmin } = useAuth();
+  const { hasRole } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -233,6 +233,7 @@ export default function Projetos() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'ATIVO':

@@ -25,15 +25,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Receipt,
   Users,
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
-  CreditCard,
-  PiggyBank,
   BarChart3,
   Eye,
   ChevronUp,
@@ -338,7 +335,7 @@ export default function Rentabilidade() {
       })
       .slice(0, 10)
       .map(p => ({
-        nome: p.projeto_nome?.substring(0, 20) + (p.projeto_nome?.length > 20 ? '...' : ''),
+        nome: (p.projeto_nome ?? '').substring(0, 20) + ((p.projeto_nome ?? '').length > 20 ? '...' : ''),
         margem: visao === 'competencia' ? Number(p.margem_competencia_pct) : Number(p.margem_caixa_pct),
         color: Number(p.margem_competencia_pct) >= 20 ? '#22c55e' 
              : Number(p.margem_competencia_pct) >= 10 ? '#eab308'

@@ -63,7 +63,7 @@ export function useWbs(revisionId: string | undefined) {
         .from('budget_wbs')
         .select('ordem')
         .eq('revision_id', revisionId)
-        .eq('parent_id', data.parent_id || null)
+        .eq('parent_id', data.parent_id ?? '')
         .order('ordem', { ascending: false })
         .limit(1);
 

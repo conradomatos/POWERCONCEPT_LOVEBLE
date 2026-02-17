@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-import { useBudgetLaborCatalog, type BudgetLaborCatalogItem } from './useBudgetLaborCatalog';
+import { useBudgetLaborCatalog } from './useBudgetLaborCatalog';
 import { useBudgetLaborChargeSets } from './useBudgetLaborChargeSets';
 import { useBudgetLaborGroups, useBudgetLaborCategories, useBudgetLaborTags } from './useBudgetLaborTaxonomy';
 
@@ -61,9 +61,9 @@ export function useBudgetLaborCatalogImport() {
   const queryClient = useQueryClient();
   const { items: existingItems } = useBudgetLaborCatalog();
   const { chargeSets } = useBudgetLaborChargeSets();
-  const { groups, upsertGroup } = useBudgetLaborGroups();
-  const { allCategories, upsertCategory } = useBudgetLaborCategories();
-  const { tags, upsertTag } = useBudgetLaborTags();
+  const { groups: _groups, upsertGroup } = useBudgetLaborGroups();
+  const { allCategories: _allCategories, upsertCategory } = useBudgetLaborCategories();
+  const { tags: _tags, upsertTag } = useBudgetLaborTags();
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [preview, setPreview] = useState<ImportPreviewRow[]>([]);

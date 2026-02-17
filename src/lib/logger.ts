@@ -4,7 +4,7 @@ export interface LogContext {
   operation?: string;
   userId?: string;
   userAction?: string;
-  timestamp: string;
+  timestamp?: string;
   [key: string]: unknown;
 }
 

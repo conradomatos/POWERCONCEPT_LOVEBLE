@@ -1,4 +1,4 @@
-import { addDays, differenceInDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isSameDay, parseISO } from 'date-fns';
+import { addDays, differenceInDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export type PeriodType = 'week' | 'fortnight' | 'month';

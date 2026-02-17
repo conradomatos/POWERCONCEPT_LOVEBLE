@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+// cn imported for potential future use
 
 function getGreeting(): string {
   const hour = new Date().getHours();

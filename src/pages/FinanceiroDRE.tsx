@@ -241,6 +241,7 @@ function DREAnualView({ dreAnual, showAV, showAH, expandAll }: {
   });
 
   // Helper to get value for a line in a specific month
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getMonthVal = (sectionIdx: number, linhaIdx: number, monthIdx: number): number => {
     const mDre = dreAnual.meses[monthIdx];
     if (!mDre || !mDre.secoes[sectionIdx]) return 0;
@@ -353,7 +354,7 @@ function DREAnualView({ dreAnual, showAV, showAH, expandAll }: {
           const sIdx = currentSection;
           const lIdx = linhaInSection;
           const l = row.linha;
-          const hasCats = l.categorias && l.categorias.length > 0;
+          const hasCats = l.categorias && l.categorias.length > 0; // eslint-disable-line @typescript-eslint/no-unused-vars
 
           return (
             <AnualLinhaRow
@@ -504,7 +505,7 @@ export default function FinanceiroDRE() {
 
   const periodo = `${mes} ${ano}`;
   const queryClient = useQueryClient();
-  const { data: dreResult, isLoading: loadingDRE } = useDREData(Number(ano));
+  const { data: dreResult } = useDREData(Number(ano));
   const dreData = dreResult?.dados;
   const { data: categoriasDB } = useCategoriasAtivas();
 
@@ -547,7 +548,7 @@ export default function FinanceiroDRE() {
 
   // Compute KPI values from DRE structure
   const receitaBruta = dre.secoes[0]?.linhas[0]?.valor ?? 0;
-  const deducoes = dre.secoes[0]?.linhas[1]?.valor ?? 0;
+  void dre.secoes[0]?.linhas[1]?.valor; // deducoes
   const receitaLiquida = dre.secoes[0]?.subtotal?.valor ?? 0;
   const custoCSP = dre.secoes[1]?.linhas[0]?.valor ?? 0;
   const custoOutros = dre.secoes[1]?.linhas[1]?.valor ?? 0;

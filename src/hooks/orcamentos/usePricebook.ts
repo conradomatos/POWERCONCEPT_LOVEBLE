@@ -374,9 +374,9 @@ export function useEffectiveMaterialPrices(
       for (const catalogId of catalogIds) {
         const { data, error } = await supabase.rpc('get_effective_material_price', {
           p_catalog_id: catalogId,
-          p_empresa_id: empresaId || null,
-          p_regiao_id: regiaoId || null,
-          p_fabricante_id: null,
+          p_empresa_id: empresaId || undefined,
+          p_regiao_id: regiaoId || undefined,
+          p_fabricante_id: undefined,
         });
 
         if (error) {
@@ -410,8 +410,8 @@ export function useEffectiveMOPrices(
       for (const funcaoId of funcaoIds) {
         const { data, error } = await supabase.rpc('get_effective_mo_price', {
           p_funcao_id: funcaoId,
-          p_empresa_id: empresaId || null,
-          p_regiao_id: regiaoId || null,
+          p_empresa_id: empresaId || undefined,
+          p_regiao_id: regiaoId || undefined,
         });
 
         if (error) {

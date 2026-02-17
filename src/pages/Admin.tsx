@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Users, Shield, UserCheck, Clock } from 'lucide-react';
+import { UserPlus, Users, UserCheck, Clock } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -26,8 +26,8 @@ interface UserWithRole {
   email: string;
   full_name: string | null;
   roles: AppRole[];
-  created_at: string;
-  is_active: boolean;
+  created_at?: string;
+  is_active?: boolean;
 }
 
 export default function Admin() {
@@ -126,7 +126,7 @@ export default function Admin() {
   // All users from profiles table
   const allUsers = users;
   // Users with roles assigned
-  const usersWithRoles = users.filter(u => u.roles.length > 0);
+  void users.filter(u => u.roles.length > 0); // usersWithRoles
   // Users without roles (pending activation)
   const pendingUsers = users.filter(u => u.roles.length === 0);
   // Active users (has roles AND is_active = true)

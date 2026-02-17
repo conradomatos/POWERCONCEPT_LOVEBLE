@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,8 +38,7 @@ interface ProjetoFormProps {
 const RESERVED_NAMES = ['ORÇAMENTOS'];
 
 export default function ProjetoForm({ open, onOpenChange, projeto, onSuccess }: ProjetoFormProps) {
-  const queryClient = useQueryClient();
-  const { isSuperAdmin, hasRole, user } = useAuth();
+  const { isSuperAdmin, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [clienteComboOpen, setClienteComboOpen] = useState(false);
   const [clienteFormOpen, setClienteFormOpen] = useState(false);
