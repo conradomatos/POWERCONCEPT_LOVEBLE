@@ -120,6 +120,7 @@ export interface ResultadoConciliacao {
   totalOmieOriginal?: number;
   totalOmieFiltrado?: number;
   lancamentosZerados?: { banco: number; omie: number; total: number };
+  lancamentosFuturos?: { quantidade: number; total: number; ultimaDataBanco: string };
 }
 
 // ===== DRE =====

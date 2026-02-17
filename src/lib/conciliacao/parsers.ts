@@ -68,6 +68,8 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
         const cn = String(row[j] || '').toUpperCase().trim().replace(/[^\x20-\x7E\u00C0-\u024F]/g, '');
         if (cn.includes('SITUAÇ') || cn === 'SITUACAO') colMap['situacao'] = j;
         else if (cn === 'DATA' || cn.includes('DATA LANÇ') || cn.includes('DATA LANC')) colMap['data'] = j;
+        // RAZÃO SOCIAL deve vir ANTES de CLIENTE para não ser engolido pelo else-if
+        else if (cn.includes('RAZÃO') || cn.includes('RAZAO') || cn.includes('RAZÃ')) colMap['razaoSocial'] = j;
         else if (cn.includes('CLIENTE') || cn.includes('FORNECEDOR')) colMap['cliente'] = j;
         else if (cn.includes('CONTA CORRENTE') || cn === 'CONTA') colMap['conta'] = j;
         else if (cn.includes('CATEGORIA')) colMap['categoria'] = j;
@@ -79,9 +81,20 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
         else if (cn.includes('PARCELA')) colMap['parcela'] = j;
         else if (cn.includes('ORIGEM')) colMap['origem'] = j;
         else if (cn.includes('PROJETO')) colMap['projeto'] = j;
-        else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && colMap['cliente'] !== j) colMap['razaoSocial'] = j;
         else if (cn.includes('CNPJ') || cn.includes('CPF')) colMap['cnpjCpf'] = j;
         else if (cn.includes('OBSERV')) colMap['observacoes'] = j;
+      }
+      // Log de validação dos mapeamentos
+      console.log('[Parser Omie] Header detectado na linha', headerRowIdx, '- Mapeamento:', JSON.stringify(colMap));
+      if (colMap['razaoSocial'] !== undefined) {
+        console.log('[Parser Omie] Razao Social mapeada para coluna', colMap['razaoSocial']);
+      } else {
+        console.warn('[Parser Omie] Razao Social NAO encontrada no header');
+      }
+      if (colMap['notaFiscal'] !== undefined) {
+        console.log('[Parser Omie] Nota Fiscal mapeada para coluna', colMap['notaFiscal']);
+      } else {
+        console.warn('[Parser Omie] Nota Fiscal NAO encontrada no header');
       }
       break;
     }
@@ -166,6 +179,11 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
   });
 
   void (lancamentos.length - lancamentosFiltrados.length); // cartaoCount
+
+  // Validação final
+  const comRazao = lancamentosFiltrados.filter(l => l.razaoSocial && l.razaoSocial.length > 3).length;
+  const comNF = lancamentosFiltrados.filter(l => l.notaFiscal && l.notaFiscal.length > 0).length;
+  console.log(`[Parser Omie] ${lancamentosFiltrados.length} lancamentos: ${comRazao} com Razao Social, ${comNF} com NF`);
 
   return { lancamentos: lancamentosFiltrados, saldoAnterior };
 }

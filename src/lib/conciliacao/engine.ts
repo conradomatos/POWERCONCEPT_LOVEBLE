@@ -114,7 +114,32 @@ function executarMatchingEClassificacao(
 
   // Auto-detect and filter by conta corrente
   const filtro = filtrarPorContaCorrente(bancoFiltrado, omieFiltradoZero);
-  const omieFiltrado = filtro.omieFiltrado;
+
+  // === Filtrar lançamentos Omie com data futura ===
+  let ultimaDataBanco = new Date('1900-01-01');
+  for (const b of bancoFiltrado) {
+    if (b.data instanceof Date && b.data > ultimaDataBanco) {
+      ultimaDataBanco = b.data;
+    }
+  }
+
+  const omieDentroPeriodo = filtro.omieFiltrado.filter(o => {
+    if (!(o.data instanceof Date)) return true;
+    return o.data <= ultimaDataBanco;
+  });
+
+  const lancamentosFuturos = filtro.omieFiltrado.filter(o => {
+    if (!(o.data instanceof Date)) return false;
+    return o.data > ultimaDataBanco;
+  });
+
+  const totalFuturos = lancamentosFuturos.reduce((s, o) => s + Math.abs(o.valor), 0);
+  if (lancamentosFuturos.length > 0) {
+    console.log(`[Conciliacao] Filtro futuro: ${lancamentosFuturos.length} lancamentos Omie apos ${ultimaDataBanco.toLocaleDateString('pt-BR')} excluidos (total ${totalFuturos.toFixed(2)})`);
+  }
+
+  const omieFiltrado = omieDentroPeriodo;
+  // === FIM do filtro futuro ===
 
   const matches: Match[] = [];
   const divergencias: Divergencia[] = [];
@@ -165,6 +190,11 @@ function executarMatchingEClassificacao(
     totalOmieOriginal: filtro.totalOmieOriginal,
     totalOmieFiltrado: filtro.totalOmieFiltrado,
     lancamentosZerados: { banco: zeradosBanco, omie: zeradosOmie, total: zeradosBanco + zeradosOmie },
+    lancamentosFuturos: lancamentosFuturos.length > 0 ? {
+      quantidade: lancamentosFuturos.length,
+      total: totalFuturos,
+      ultimaDataBanco: ultimaDataBanco.toLocaleDateString('pt-BR'),
+    } : undefined,
   };
 }
 

@@ -120,9 +120,9 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
   L(`| Saldo anterior Banco | ${formatBRL(r.saldoBanco || 0)} |`);
   L(`| Saldo anterior Omie | ${formatBRL(r.saldoOmie || 0)} |`);
   if (Math.abs(diffSaldo) > 0.01) {
-    L(`| **Diferença saldo anterior** | **${formatBRL(diffSaldo)} ⚠** |`);
+    L(`| **Diferenca saldo anterior** | **${formatBRL(diffSaldo)} [!]** |`);
   } else {
-    L(`| **Diferença saldo anterior** | **R$ 0,00 ✓** |`);
+    L(`| **Diferenca saldo anterior** | **R$ 0,00 [OK]** |`);
   }
   L('');
 
@@ -181,13 +181,13 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
 
   if (divByTipo['B*']?.length) {
     const divs = divByTipo['B*'];
-    L('### Contas em Atraso');
-    L('> Contas com situação "Atrasado" no Omie.');
+    L('### Contas a Receber em Atraso');
+    L('> Contas a receber vencidas — cliente deve para a empresa.');
     L('');
     L('| # | Data | Valor | Fornecedor/Cliente | CNPJ | Tipo | Ação |');
     L('|---|------|-------|--------------------|------|------|------|');
     divs.forEach((d, i) => {
-      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${(d.descricao || '').substring(0, 40)} | ${d.cnpjCpf || ''} | ${d.origem || ''} | ${d.acao || ''} |`);
+      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${descricaoLegivel(d)} | ${d.cnpjCpf || ''} | ${d.origem || ''} | ${d.acao || ''} |`);
     });
     const totalAtraso = divs.reduce((s, d) => s + d.valor, 0);
     L(`| | | **${formatBRL(totalAtraso)}** | **${divs.length} itens** | | | |`);
@@ -262,13 +262,16 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
 
   if (divByTipo['G']?.length) {
     const divs = divByTipo['G'];
-    L('### Tipo G — Previstos não realizados');
+    L('### Contas a Pagar em Atraso');
+    L('> Contas a pagar vencidas — empresa deve ao fornecedor, pagamento nao realizado.');
     L('');
     L('| # | Data | Valor | Fornecedor | Situação | Ação |');
     L('|---|------|-------|------------|----------|------|');
     divs.forEach((d, i) => {
-      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${(d.descricao || '').substring(0, 35)} | ${d.situacao || ''} | Verificar |`);
+      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${descricaoLegivel(d)} | ${d.situacao || ''} | ${d.acao || 'Verificar pagamento'} |`);
     });
+    const totalG = divs.reduce((s, d) => s + d.valor, 0);
+    L(`| | | **${formatBRL(totalG)}** | **${divs.length} itens** | | |`);
     L('');
   }
 
@@ -280,7 +283,7 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L('## 3. CARTÃO DE CRÉDITO');
     L('');
 
-    const faturaMatch = r.matches.some(m => m.tipo === 'fatura_cartao') ? 'OK ✓' : 'NÃO ENCONTRADO ⚠';
+    const faturaMatch = r.matches.some(m => m.tipo === 'fatura_cartao') ? 'OK' : 'NAO ENCONTRADO [!]';
     L(`**Fatura:** Venc. ${r.cartaoInfo.vencimento} | Total: ${formatBRL(r.cartaoInfo.valorTotal)} | Match DEB.CTA.FATURA: **${faturaMatch}**`);
     L('');
 
@@ -334,8 +337,12 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L(`- [ ] **FALTANDO:** ${divCounts['A']} lançamentos faltando no Omie, total ${formatBRL(totalA)}`);
   }
   if (divCounts['B*']) {
-    const totalAtraso = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
-    L(`- [ ] **ATRASO:** ${divCounts['B*']} contas em atraso, total ${formatBRL(totalAtraso)} — cobrar/verificar`);
+    const totalReceber = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
+    L(`- [ ] **ATRASO RECEBER:** ${divCounts['B*']} contas a receber em atraso, total ${formatBRL(totalReceber)} — cobrar clientes`);
+  }
+  if (divCounts['G']) {
+    const totalPagar = r.divergencias.filter(d => d.tipo === 'G').reduce((s, d) => s + Math.abs(d.valor), 0);
+    L(`- [ ] **ATRASO PAGAR:** ${divCounts['G']} contas a pagar vencidas, total ${formatBRL(totalPagar)} — verificar pagamentos`);
   }
   if (divCounts['F']) {
     const totalF = r.divergencias.filter(d => d.tipo === 'F').reduce((s, d) => s + Math.abs(d.valor), 0);
@@ -370,6 +377,10 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L(`- [ ] **REVISAR:** ${r.camadaCounts['D']} matches com baixa confiança`);
   }
 
+  if (r.lancamentosFuturos && r.lancamentosFuturos.quantidade > 0) {
+    L(`- [x] **FUTUROS:** ${r.lancamentosFuturos.quantidade} lancamentos apos ${r.lancamentosFuturos.ultimaDataBanco} excluidos da conciliacao (${formatBRL(r.lancamentosFuturos.total)})`);
+  }
+
   L('');
   L('---');
   L(`*Relatório gerado automaticamente em ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — Conciliação Financeira CONCEPT Engenharia*`);
@@ -390,12 +401,12 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
     'A': 'FALTANDO NO OMIE',
     'T': 'TRANSFERÊNCIA ENTRE CONTAS',
     'B': 'A MAIS NO OMIE',
-    'B*': 'CONTA EM ATRASO',
+    'B*': 'CONTA A RECEBER EM ATRASO',
     'C': 'VALOR DIVERGENTE',
     'D': 'DATA DIVERGENTE',
     'E': 'DUPLICIDADE',
     'F': 'POSSÍVEL CONTA ERRADA',
-    'G': 'PREVISTO NÃO REALIZADO',
+    'G': 'CONTA A PAGAR EM ATRASO',
     'I': 'CARTÃO - IMPORTAR',
   };
 
@@ -688,6 +699,19 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     y += 8;
   }
 
+  // Banner de lançamentos futuros
+  if (r.lancamentosFuturos && r.lancamentosFuturos.quantidade > 0) {
+    const futuroText = `Periodo: ate ${r.lancamentosFuturos.ultimaDataBanco} (ultima data do extrato). ${r.lancamentosFuturos.quantidade} lancamentos futuros do Omie excluidos (${fmt(r.lancamentosFuturos.total)}).`;
+    doc.setFillColor(219, 234, 254);
+    doc.rect(margin, y - 3, pageWidth - 2 * margin, 7, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(30, 64, 175);
+    doc.text(futuroText, margin + 2, y + 1);
+    doc.setTextColor(0, 0, 0);
+    y += 8;
+  }
+
   // Tabela Fontes
   const totalEntradasBanco = r.banco.filter(b => b.valor > 0).reduce((s, b) => s + b.valor, 0);
   const totalSaidasBanco = r.banco.filter(b => b.valor < 0).reduce((s, b) => s + b.valor, 0);
@@ -751,13 +775,13 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
 
   const tipoConfig: [string, string, [number, number, number]][] = [
     ['A', 'Tipo A — Faltando no Omie', [252, 228, 236]],
-    ['T', 'Tipo T — Transferências entre contas', [224, 247, 250]],
-    ['F', 'Tipo F — Possível Conta Errada (Cartão)', [255, 235, 238]],
-    ['B*', 'Contas em Atraso', [255, 243, 224]],
+    ['T', 'Tipo T — Transferencias entre contas', [224, 247, 250]],
+    ['F', 'Tipo F — Possivel Conta Errada (Cartao)', [255, 235, 238]],
+    ['B*', 'Contas a Receber em Atraso', [255, 243, 224]],
+    ['G', 'Contas a Pagar em Atraso', [255, 237, 213]],
     ['B', 'Tipo B — A mais no Omie', [243, 229, 245]],
     ['C', 'Tipo C — Valor divergente', [255, 253, 231]],
     ['E', 'Tipo E — Duplicidades', [243, 229, 245]],
-    ['G', 'Tipo G — Previstos não realizados', [239, 235, 233]],
   ];
 
   for (const [tipo, titulo, cor] of tipoConfig) {
@@ -910,8 +934,12 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     checkItems.push({ texto: `TRANSFERENCIAS: ${divCounts['T']} transferencias entre contas para lancar`, cor: [200, 120, 0] });
   }
   if (divCounts['B*']) {
-    const totalAtraso = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
-    checkItems.push({ texto: `ATRASO: ${divCounts['B*']} contas em atraso, total ${fmt(totalAtraso)} - cobrar/verificar`, cor: [200, 50, 50] });
+    const totalReceber = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
+    checkItems.push({ texto: `ATRASO RECEBER: ${divCounts['B*']} contas a receber em atraso, total ${fmt(totalReceber)} - cobrar clientes`, cor: [200, 50, 50] });
+  }
+  if (divCounts['G']) {
+    const totalPagar = r.divergencias.filter(d => d.tipo === 'G').reduce((s, d) => s + Math.abs(d.valor), 0);
+    checkItems.push({ texto: `ATRASO PAGAR: ${divCounts['G']} contas a pagar vencidas, total ${fmt(totalPagar)} - verificar pagamentos`, cor: [200, 120, 0] });
   }
   if (divCounts['F']) {
     const totalF = r.divergencias.filter(d => d.tipo === 'F').reduce((s, d) => s + Math.abs(d.valor), 0);
@@ -932,6 +960,10 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
 
   if ((r.camadaCounts['D'] || 0) > 0) {
     checkItems.push({ texto: `REVISAR: ${r.camadaCounts['D']} matches com baixa confianca`, cor: [100, 100, 100] });
+  }
+
+  if (r.lancamentosFuturos && r.lancamentosFuturos.quantidade > 0) {
+    checkItems.push({ texto: `FUTUROS: ${r.lancamentosFuturos.quantidade} lancamentos apos ${r.lancamentosFuturos.ultimaDataBanco} excluidos da conciliacao (${fmt(r.lancamentosFuturos.total)})`, cor: [30, 64, 175] });
   }
 
   if (checkItems.length > 0) {
