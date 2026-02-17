@@ -1,45 +1,45 @@
 
-# FIX 6 -- Match FOLHA DE PAGAMENTO individual via campo Observacoes
+
+# FIX 6b -- Diagnostico FOPAG + Fallback por valor
 
 ## Resumo
 
-Expandir o matching para identificar pagamentos individuais de folha (PIX para colaboradores) cruzando o nome do colaborador no extrato bancario com o campo `observacoes` do lancamento FOPAG no Omie.
+Adicionar logging de diagnostico no parser e engine para identificar por que o match FOPAG nao esta funcionando, e implementar fallback que faz match por valor exato + data sem depender do campo observacoes.
 
 ---
 
 ## Alteracoes
 
-### 1. Expandir `nomeCompativel` com parametro `observacoesOmie` (`utils.ts`)
+### 1. Logging de observacoes no parser (`parsers.ts`)
 
-**Arquivo:** `src/lib/conciliacao/utils.ts`, linhas 77-101
+**Arquivo:** `src/lib/conciliacao/parsers.ts`, apos linha 98 (antes do `break;` na linha 99)
 
-Adicionar parametro opcional `observacoesOmie?: string` a funcao. Limpar prefixos PIX e numeros de CPF/CNPJ das observacoes antes de comparar. Incluir o texto limpo das observacoes no loop de comparacao junto com `nomeOmie` e `razaoOmie`.
+Adicionar validacao e log da coluna `observacoes`, com fallback que lista todas as colunas do header caso nao encontrada.
 
-- Adicionar stop words especificas de PIX: `PAGAMENTO`, `PIXDEB`, `PIXPIXDEB`, `PIXCRED`
-- Remover sequencias de 11-14 digitos (CPF/CNPJ) das observacoes antes do split em palavras
-- Remover condicao `if (!nomeO && !razaoO) return false` para permitir match quando so observacoes tem o nome
+### 2. Diagnostico FOPAG no engine (`engine.ts`)
 
-### 2. Passar `o.observacoes` nas chamadas existentes (`matcher.ts`)
+**Arquivo:** `src/lib/conciliacao/engine.ts`, antes da linha 147 (`matchCamadaA(...)`)
 
-**Arquivo:** `src/lib/conciliacao/matcher.ts`
+Inserir bloco de diagnostico que:
+- Conta entradas PIX_ENVIADO/FOLHA no banco
+- Conta entradas FOPAG no Omie filtrado
+- Mostra amostra dos 5 primeiros FOPAG do Omie (incluindo campo observacoes)
+- Busca especificamente LUIZ ALBERTO no banco e no Omie (por observacoes e por valor)
 
-Adicionar 5o argumento `o.observacoes` em tres locais:
-- Linha 76 (Camada B): `nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)`
-- Linha 116 (Camada B2): idem
-- Linha 237 (Camada D scoring): idem
+### 3. Fallback FOPAG no matcher (`matcher.ts`)
 
-### 3. Adicionar matching dedicado FOPAG individual (`matcher.ts`)
+**Arquivo:** `src/lib/conciliacao/matcher.ts`, linhas 153-169
 
-**Arquivo:** `src/lib/conciliacao/matcher.ts`, antes da linha 153
+Substituir o bloco FOPAG atual por dois loops sequenciais:
 
-Inserir um novo bloco na funcao `matchCamadaC`, ANTES do agrupamento FOLHA existente. Este bloco:
-- Itera sobre lancamentos bancarios nao matched do tipo `PIX_ENVIADO` ou `FOLHA`
-- Para cada um, busca lancamentos Omie nao matched com categoria FOPAG/FOLHA
-- Exige valor exato (diferenca < 0.01) e data proxima (ate 3 dias)
-- Usa `nomeCompativel` com observacoes para verificar nome do colaborador
-- Se match: marca como Camada B, tipo `FOPAG_Obs+Valor`
+**Tentativa 1** (existente, com log adicionado): Match via observacoes usando `nomeCompativel`. Adicionar `console.log` quando match ocorre.
 
-Isso garante que PIX individuais de folha sejam conciliados ANTES do agrupamento consolidado.
+**Tentativa 2** (NOVO fallback): Para entradas `PIX_ENVIADO` com valor negativo que nao fizeram match na tentativa 1, tentar match contra lancamentos FOPAG genericos (clienteFornecedor contem "FOLHA"/"PAGAMENTO"/"FOPAG") usando apenas:
+- Valor exato (diferenca < 0.01)
+- Data dentro de 2 dias
+- Sem exigir nome
+
+Logica: valores de salario individual sao tipicamente unicos por colaborador, tornando o match por valor confiavel.
 
 ---
 
@@ -47,9 +47,11 @@ Isso garante que PIX individuais de folha sejam conciliados ANTES do agrupamento
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/conciliacao/utils.ts` | Adicionar parametro `observacoesOmie` a `nomeCompativel`, incluir no loop de comparacao |
-| `src/lib/conciliacao/matcher.ts` | Passar `o.observacoes` em 3 chamadas existentes + novo bloco FOPAG individual na Camada C |
+| `src/lib/conciliacao/parsers.ts` | Log de validacao da coluna observacoes com fallback de listagem de headers |
+| `src/lib/conciliacao/engine.ts` | Bloco de diagnostico FOPAG antes do matching |
+| `src/lib/conciliacao/matcher.ts` | Adicionar log ao match existente + novo fallback FOPAG por valor+data |
 
 ## Arquivos NAO alterados
 
-- `parsers.ts`, `classifier.ts`, `engine.ts`, `types.ts`, `outputs.ts`, `Conciliacao.tsx`
+- `utils.ts`, `classifier.ts`, `types.ts`, `outputs.ts`, `Conciliacao.tsx`
+
