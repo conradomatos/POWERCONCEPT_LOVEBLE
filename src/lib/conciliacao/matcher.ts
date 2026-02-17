@@ -73,7 +73,7 @@ export function matchCamadaB(banco: LancamentoBanco[], omie: LancamentoOmie[], m
       const oCnpj = normalizeCnpjCpf(o.cnpjCpf);
 
       if (Math.abs(b.valor - o.valor) < 0.01 && daysDiff(b.data, o.data) <= 3) {
-        if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial)) {
+        if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)) {
           markMatch(b, o, 'B', 'Valor+Data+Nome', matches);
           break;
         }
@@ -113,7 +113,7 @@ function matchCamadaB2(banco: LancamentoBanco[], omie: LancamentoOmie[], matches
     for (const o of omie) {
       if (o.matched) continue;
       if (Math.abs(b.valor - o.valor) < 0.01 && daysDiff(b.data, o.data) <= 5) {
-        if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial)) {
+        if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)) {
           markMatch(b, o, 'B', 'Valor+DataProx+Nome', matches);
           break;
         }
@@ -146,6 +146,24 @@ export function matchCamadaC(banco: LancamentoBanco[], omie: LancamentoOmie[], m
           markMatch(b, c, 'C', `Agrupamento(${candidates.length})`, matches);
         }
         break;
+      }
+    }
+  }
+
+  // === Match individual FOPAG via observações ===
+  for (const b of banco) {
+    if (b.matched) continue;
+    if (b.tipo !== 'PIX_ENVIADO' && b.tipo !== 'FOLHA') continue;
+    
+    for (const o of unmatchedOmie) {
+      if (o.matched) continue;
+      if (!/FOPAG|FOLHA|SALARIO|SALÁRIO/i.test(o.categoria)) continue;
+      
+      if (Math.abs(b.valor - o.valor) < 0.01 && daysDiff(b.data, o.data) <= 3) {
+        if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)) {
+          markMatch(b, o, 'B', 'FOPAG_Obs+Valor', matches);
+          break;
+        }
       }
     }
   }
@@ -234,7 +252,7 @@ export function matchCamadaD(banco: LancamentoBanco[], omie: LancamentoOmie[], m
       if (dd <= 1) score += 2;
       else if (dd <= 3) score += 1;
 
-      if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial)) score += 2;
+      if (nomeCompativel(b.nome, b.descricao, o.clienteFornecedor, o.razaoSocial, o.observacoes)) score += 2;
 
       const bCnpj = normalizeCnpjCpf(b.cnpjCpf);
       const oCnpj = normalizeCnpjCpf(o.cnpjCpf);

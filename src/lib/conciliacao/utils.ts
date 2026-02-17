@@ -74,19 +74,20 @@ export function classifyBanco(desc: string): string {
 }
 
 // ---- Compatibilidade de nomes ----
-export function nomeCompativel(nomeBanco: string, descBanco: string, nomeOmie: string, razaoOmie: string): boolean {
+export function nomeCompativel(nomeBanco: string, descBanco: string, nomeOmie: string, razaoOmie: string, observacoesOmie?: string): boolean {
   const nomeB = (nomeBanco || '').toUpperCase().trim();
   const descB = (descBanco || '').toUpperCase().trim();
   const nomeO = (nomeOmie || '').toUpperCase().trim();
   const razaoO = (razaoOmie || '').toUpperCase().trim();
+  // Limpar observações: remover prefixos PIX e números de CPF/CNPJ
+  const obsO = (observacoesOmie || '').toUpperCase().replace(/PAGAMENTO\s+PIX\w*/g, '').replace(/\d{11,14}/g, '').trim();
 
-  if (!nomeO && !razaoO) return false;
   if (!nomeB && !descB) return false;
 
-  const stopWords = ['LTDA', 'S.A.', 'S/A', 'EIRELI', 'EPP', 'ME', 'LTDA.', 'S.A', 'DO', 'DE', 'DA', 'DOS', 'DAS', 'E'];
+  const stopWords = ['LTDA', 'S.A.', 'S/A', 'EIRELI', 'EPP', 'ME', 'LTDA.', 'S.A', 'DO', 'DE', 'DA', 'DOS', 'DAS', 'E', 'PAGAMENTO', 'PIXDEB', 'PIXPIXDEB', 'PIXCRED'];
 
-  for (const n_o of [nomeO, razaoO]) {
-    if (!n_o) continue;
+  for (const n_o of [nomeO, razaoO, obsO]) {
+    if (!n_o || n_o.length < 3) continue;
     const wordsO = n_o.split(/\s+/).filter(w => w.length > 2 && !stopWords.includes(w));
     const wordsB = [...nomeB.split(/\s+/).filter(w => w.length > 2), ...descB.split(/\s+/).filter(w => w.length > 2)];
 
