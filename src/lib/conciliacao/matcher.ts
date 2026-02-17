@@ -166,6 +166,49 @@ export function matchCamadaC(banco: LancamentoBanco[], omie: LancamentoOmie[], m
       }
     }
   }
+
+  // Agrupamento especial para fretes (CT-e) — match por subconjunto quinzenal
+  for (const b of banco) {
+    if (b.matched) continue;
+    const bCnpj = normalizeCnpjCpf(b.cnpjCpf);
+    if (!bCnpj) continue;
+
+    const candidates = unmatchedOmie.filter(o =>
+      !o.matched &&
+      normalizeCnpjCpf(o.cnpjCpf) === bCnpj &&
+      daysDiff(b.data, o.data) <= 45 &&
+      ((o.observacoes || '').toUpperCase().includes('CT-E') ||
+       (o.tipoDoc || '').toUpperCase().includes('CT-E') ||
+       (o.categoria || '').toUpperCase().includes('FRETE'))
+    );
+
+    if (candidates.length < 2) continue;
+
+    // Tentar soma total primeiro
+    const totalTodos = candidates.reduce((sum, c) => sum + c.valor, 0);
+    if (Math.abs(totalTodos - b.valor) < 0.02) {
+      for (const c of candidates) {
+        markMatch(b, c, 'C', `CT-e_Agrupamento(${candidates.length})`, matches);
+      }
+      continue;
+    }
+
+    // Se soma total não bateu, tentar subconjuntos por quinzena
+    const sorted = [...candidates].sort((a, b2) => a.data.getTime() - b2.data.getTime());
+    const quinzena1 = sorted.filter(c => c.data.getDate() >= 1 && c.data.getDate() <= 15);
+    const quinzena2 = sorted.filter(c => c.data.getDate() >= 16);
+
+    for (const grupo of [quinzena1, quinzena2]) {
+      if (grupo.length < 2) continue;
+      const total = grupo.reduce((sum, c) => sum + c.valor, 0);
+      if (Math.abs(total - b.valor) < 0.02) {
+        for (const c of grupo) {
+          markMatch(b, c, 'C', `CT-e_Quinzena(${grupo.length})`, matches);
+        }
+        break;
+      }
+    }
+  }
 }
 
 // ============================================================

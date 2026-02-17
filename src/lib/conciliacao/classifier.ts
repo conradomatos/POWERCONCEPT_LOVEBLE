@@ -49,7 +49,8 @@ export function classifyDivergencias(
   omie: LancamentoOmie[],
   _cartao: TransacaoCartao[],
   divergencias: Divergencia[],
-  matches: Match[]
+  matches: Match[],
+  contasExcluidas: { nome: string; count: number; entradas: LancamentoOmie[] }[] = [],
 ) {
   // A — FALTANDO NO OMIE / T — TRANSFERÊNCIAS ENTRE CONTAS
   for (const b of banco) {
@@ -165,7 +166,77 @@ export function classifyDivergencias(
     }
   }
 
-  // Tipo I (CARTÃO PARA IMPORTAR) removido — agora gerenciado na tela de Cartão de Crédito
+  // F — POSSÍVEL LANÇAMENTO NA CONTA ERRADA (cartão na conta banco)
+  const entradasCartao = contasExcluidas
+    .filter(c => c.nome?.toUpperCase().includes('CARTAO') || c.nome?.toUpperCase().includes('CREDITO'))
+    .flatMap(c => c.entradas);
+
+  const cartaoValores = new Set(
+    entradasCartao.map(e => Math.abs(e.valor).toFixed(2))
+  );
+
+  const faturaValores = new Set(
+    (_cartao || [])
+      .filter(t => !t.isPagamentoFatura && !t.isEstorno)
+      .map(t => Math.abs(t.valor).toFixed(2))
+  );
+
+  for (const d of divergencias) {
+    if (d.tipo !== 'B') continue;
+    if (!d.omie) continue;
+    if (d.omie.valor >= 0) continue; // Só saídas
+
+    const obsUpper = (d.omie.observacoes || '').toUpperCase();
+    const isNFeAuto = obsUpper.includes('RECEBIMENTO DA NF') ||
+                      obsUpper.includes('INCLUSÃO PELA NF');
+
+    if (!isNFeAuto) continue;
+
+    const valorKey = Math.abs(d.omie.valor).toFixed(2);
+
+    // Alta confiança: valor existe na conta do cartão
+    if (cartaoValores.has(valorKey) || faturaValores.has(valorKey)) {
+      d.tipo = 'F';
+      d.tipoNome = 'CONTA ERRADA (cartão)';
+      d.confianca = 'alta';
+      d.acao = 'Compra de cartão lançada na conta Sicredi. Mover para conta Cartão de Crédito no Omie.';
+      continue;
+    }
+
+    // Média confiança: heurística (NF-e auto + valor baixo + saída)
+    if (Math.abs(d.omie.valor) <= 500) {
+      d.tipo = 'F';
+      d.tipoNome = 'POSSÍVEL CONTA ERRADA (cartão)';
+      d.confianca = 'media';
+      d.acao = 'Possível compra de cartão na conta Sicredi. Verificar se é compra no cartão de crédito.';
+    }
+  }
+
+  // Ação melhorada para CT-e tipo B
+  for (const d of divergencias) {
+    if (d.tipo !== 'B') continue;
+    if (!d.omie) continue;
+    const obs = (d.omie.observacoes || '').toUpperCase();
+    if (obs.includes('CT-E') || obs.includes('RECEBIMENTO DO CT')) {
+      d.acao = 'Frete (CT-e) aguardando agrupamento quinzenal. Será cobrado no próximo boleto do fornecedor.';
+    }
+  }
+
+  // Ação melhorada para NF-e parcelada tipo B (valor > R$ 400)
+  for (const d of divergencias) {
+    if (d.tipo !== 'B') continue;
+    if (!d.omie) continue;
+
+    const obs = (d.omie.observacoes || '').toUpperCase();
+    const isNFeAuto = obs.includes('RECEBIMENTO DA NF') || obs.includes('INCLUSÃO PELA NF');
+
+    if (!isNFeAuto) continue;
+    if (d.omie.valor >= 0) continue;
+
+    if (Math.abs(d.omie.valor) > 400) {
+      d.acao = 'NF-e sem pagamento correspondente. Verificar se foi parcelada — conferir parcelas, datas e valores no Omie.';
+    }
+  }
 
   divergencias.sort((a, b) => Math.abs(b.valor || 0) - Math.abs(a.valor || 0));
 }

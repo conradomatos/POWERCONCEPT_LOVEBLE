@@ -55,7 +55,18 @@ export default function ResultTabs({ resultado, activeTab, onTabChange }: Result
     { key: 'data', label: 'Data' },
     { key: 'descricao', label: 'Descrição', render: r => <span className="truncate max-w-[250px] inline-block">{r.descricao || r.nome || '—'}</span> },
     { key: 'valor', label: 'Valor', align: 'right', render: r => <ValueCell value={r.valor} />, getValue: r => r.valor },
-    { key: 'tipoNome', label: 'Tipo Divergência' },
+    { key: 'tipoNome', label: 'Tipo', render: r => {
+      if (r.tipo === 'F') {
+        const isAlta = r.confianca === 'alta';
+        return (
+          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${isAlta ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'border border-red-300 text-red-700 dark:border-red-700 dark:text-red-400'}`}>
+            {r.tipoNome}
+          </span>
+        );
+      }
+      return r.tipoNome;
+    }},
+    { key: 'acao', label: 'Ação', render: r => <span className="truncate max-w-[200px] inline-block text-muted-foreground text-xs">{r.acao || ''}</span> },
   ], []);
 
   // === Sem Match ===

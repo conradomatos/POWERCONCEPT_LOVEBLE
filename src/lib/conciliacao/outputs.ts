@@ -35,6 +35,25 @@ function downloadFile(content: string | Blob, filename: string, mimeType: string
   URL.revokeObjectURL(url);
 }
 
+function descricaoLegivel(d: Divergencia): string {
+  const omie = d.omie;
+  if (omie) {
+    const nome = omie.clienteFornecedor || omie.razaoSocial || '';
+    if (nome && nome.length > 3 && !nome.toUpperCase().includes('SALDO')) {
+      return nome.substring(0, 40);
+    }
+  }
+  if (d.descricao) {
+    return d.descricao
+      .replace(/LIQUIDACAO BOLETO /g, '')
+      .replace(/PAGAMENTO PIX\w*/g, 'PIX')
+      .replace(/PIXDEB /g, '')
+      .replace(/PIXCRED /g, '')
+      .substring(0, 40);
+  }
+  return d.cnpjCpf || '—';
+}
+
 // ============================================================
 // 1. RELATÓRIO MARKDOWN
 // ============================================================
@@ -75,10 +94,16 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
   L(`| Banco | ${periodoBanco} | ${r.banco.length} | ${formatBRL(totalEntradasBanco)} | ${formatBRL(totalSaidasBanco)} | ${formatBRL(totalEntradasBanco + totalSaidasBanco)} |`);
   L(`| Omie (Sicredi) | ${periodoBanco} | ${r.omieSicredi.length} | ${formatBRL(totalEntradasOmie)} | ${formatBRL(totalSaidasOmie)} | ${formatBRL(totalEntradasOmie + totalSaidasOmie)} |`);
 
-  if (r.cartaoInfo) {
+  if (r.cartaoInfo && r.cartaoTransacoes?.length > 0) {
     L(`| Cartão | Venc. ${r.cartaoInfo.vencimento} | ${r.cartaoTransacoes.length} trans. | — | ${formatBRL(-r.cartaoInfo.valorTotal)} | — |`);
   }
   L('');
+
+  // Banner de lançamentos zerados
+  if (r.lancamentosZerados && r.lancamentosZerados.total > 0) {
+    L(`> ℹ️ **${r.lancamentosZerados.total} lançamentos com valor R$ 0,00 foram ignorados** (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`);
+    L('');
+  }
 
   const diffSaldo = (r.saldoBanco || 0) - (r.saldoOmie || 0);
   L('| Item | Valor |');
@@ -160,6 +185,21 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L('');
   }
 
+  if (divByTipo['F']?.length) {
+    const divs = divByTipo['F'];
+    L('### Tipo F — Possível Conta Errada (Cartão → Banco)');
+    L('> Lançamentos que parecem ser compras no cartão de crédito mas foram registrados na conta bancária.');
+    L('');
+    L('| # | Data | Valor | Fornecedor | Confiança | Ação |');
+    L('|---|------|-------|------------|-----------|------|');
+    divs.forEach((d, i) => {
+      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${descricaoLegivel(d)} | ${d.confianca || 'media'} | ${d.acao || ''} |`);
+    });
+    const totalF = divs.reduce((s, d) => s + Math.abs(d.valor), 0);
+    L(`| | | **${formatBRL(totalF)}** | **${divs.length} itens** | | |`);
+    L('');
+  }
+
   if (divByTipo['B']?.length) {
     const divs = divByTipo['B'];
     L('### Tipo B — A mais no Omie');
@@ -168,7 +208,7 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     L('| # | Data | Valor | Fornecedor | Situação | Origem | Ação |');
     L('|---|------|-------|------------|----------|--------|------|');
     divs.forEach((d, i) => {
-      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${(d.descricao || '').substring(0, 35)} | ${d.situacao || ''} | ${d.origem || ''} | Investigar |`);
+      L(`| ${i + 1} | ${d.data || ''} | ${formatBRL(d.valor)} | ${descricaoLegivel(d)} | ${d.situacao || ''} | ${d.origem || ''} | ${d.acao || 'Investigar'} |`);
     });
     const totalB = divs.reduce((s, d) => s + Math.abs(d.valor), 0);
     L(`| | | **${formatBRL(totalB)}** | **${divs.length} itens** | | | |`);
@@ -226,11 +266,11 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
   L('---');
   L('');
 
-  // ---- 3. CARTÃO DE CRÉDITO ----
-  L('## 3. CARTÃO DE CRÉDITO');
-  L('');
+  // ---- 3. CARTÃO DE CRÉDITO ---- (só se houver transações)
+  if (r.cartaoTransacoes?.length > 0 && r.cartaoInfo) {
+    L('## 3. CARTÃO DE CRÉDITO');
+    L('');
 
-  if (r.cartaoInfo) {
     const faturaMatch = r.matches.some(m => m.tipo === 'fatura_cartao') ? 'OK ✓' : 'NÃO ENCONTRADO ⚠';
     L(`**Fatura:** Venc. ${r.cartaoInfo.vencimento} | Total: ${formatBRL(r.cartaoInfo.valorTotal)} | Match DEB.CTA.FATURA: **${faturaMatch}**`);
     L('');
@@ -262,10 +302,10 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     const totalImport = validImport.reduce((s, t) => s + Math.abs(t.valor), 0);
     L(`**Transações para importar:** ${validImport.length} transações, total ${formatBRL(totalImport)}`);
     L('');
-  }
 
-  L('---');
-  L('');
+    L('---');
+    L('');
+  }
 
   // ---- 4. CHECKLIST ----
   L('## 4. CHECKLIST DE FECHAMENTO');
@@ -287,6 +327,10 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
   if (divCounts['B*']) {
     const totalAtraso = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
     L(`- [ ] **ATRASO:** ${divCounts['B*']} contas em atraso, total ${formatBRL(totalAtraso)} — cobrar/verificar`);
+  }
+  if (divCounts['F']) {
+    const totalF = r.divergencias.filter(d => d.tipo === 'F').reduce((s, d) => s + Math.abs(d.valor), 0);
+    L(`- [ ] **CONTA ERRADA:** ${divCounts['F']} possíveis lançamentos na conta errada (cartão), total ${formatBRL(totalF)} — mover no Omie`);
   }
   if (divCounts['B']) {
     const totalB = r.divergencias.filter(d => d.tipo === 'B').reduce((s, d) => s + Math.abs(d.valor), 0);
@@ -341,7 +385,7 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
     'C': 'VALOR DIVERGENTE',
     'D': 'DATA DIVERGENTE',
     'E': 'DUPLICIDADE',
-    'F': 'POSSÍVEL MATCH (REVISAR)',
+    'F': 'POSSÍVEL CONTA ERRADA',
     'G': 'PREVISTO NÃO REALIZADO',
     'I': 'CARTÃO - IMPORTAR',
   };
@@ -597,10 +641,9 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     { label: 'Conciliados', value: String(r.totalConciliados), color: verde },
     { label: 'Divergências', value: String(r.divergencias.length), color: [200, 150, 30] as [number, number, number] },
     { label: 'Em Atraso', value: String(r.divergencias.filter(d => d.tipo === 'B*').length), color: vermelho },
-    { label: 'Cartão Import.', value: String(r.cartaoTransacoes?.filter(t => !t.isPagamentoFatura && !t.isEstorno).length || 0), color: azulEscuro },
   ];
 
-  const cardW = (pageWidth - 2 * margin - 15) / 4;
+  const cardW = (pageWidth - 2 * margin - 10) / 3;
   kpis.forEach((kpi, i) => {
     const x = margin + i * (cardW + 5);
     doc.setFillColor(...kpi.color);
@@ -615,6 +658,16 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   });
   doc.setTextColor(0, 0, 0);
   y += 26;
+
+  // Banner de lançamentos zerados
+  if (r.lancamentosZerados && r.lancamentosZerados.total > 0) {
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120, 120, 120);
+    doc.text(`ℹ ${r.lancamentosZerados.total} lançamentos com valor R$ 0,00 foram ignorados (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`, margin, y);
+    doc.setTextColor(0, 0, 0);
+    y += 6;
+  }
 
   // Tabela Fontes
   const totalEntradasBanco = r.banco.filter(b => b.valor > 0).reduce((s, b) => s + b.valor, 0);
@@ -677,6 +730,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   const tipoConfig: [string, string, [number, number, number]][] = [
     ['A', 'Tipo A — Faltando no Omie', [252, 228, 236]],
     ['T', 'Tipo T — Transferências entre contas', [224, 247, 250]],
+    ['F', 'Tipo F — Possível Conta Errada (Cartão)', [255, 235, 238]],
     ['B*', 'Contas em Atraso', [255, 243, 224]],
     ['B', 'Tipo B — A mais no Omie', [243, 229, 245]],
     ['C', 'Tipo C — Valor divergente', [255, 253, 231]],
@@ -698,8 +752,8 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
       String(i + 1),
       d.data || '',
       fmt(d.valor),
-      (d.descricao || '').substring(0, 45),
-      d.cnpjCpf || '',
+      descricaoLegivel(d),
+      d.omie?.categoria || '',
       d.acao || '',
     ]);
 
@@ -708,7 +762,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Data', 'Valor', 'Descrição', 'CNPJ/CPF', 'Ação']],
+      head: [['#', 'Data', 'Valor', 'Fornecedor', 'Categoria', 'Ação']],
       body: bodyRows,
       theme: 'grid',
       headStyles: { fillColor: azulEscuro, fontSize: 7, fontStyle: 'bold' },
@@ -718,18 +772,18 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
       styles: { cellPadding: 1.5, overflow: 'linebreak' },
       columnStyles: {
         0: { cellWidth: 8 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 28, halign: 'right' },
-        3: { cellWidth: 55 },
-        4: { cellWidth: 30 },
-        5: { cellWidth: 50 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 25, halign: 'right' },
+        3: { cellWidth: 45 },
+        4: { cellWidth: 35 },
+        5: { cellWidth: 47 },
       },
     });
     y = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // 3. CARTÃO
-  if (r.cartaoInfo) {
+  // 3. CARTÃO (só se houver transações)
+  if (r.cartaoTransacoes?.length > 0 && r.cartaoInfo) {
     checkPage(30);
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
@@ -769,9 +823,9 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
         headStyles: { fillColor: azulEscuro, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 8 },
         margin: { left: margin, right: margin },
-    styles: { cellPadding: 2, overflow: 'linebreak' },
-    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' } },
-  });
+        styles: { cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' } },
+      });
       y = (doc as any).lastAutoTable.finalY + 6;
     }
 
@@ -808,6 +862,10 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   if (divCounts['B*']) {
     const totalAtraso = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
     checkItems.push({ texto: `ATRASO: ${divCounts['B*']} contas em atraso, total ${fmt(totalAtraso)} - cobrar/verificar`, cor: [200, 50, 50] });
+  }
+  if (divCounts['F']) {
+    const totalF = r.divergencias.filter(d => d.tipo === 'F').reduce((s, d) => s + Math.abs(d.valor), 0);
+    checkItems.push({ texto: `CONTA ERRADA: ${divCounts['F']} possíveis lançamentos na conta errada (cartão), total ${fmt(totalF)} - mover`, cor: [200, 50, 100] });
   }
   if (divCounts['B']) {
     const totalB = r.divergencias.filter(d => d.tipo === 'B').reduce((s, d) => s + Math.abs(d.valor), 0);
