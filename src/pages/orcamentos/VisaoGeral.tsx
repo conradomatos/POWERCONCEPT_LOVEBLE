@@ -32,7 +32,7 @@ export default function VisaoGeral() {
   const context = useOutletContext<OutletContextType>();
   const { selectedRevision } = context || {};
   
-  const { summary, isLoading } = useBudgetSummary(selectedRevision?.id);
+  const { summary } = useBudgetSummary(selectedRevision?.id);
 
   const sections = [
     { title: 'Parâmetros', icon: Settings, path: 'parametros', description: 'Impostos, encargos e markup' },

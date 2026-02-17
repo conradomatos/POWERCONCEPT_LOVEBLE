@@ -233,7 +233,7 @@ export default function Projetos() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-ignore TS6133 - kept for future use
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'ATIVO':

@@ -74,7 +74,7 @@ export default function Parametros() {
     await upsertMarkup.mutateAsync(markupForm);
   };
 
-  const isLoading = taxLoading || markupLoading;
+  const _isLoading = taxLoading || markupLoading; void _isLoading;
 
   return (
     <div className="space-y-6">

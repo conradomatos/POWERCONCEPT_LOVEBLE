@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -34,14 +33,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Plus, 
   Search, 
   Upload, 
   Download, 
-  Filter, 
   MoreHorizontal, 
   Trash2, 
   Edit,
@@ -49,7 +46,6 @@ import {
   X,
   FileSpreadsheet,
   AlertTriangle,
-  CheckCircle2,
   XCircle,
   Equal,
   Copy,
@@ -75,7 +71,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function CatalogoEquipamentos() {
-  const { items, isLoading, canEdit, createItem, updateItem, deleteItem, batchUpdate } = useEquipmentCatalogNew();
+  const { items, isLoading, canEdit, createItem, updateItem, deleteItem } = useEquipmentCatalogNew();
   const { groups } = useEquipmentGroups();
   const { categories } = useEquipmentCategories();
   const { subcategories } = useEquipmentSubcategories();

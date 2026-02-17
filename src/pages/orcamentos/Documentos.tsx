@@ -43,7 +43,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 
 export default function Documentos() {
   const context = useOutletContext<OutletContextType>();
-  const { budget, selectedRevision, lockState } = context || {};
+  const { selectedRevision, lockState } = context || {};
   
   const { documents, isLoading, deleteDocument } = useDocuments(selectedRevision?.id);
   const { summary, isLoading: summaryLoading } = useBudgetSummary(selectedRevision?.id);
@@ -105,7 +105,7 @@ export default function Documentos() {
     }
   };
 
-  const handleDownload = async (storagePath: string, fileName: string) => {
+  const handleDownload = async (storagePath: string, _fileName: string) => {
     try {
       const { data, error } = await supabase.storage
         .from('budget-documents')

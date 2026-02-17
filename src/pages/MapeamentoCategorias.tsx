@@ -30,7 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 type FilterType = 'todos' | 'mapeados' | 'nao_mapeados';
 
 // Fallback para AP baseado no prefixo (mesma lógica do useDREData)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// @ts-ignore TS6133 - kept for future use
 function fallbackAP(cat: string): string {
   if (cat.startsWith('1.')) return '(-) - Custo dos Serviços Prestados';
   if (cat.startsWith('2.01') || cat.startsWith('2.02')) return '(-) - Despesas com Pessoal';

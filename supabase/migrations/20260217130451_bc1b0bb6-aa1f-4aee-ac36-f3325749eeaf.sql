@@ -1,0 +1,1 @@
+ALTER TABLE conciliacao_imports ADD COLUMN IF NOT EXISTS origem TEXT DEFAULT 'upload';

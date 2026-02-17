@@ -2318,6 +2318,7 @@ export type Database = {
           id: string
           metadata: Json | null
           nome_arquivo: string | null
+          origem: string | null
           periodo_fim: string | null
           periodo_inicio: string | null
           periodo_ref: string
@@ -2334,6 +2335,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           nome_arquivo?: string | null
+          origem?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           periodo_ref: string
@@ -2350,6 +2352,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           nome_arquivo?: string | null
+          origem?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           periodo_ref?: string

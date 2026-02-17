@@ -68,7 +68,7 @@ export default function RentabilidadeProjeto() {
       const { data, error } = await supabase
         .from('omie_contas_receber')
         .select('*')
-        .eq('projeto_id', id)
+        .eq('projeto_id', id!)
         .order('vencimento', { ascending: false });
       
       if (error) throw error;
@@ -84,7 +84,7 @@ export default function RentabilidadeProjeto() {
       const { data, error } = await supabase
         .from('omie_contas_pagar')
         .select('*')
-        .eq('projeto_id', id)
+        .eq('projeto_id', id!)
         .order('vencimento', { ascending: false });
       
       if (error) throw error;
@@ -109,7 +109,7 @@ export default function RentabilidadeProjeto() {
           custo_total,
           data
         `)
-        .eq('projeto_id', id);
+        .eq('projeto_id', id!);
       
       if (error) throw error;
       return data || [];
@@ -138,7 +138,7 @@ export default function RentabilidadeProjeto() {
       const { data, error } = await supabase
         .from('pendencias_financeiras')
         .select('*')
-        .eq('projeto_id', id)
+        .eq('projeto_id', id!)
         .eq('status', 'ABERTA');
       
       if (error) throw error;
@@ -496,8 +496,8 @@ export default function RentabilidadeProjeto() {
 
           <TabsContent value="financeiro">
             <TitulosTable 
-              titulosAR={titulosAR || []} 
-              titulosAP={titulosAP || []} 
+              titulosAR={(titulosAR || []) as any} 
+              titulosAP={(titulosAP || []) as any} 
             />
           </TabsContent>
 

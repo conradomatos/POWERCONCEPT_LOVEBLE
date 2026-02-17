@@ -114,6 +114,10 @@ export interface ResultadoConciliacao {
   cartaoImportaveis: number;
   mesLabel: string;
   anoLabel: string;
+  contaCorrenteSelecionada?: string;
+  contasExcluidas?: { nome: string; count: number }[];
+  totalOmieOriginal?: number;
+  totalOmieFiltrado?: number;
 }
 
 // ===== DRE =====

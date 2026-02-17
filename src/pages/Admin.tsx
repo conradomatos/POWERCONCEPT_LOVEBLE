@@ -368,7 +368,7 @@ export default function Admin() {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {format(new Date(u.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                          {u.created_at ? format(new Date(u.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                         </TableCell>
                         <TableCell>
                           <UserActionsMenu

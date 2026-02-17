@@ -47,7 +47,7 @@ export function detectDuplicates(omie: LancamentoOmie[], divergencias: Divergenc
 export function classifyDivergencias(
   banco: LancamentoBanco[],
   omie: LancamentoOmie[],
-  cartao: TransacaoCartao[],
+  _cartao: TransacaoCartao[],
   divergencias: Divergencia[],
   matches: Match[]
 ) {
@@ -165,22 +165,7 @@ export function classifyDivergencias(
     }
   }
 
-  // I — CARTÃO PARA IMPORTAR
-  for (const t of cartao) {
-    if (!t.isPagamentoFatura && !t.isEstorno) {
-      divergencias.push({
-        tipo: 'I',
-        tipoNome: 'CARTÃO - IMPORTAR',
-        fonte: 'Cartão',
-        data: t.dataStr,
-        valor: t.valor,
-        descricao: t.descricao,
-        titular: t.titular,
-        categoriaSugerida: t.categoriaSugerida,
-        parcela: t.parcela,
-      });
-    }
-  }
+  // Tipo I (CARTÃO PARA IMPORTAR) removido — agora gerenciado na tela de Cartão de Crédito
 
   divergencias.sort((a, b) => Math.abs(b.valor || 0) - Math.abs(a.valor || 0));
 }

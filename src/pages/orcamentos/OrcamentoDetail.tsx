@@ -125,7 +125,7 @@ export default function OrcamentoDetail() {
         id: budget.id,
         cliente_id: budget.cliente_id,
         obra_nome: budget.obra_nome,
-        local: budget.local,
+        local: budget.local ?? undefined,
       },
       revision: selectedRevision,
       summary,
@@ -175,7 +175,7 @@ export default function OrcamentoDetail() {
   }
 
   // Check if we're on a sub-route
-  const isSubRoute = location.pathname !== `/orcamentos/${budgetId}`;
+  const _isSubRoute = location.pathname !== `/orcamentos/${budgetId}`; void _isSubRoute;
 
   return (
     <Layout>
