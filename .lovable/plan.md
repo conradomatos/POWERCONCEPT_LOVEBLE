@@ -1,103 +1,174 @@
 
 
-# FIX -- 3 Problemas restantes no PDF e Excel
+# Correcoes Conciliacao Financeira — 5 Fixes
 
 ## Resumo
 
-Tres correcoes pontuais: bullet corrompido no checklist PDF, mapeamento de "Razao Social" (coluna S) bloqueado pelo guard, e NF potencialmente afetada por encoding.
+Cinco correcoes baseadas nos testes de Fevereiro/2026: reordenar parser para capturar Razao Social e NF corretamente, corrigir campo `descricao` no classifier, adicionar filtro de datas futuras, separar atraso receber/pagar, e remover Unicode problematico do Markdown.
 
 ---
 
-## Etapas de Implementacao
+## FIX 1 — Parser: Reordenar else-if chain (parsers.ts)
 
-### 1. Corrigir bullet corrompido no checklist PDF (`outputs.ts`)
+**Problema**: A coluna S do Omie ("Cliente ou Fornecedor (Razao Social)") contem "CLIENTE", entao a linha 71 captura ela para `colMap['cliente']` antes que a linha 82 (RAZAO) tenha chance de mapeala para `razaoSocial`.
 
-**Causa raiz**: Linha 940 usa `●` (U+25CF BLACK CIRCLE) que NAO esta no WinAnsiEncoding do jsPDF. Isso gera `%Ï` no PDF renderizado.
+**Correcao**: Linhas 67-84 do `parsers.ts` -- mover o check de RAZAO/RAZAO para ANTES do check de CLIENTE/FORNECEDOR. Tambem adicionar `RAZÃ` como variante.
 
-**Correcao**: Substituir `●` por `-` (hifen) ou `*` (asterisco), que sao caracteres seguros no WinAnsi.
-
-Linha 940:
+Nova ordem do loop:
 ```
-// DE:
-body: checkItems.map(item => [`●  ${item.texto}`]),
-// PARA:
-body: checkItems.map(item => [`- ${item.texto}`]),
-```
-
-Nenhuma outra alteracao necessaria no checklist — a fonte ja e `helvetica`, nao ha `setCharSpace`, e as cores por tipo ja funcionam via `didParseCell`.
-
-### 2. Corrigir mapeamento de `razaoSocial` no parser (`parsers.ts`)
-
-**Causa raiz**: Linha 82 tem o guard `!colMap['cliente']` que impede mapear `razaoSocial` quando `cliente` ja foi capturado em outra coluna. Se o Omie tem coluna C = "Cliente ou Fornecedor" (capturada pela condicao CLIENTE/FORNECEDOR na linha 71) e coluna S = "Razao Social" (separada), o guard bloqueia o mapeamento da coluna S.
-
-**Correcao**: Trocar `!colMap['cliente']` por `colMap['cliente'] !== j`. Isso permite mapear `razaoSocial` se for uma coluna DIFERENTE de `cliente`, mas ainda evita duplicar o mapeamento quando e a mesma coluna.
-
-Linha 82:
-```
-// DE:
-else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && !colMap['cliente']) colMap['razaoSocial'] = j;
-// PARA:
-else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && colMap['cliente'] !== j) colMap['razaoSocial'] = j;
+if (SITUAC) ...
+else if (DATA) ...
+else if (RAZAO/RAZAO/RAZA) -> colMap['razaoSocial']    // ANTES de CLIENTE
+else if (CLIENTE/FORNECEDOR) -> colMap['cliente']
+else if (CONTA CORRENTE) ...
+else if (CATEGORIA) ...
+else if (VALOR) ...
+else if (SALDO) ...
+else if (TIPO DOC) ...
+else if (DOCUMENTO) ...
+else if (NOTA FISCAL/NF-E/NF/NOTA) ...
+else if (PARCELA) ...
+else if (ORIGEM) ...
+else if (PROJETO) ...
+else if (CNPJ/CPF) ...
+else if (OBSERV) ...
 ```
 
-### 3. Tornar deteccao de NF mais robusta (`parsers.ts`)
+Isso garante que a coluna S (que contem tanto "CLIENTE" quanto "RAZAO") sera mapeada para `razaoSocial` primeiro. A coluna C ("Cliente ou Fornecedor", sem "Razao") caira no else-if de CLIENTE.
 
-**Diagnostico**: O mapeamento de NF na linha 78 (`cn.includes('NOTA FISCAL') || cn === 'NF'`) esta sintaticamente correto. Porem, se o header tiver caracteres invisíveis (BOM residual, espaco nao-quebravel) o match falha.
+**Adicionar logs de validacao** apos o loop (antes do fallback na linha 90):
+- Log do colMap completo
+- Warnings se razaoSocial ou notaFiscal nao foram encontrados
 
-**Correcao**: Adicionar normalizacao extra no `cn` para remover caracteres nao-ASCII invisiveis antes da comparacao. Aplicar a TODOS os headers na iteracao:
+**Adicionar log final** antes do return (linha 170):
+- Contagem de lancamentos com razaoSocial preenchida e com NF preenchida
 
-Linha 68:
+## FIX 2 — Classifier: campo descricao priorizar nome (classifier.ts)
+
+**Problema**: Linha 114 preenche `descricao` com `o.observacoes || o.clienteFornecedor || o.cnpjCpf`, fazendo com que observacoes longas ("Incluido a partir do recebimento da NF-e...") aparecam no lugar do nome do fornecedor.
+
+**Correcao**: Linha 114 -- trocar prioridade para:
 ```
-// DE:
-const cn = String(row[j] || '').toUpperCase().trim();
-// PARA:
-const cn = String(row[j] || '').toUpperCase().trim().replace(/[^\x20-\x7E\u00C0-\u024F]/g, '');
-```
-
-A regex `[^\x20-\x7E\u00C0-\u024F]` remove caracteres fora do ASCII imprimivel e Latin Extended (mantem acentos como Ã, Ç, mas remove BOM, zero-width spaces, etc).
-
-Adicionalmente, expandir a deteccao de NF para aceitar variacoes:
-
-Linha 78:
-```
-// DE:
-else if (cn.includes('NOTA FISCAL') || cn === 'NF') colMap['notaFiscal'] = j;
-// PARA:
-else if (cn.includes('NOTA FISCAL') || cn.includes('NF-E') || cn === 'NF' || cn === 'NOTA') colMap['notaFiscal'] = j;
+descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || '',
 ```
 
-### 4. Ajustar `descricaoLegivel` para priorizar `razaoSocial` (`outputs.ts`)
+Aplicar nas linhas 88, 114 (e qualquer outra que preencha `descricao` com `o.observacoes` primeiro).
 
-Com o fix do parser, o campo `razaoSocial` estara preenchido. Inverter a prioridade na funcao para usar `razaoSocial` primeiro (coluna S, que tem o nome completo), com fallback para `clienteFornecedor`:
+Verificar linha 88 tambem (bloco G): atualmente usa `o.clienteFornecedor` -- manter mas adicionar `o.razaoSocial` como fallback prioritario.
 
-Linha 41:
+## FIX 3 — Filtro de datas futuras (engine.ts + types.ts + Conciliacao.tsx + outputs.ts)
+
+**Problema**: Lancamentos Omie com data posterior a ultima data do extrato bancario sao classificados incorretamente como tipo B.
+
+### engine.ts
+
+Apos a linha 117 (`const omieFiltrado = filtro.omieFiltrado;`), substituir por:
+
+1. Detectar ultima data do banco percorrendo `bancoFiltrado`
+2. Separar `filtro.omieFiltrado` em `omieDentroPeriodo` (data <= ultimaDataBanco) e `lancamentosFuturos` (data > ultimaDataBanco)
+3. Usar `omieDentroPeriodo` como `omieFiltrado` para o matching
+4. Calcular `totalFuturos` (soma absoluta dos valores)
+5. Adicionar `lancamentosFuturos: { quantidade, total, ultimaDataBanco }` ao objeto de retorno (linha 146-168)
+
+### types.ts
+
+Adicionar ao `ResultadoConciliacao` (apos linha 122):
 ```
-// DE:
-const nome = omie.clienteFornecedor || omie.razaoSocial || '';
-// PARA:
-const nome = omie.razaoSocial || omie.clienteFornecedor || '';
+lancamentosFuturos?: { quantidade: number; total: number; ultimaDataBanco: string };
 ```
 
-Isso garante que o nome completo da Razao Social (coluna S) tenha prioridade sobre o campo "Cliente ou Fornecedor" (coluna C), que em alguns casos contem apenas o CNPJ.
+### Conciliacao.tsx
+
+Apos o banner de zerados (linha 505), adicionar banner de futuros:
+- Card azul claro com icone de calendario
+- Texto: "Periodo: ate {data}. X lancamentos futuros do Omie excluidos (R$ Y)."
+
+### outputs.ts — PDF
+
+Apos o banner de zerados (linha 689), adicionar banner de futuros com fundo azul claro.
+
+### outputs.ts — PDF Checklist
+
+Antes do `if (checkItems.length > 0)` (linha 937), adicionar item de futuros ao checkItems com cor azul.
+
+### outputs.ts — Markdown Checklist
+
+Apos a linha 371 (antes do `L('')`), adicionar item de futuros ao checklist MD.
+
+## FIX 4 — Separar atraso Receber vs Pagar (classifier.ts + outputs.ts + Conciliacao.tsx)
+
+### classifier.ts
+
+Substituir o bloco de linhas 77-124 (B/B*/G) por logica expandida:
+
+1. `isAtrasado && isReceber` -> tipo `B*`, tipoNome `CONTA A RECEBER EM ATRASO`
+2. `isAtrasado && (isPagar || isPrevisao)` -> tipo `G`, tipoNome `CONTA A PAGAR EM ATRASO`
+3. `isAtrasado` sem origem clara -> classificar pelo sinal do valor (positivo = B*, negativo = G)
+4. Nao atrasado -> tipo `B`, tipoNome `A MAIS NO OMIE`
+
+Todos os blocos usam `descricao: o.razaoSocial || o.clienteFornecedor || o.cnpjCpf || ''` (do FIX 2).
+
+### outputs.ts — tipoConfig PDF (linha 752-761)
+
+Substituir para separar B* e G:
+```
+['B*', 'Contas a Receber em Atraso', [255, 243, 224]],
+['G', 'Contas a Pagar em Atraso', [255, 237, 213]],
+```
+
+### outputs.ts — tipoDescricoes Excel (linhas 389-400)
+
+Atualizar:
+```
+'B*': 'CONTA A RECEBER EM ATRASO',
+'G': 'CONTA A PAGAR EM ATRASO',
+```
+
+### outputs.ts — Markdown tipo G (linhas 263-273)
+
+Substituir titulo e descricao para "Contas a Pagar em Atraso".
+
+### outputs.ts — Checklist PDF (linhas 912-915)
+
+Substituir item B* unico por dois itens separados:
+- `ATRASO RECEBER: X contas a receber em atraso, total Y - cobrar clientes` (cor vermelha)
+- `ATRASO PAGAR: X contas a pagar vencidas, total Y - verificar pagamentos` (cor laranja)
+
+### outputs.ts — Checklist MD (linhas 336-339)
+
+Substituir item B* por dois itens separados (receber e pagar).
+
+### Conciliacao.tsx — KPI Cards (linhas 533-539)
+
+Substituir o card unico "Em Atraso" por dois cards:
+- Card vermelho: "A Receber (atraso)" — conta divergencias B*
+- Card laranja: "A Pagar (atraso)" — conta divergencias G
+
+Alterar grid de `md:grid-cols-3` para `md:grid-cols-4` (4 cards: Conciliados, Divergencias, Receber, Pagar).
+
+## FIX 5 — Remover Unicode problematico do Markdown (outputs.ts)
+
+**Correcoes pontuais**:
+
+- Linha 123: `⚠` -> `[!]`
+- Linha 125: `✓` -> `[OK]`
+- Linha 283: `✓` -> `OK` e `⚠` -> `[!]`
 
 ---
 
 ## Arquivos modificados
 
-| Arquivo | Linha | Alteracao |
-|---------|-------|-----------|
-| `src/lib/conciliacao/outputs.ts` | 940 | Trocar `●` por `-` no bullet do checklist |
-| `src/lib/conciliacao/outputs.ts` | 41 | Inverter prioridade: `razaoSocial` antes de `clienteFornecedor` |
-| `src/lib/conciliacao/parsers.ts` | 68 | Adicionar limpeza de caracteres invisiveis nos headers |
-| `src/lib/conciliacao/parsers.ts` | 78 | Expandir deteccao de NF com variacoes |
-| `src/lib/conciliacao/parsers.ts` | 82 | Trocar `!colMap['cliente']` por `colMap['cliente'] !== j` |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/lib/conciliacao/parsers.ts` | Reordenar else-if (RAZAO antes de CLIENTE), adicionar logs de validacao |
+| `src/lib/conciliacao/classifier.ts` | Separar B* (receber) e G (pagar), corrigir campo descricao |
+| `src/lib/conciliacao/engine.ts` | Filtro de datas futuras |
+| `src/lib/conciliacao/types.ts` | Adicionar lancamentosFuturos ao ResultadoConciliacao |
+| `src/lib/conciliacao/outputs.ts` | tipoConfig separado, checklist separado, banner futuros, remover Unicode, tipo G no MD |
+| `src/pages/Conciliacao.tsx` | Banner futuros, KPI cards separados (receber/pagar) |
 
 ## Arquivos NAO alterados
 
-- `types.ts` -- campos ja existem
-- `engine.ts` -- sem alteracoes
-- `matcher.ts` -- sem alteracoes
-- `classifier.ts` -- sem alteracoes
-- `Conciliacao.tsx` -- sem alteracoes
-- `ResultTabs.tsx` -- sem alteracoes
+- `matcher.ts` — sem alteracoes
+- `ResultTabs.tsx` — sem alteracoes
 
