@@ -1,145 +1,100 @@
 
 
-# FIX -- 4 Ajustes no Relatorio PDF e Planilha de Divergencias
+# FIX -- 3 Problemas restantes no PDF e Excel
 
 ## Resumo
 
-Quatro correcoes no relatorio PDF e planilha Excel baseadas em problemas reais observados: fornecedor mostrando CNPJ, resumo executivo sem separacao de atraso, caracteres corrompidos no PDF, e colunas faltantes na planilha.
+Tres correcoes pontuais: bullet corrompido no checklist PDF, mapeamento de "Razao Social" (coluna S) bloqueado pelo guard, e NF potencialmente afetada por encoding.
 
 ---
 
 ## Etapas de Implementacao
 
-### 1. Corrigir `descricaoLegivel` e mapeamento do parser (`outputs.ts` + `parsers.ts`)
+### 1. Corrigir bullet corrompido no checklist PDF (`outputs.ts`)
 
-**Diagnostico**: O `parseOmie` ja mapeia `clienteFornecedor` corretamente (linha 140: `clienteFornecedor: col('cliente')`). O header "Cliente ou Fornecedor (Razao Social)" e detectado porque contem "CLIENTE" (linha 71). Porem, o campo `cliente` no `colMap` pode nao estar pegando a coluna correta se o header exato tiver variacao.
+**Causa raiz**: Linha 940 usa `●` (U+25CF BLACK CIRCLE) que NAO esta no WinAnsiEncoding do jsPDF. Isso gera `%Ï` no PDF renderizado.
 
-**Correcao em `parsers.ts`** (linhas 71):
-- Expandir a deteccao do header para tambem aceitar "RAZ" (Razao Social) como parte do nome da coluna `cliente`, evitando que caia no mapeamento de `razaoSocial` separadamente quando a coluna combina ambos os conceitos.
-- Mover a condicao de `RAZAO`/`RAZAO` para ser testada DEPOIS de `CLIENTE`/`FORNECEDOR`, e so mapear `razaoSocial` se `cliente` ja nao capturou essa coluna. Isso evita que a mesma coluna "Cliente ou Fornecedor (Razao Social)" seja mapeada para `razaoSocial` ao inves de `cliente`.
+**Correcao**: Substituir `●` por `-` (hifen) ou `*` (asterisco), que sao caracteres seguros no WinAnsi.
 
-**Correcao em `outputs.ts`** (funcao `descricaoLegivel`, linhas 38-55):
-- Expandir fallbacks para incluir campos adicionais e limpar melhor a descricao do banco:
-
+Linha 940:
 ```
-function descricaoLegivel(d: Divergencia): string {
-  const omie = d.omie;
-  if (omie) {
-    const nome = omie.clienteFornecedor || omie.razaoSocial || '';
-    if (nome && nome.length > 3 && 
-        !nome.toUpperCase().includes('SALDO') &&
-        !/^\d{2}\.\d{3}\.\d{3}/.test(nome)) {  // Rejeitar CNPJs
-      return nome.substring(0, 40);
-    }
-  }
-  // Fallback: nome do banco
-  if (d.nome && d.nome.length > 3) {
-    return d.nome.substring(0, 40);
-  }
-  if (d.descricao) {
-    return d.descricao
-      .replace(/LIQUIDACAO BOLETO \d*/g, '')
-      .replace(/PAGAMENTO PIX\w*/g, 'PIX')
-      .replace(/PIXDEB /g, '')
-      .replace(/PIXCRED /g, '')
-      .replace(/DEBCTAFATURA/g, 'DEB FATURA')
-      .trim()
-      .substring(0, 40);
-  }
-  return d.cnpjCpf || '--';
-}
+// DE:
+body: checkItems.map(item => [`●  ${item.texto}`]),
+// PARA:
+body: checkItems.map(item => [`- ${item.texto}`]),
 ```
 
-A validacao com regex `^\d{2}\.\d{3}\.\d{3}` rejeita valores que sao CNPJs formatados, forcando o fallback para o nome do banco.
+Nenhuma outra alteracao necessaria no checklist — a fonte ja e `helvetica`, nao ha `setCharSpace`, e as cores por tipo ja funcionam via `didParseCell`.
 
-### 2. Resumo Executivo com coluna "Em Atraso" (`outputs.ts`)
+### 2. Corrigir mapeamento de `razaoSocial` no parser (`parsers.ts`)
 
-**PDF** (linhas 678-691):
-- Alterar headers da tabela de fontes de `['Fonte', 'Lancamentos', 'Entradas', 'Saidas', 'Liquido']` para `['Fonte', 'Lanc.', 'Entradas', 'Saidas', 'Em Atraso', 'Liquido']`
-- Calcular `totalAtraso` a partir de divergencias tipo B* (entradas positivas em atraso)
-- Subtrair atraso das entradas do Omie
-- Linha Banco: coluna "Em Atraso" = "--"
-- Linha Omie: coluna "Em Atraso" = valor total B*
+**Causa raiz**: Linha 82 tem o guard `!colMap['cliente']` que impede mapear `razaoSocial` quando `cliente` ja foi capturado em outra coluna. Se o Omie tem coluna C = "Cliente ou Fornecedor" (capturada pela condicao CLIENTE/FORNECEDOR na linha 71) e coluna S = "Razao Social" (separada), o guard bloqueia o mapeamento da coluna S.
 
-**Markdown** (linhas 92-96):
-- Mesma alteracao: adicionar coluna "Em Atraso" na tabela de resumo executivo
-- Para Banco, mostrar "--"
-- Para Omie, mostrar total das divergencias B*
+**Correcao**: Trocar `!colMap['cliente']` por `colMap['cliente'] !== j`. Isso permite mapear `razaoSocial` se for uma coluna DIFERENTE de `cliente`, mas ainda evita duplicar o mapeamento quando e a mesma coluna.
 
-### 3. Corrigir caracteres corrompidos no PDF (`outputs.ts`)
-
-**3a. Banner de zerados** (linha 667):
-- Remover o caractere `i` (info emoji) que gera "!9" no PDF
-- Texto limpo: `${total} lancamentos com valor R$ 0,00 foram ignorados (${banco} do banco, ${omie} do Omie).`
-- Usar `doc.setFillColor(230, 242, 255)` para fundo azul claro + `doc.rect()` como destaque visual ao inves de emoji
-
-**3b. Checklist** (linhas 854-908):
-- Os items ja usam `doc.setTextColor` com cores por tipo e `"●"` como bullet, que funciona em helvetica
-- Verificar que nao ha emojis nos textos dos checkItems (atualmente nao ha -- estao limpos)
-- Confirmar que a fonte e `helvetica` (ja esta configurado no `styles` da autoTable)
-
-**3c. Markdown** (linha 104):
-- Remover emoji `i` do banner de zerados no MD tambem (manter apenas texto)
-
-### 4. Adicionar NF nas tabelas PDF para tipos B/F/B* (`outputs.ts`)
-
-**PDF -- Tabelas de divergencia** (linhas 741-783):
-- Para tipos B, F e B*: usar headers com 7 colunas `['#', 'Data', 'Valor', 'Fornecedor', 'NF', 'Categoria', 'Acao']`
-- Para tipos A, T, C, E, G: manter 6 colunas sem NF (sao lancamentos do banco ou sem nota)
-- Ajustar `bodyRows` condicionalmente:
-  - Com NF: adicionar `d.omie?.notaFiscal || '--'` entre Fornecedor e Categoria
-  - Sem NF: manter como esta
-- Ajustar `columnStyles` para 7 colunas:
-  ```
-  // Com NF (7 colunas):
-  0: { cellWidth: 7 },    // #
-  1: { cellWidth: 18 },   // Data
-  2: { cellWidth: 22, halign: 'right' },  // Valor
-  3: { cellWidth: 38 },   // Fornecedor
-  4: { cellWidth: 18 },   // NF
-  5: { cellWidth: 30 },   // Categoria
-  6: { cellWidth: 47 },   // Acao
-  ```
-
-### 5. Expandir planilha Excel de divergencias (`outputs.ts`)
-
-**Headers** (linhas 393-398):
-Adicionar 5 novas colunas apos as existentes:
-
+Linha 82:
 ```
-'Fornecedor (Razao Social)',   // d.omie?.clienteFornecedor || d.omie?.razaoSocial
-'Categoria',                    // d.omie?.categoria
-'Situacao',                     // d.omie?.situacao  
-'Projeto',                      // d.omie?.projeto
-'Observacoes',                  // d.omie?.observacoes
+// DE:
+else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && !colMap['cliente']) colMap['razaoSocial'] = j;
+// PARA:
+else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && colMap['cliente'] !== j) colMap['razaoSocial'] = j;
 ```
 
-**Rows** (linhas 402-424):
-Para cada divergencia, adicionar os 5 novos campos no final do array.
+### 3. Tornar deteccao de NF mais robusta (`parsers.ts`)
 
-**Column widths** (linhas 439-444):
-Adicionar larguras para as novas colunas:
-- Fornecedor: 40
-- Categoria: 30
-- Situacao: 15
-- Projeto: 20
-- Observacoes: 50
+**Diagnostico**: O mapeamento de NF na linha 78 (`cn.includes('NOTA FISCAL') || cn === 'NF'`) esta sintaticamente correto. Porem, se o header tiver caracteres invisíveis (BOM residual, espaco nao-quebravel) o match falha.
 
-**Autofilter** (linha 446):
-Atualizar de `A1:S` para `A1:X` (5 colunas a mais = S+5 = X).
+**Correcao**: Adicionar normalizacao extra no `cn` para remover caracteres nao-ASCII invisiveis antes da comparacao. Aplicar a TODOS os headers na iteracao:
+
+Linha 68:
+```
+// DE:
+const cn = String(row[j] || '').toUpperCase().trim();
+// PARA:
+const cn = String(row[j] || '').toUpperCase().trim().replace(/[^\x20-\x7E\u00C0-\u024F]/g, '');
+```
+
+A regex `[^\x20-\x7E\u00C0-\u024F]` remove caracteres fora do ASCII imprimivel e Latin Extended (mantem acentos como Ã, Ç, mas remove BOM, zero-width spaces, etc).
+
+Adicionalmente, expandir a deteccao de NF para aceitar variacoes:
+
+Linha 78:
+```
+// DE:
+else if (cn.includes('NOTA FISCAL') || cn === 'NF') colMap['notaFiscal'] = j;
+// PARA:
+else if (cn.includes('NOTA FISCAL') || cn.includes('NF-E') || cn === 'NF' || cn === 'NOTA') colMap['notaFiscal'] = j;
+```
+
+### 4. Ajustar `descricaoLegivel` para priorizar `razaoSocial` (`outputs.ts`)
+
+Com o fix do parser, o campo `razaoSocial` estara preenchido. Inverter a prioridade na funcao para usar `razaoSocial` primeiro (coluna S, que tem o nome completo), com fallback para `clienteFornecedor`:
+
+Linha 41:
+```
+// DE:
+const nome = omie.clienteFornecedor || omie.razaoSocial || '';
+// PARA:
+const nome = omie.razaoSocial || omie.clienteFornecedor || '';
+```
+
+Isso garante que o nome completo da Razao Social (coluna S) tenha prioridade sobre o campo "Cliente ou Fornecedor" (coluna C), que em alguns casos contem apenas o CNPJ.
 
 ---
 
 ## Arquivos modificados
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/lib/conciliacao/parsers.ts` | Garantir que coluna "Cliente ou Fornecedor (Razao Social)" mapeia para `cliente` e nao para `razaoSocial` |
-| `src/lib/conciliacao/outputs.ts` | descricaoLegivel com rejeicao de CNPJ; resumo com "Em Atraso"; remover emojis do PDF/MD; NF nas tabelas B/F/B*; 5 novas colunas no Excel |
+| Arquivo | Linha | Alteracao |
+|---------|-------|-----------|
+| `src/lib/conciliacao/outputs.ts` | 940 | Trocar `●` por `-` no bullet do checklist |
+| `src/lib/conciliacao/outputs.ts` | 41 | Inverter prioridade: `razaoSocial` antes de `clienteFornecedor` |
+| `src/lib/conciliacao/parsers.ts` | 68 | Adicionar limpeza de caracteres invisiveis nos headers |
+| `src/lib/conciliacao/parsers.ts` | 78 | Expandir deteccao de NF com variacoes |
+| `src/lib/conciliacao/parsers.ts` | 82 | Trocar `!colMap['cliente']` por `colMap['cliente'] !== j` |
 
 ## Arquivos NAO alterados
 
-- `types.ts` -- todos os campos ja existem em `LancamentoOmie`
+- `types.ts` -- campos ja existem
 - `engine.ts` -- sem alteracoes
 - `matcher.ts` -- sem alteracoes
 - `classifier.ts` -- sem alteracoes
