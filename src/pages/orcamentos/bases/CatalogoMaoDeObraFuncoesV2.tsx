@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useRef, useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Plus, Trash2, HardHat, Search, Filter, Upload, Download, X, 
-  AlertCircle, Check, RefreshCw, ChevronDown, Tags as TagsIcon, DollarSign 
+  AlertCircle, Check, RefreshCw, DollarSign 
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBudgetLaborCatalog, type BudgetLaborCatalogItem, type BudgetLaborCatalogFormData } from '@/hooks/orcamentos/useBudgetLaborCatalog';
@@ -19,7 +19,7 @@ import { useEffectiveMOPrices, usePricebooks, useMOPriceItems } from '@/hooks/or
 import { PriceContextSelector } from '@/components/orcamentos/bases/PriceContextSelector';
 import { PriceOriginBadge } from '@/components/orcamentos/bases/PriceOriginBadge';
 import { formatCurrency } from '@/lib/currency';
-import { CurrencyInput } from '@/components/ui/currency-input';
+// CurrencyInput available if needed
 import { cn } from '@/lib/utils';
 
 // Grid columns configuration
@@ -363,7 +363,7 @@ export default function CatalogoMaoDeObraFuncoesV2() {
   const { items, isLoading, createItem, updateItem, deleteItem, setItemTags } = useBudgetLaborCatalog();
   const { chargeSets } = useBudgetLaborChargeSets();
   const { groups, upsertGroup } = useBudgetLaborGroups();
-  const { allCategories, upsertCategory } = useBudgetLaborCategories();
+  const { upsertCategory } = useBudgetLaborCategories();
   const { tags, upsertTag } = useBudgetLaborTags();
 
   // Price context
@@ -586,7 +586,7 @@ export default function CatalogoMaoDeObraFuncoesV2() {
 
   const renderCell = (item: BudgetLaborCatalogItem, col: string, rowIdx: number, colIdx: number) => {
     const isEditing = editingCell?.row === rowIdx && editingCell?.col === colIdx;
-    const cellConfig = COLUMN_HEADERS[col];
+    const _cellConfig = COLUMN_HEADERS[col]; void _cellConfig;
 
     // Special rendering for certain columns
     if (col === 'hh_custo') {

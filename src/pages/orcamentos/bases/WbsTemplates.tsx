@@ -16,7 +16,6 @@ export default function WbsTemplates() {
     templates, 
     isLoading, 
     createTemplate, 
-    updateTemplate, 
     deleteTemplate,
     createTemplateItem,
     deleteTemplateItem,

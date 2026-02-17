@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useHistogram } from '@/hooks/orcamentos/useHistogram';
 import { useLaborRoles } from '@/hooks/orcamentos/useLaborRoles';
 import { formatCurrency } from '@/lib/currency';
-import { BarChart2, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { BarChart2, Plus } from 'lucide-react';
 import { format, addMonths, startOfMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { BudgetRevision } from '@/lib/orcamentos/types';
@@ -23,7 +23,7 @@ export default function Histograma() {
   const context = useOutletContext<OutletContextType>();
   const { selectedRevision, lockState } = context || {};
   
-  const { entries, totalsByMonth, totalsByRole, grandTotal, isLoading, upsertEntry, deleteEntry } = useHistogram(selectedRevision?.id);
+  const { entries, totalsByMonth, totalsByRole, grandTotal, isLoading, upsertEntry } = useHistogram(selectedRevision?.id);
   const { roles } = useLaborRoles(selectedRevision?.id);
 
   const [newEntry, setNewEntry] = useState({
@@ -55,7 +55,7 @@ export default function Histograma() {
     setNewEntry((prev) => ({ ...prev, hh_normais: 0, hh_50: 0, hh_100: 0 }));
   };
 
-  const handleCellChange = async (roleId: string, mesRef: string, field: 'hh_normais' | 'hh_50' | 'hh_100', value: number) => {
+  const _handleCellChange = async (roleId: string, mesRef: string, field: 'hh_normais' | 'hh_50' | 'hh_100', value: number) => { void _handleCellChange;
     const existing = pivotData[roleId]?.[mesRef];
     await upsertEntry.mutateAsync({
       labor_role_id: roleId,

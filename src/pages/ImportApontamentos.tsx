@@ -617,7 +617,8 @@ export default function ImportApontamentos() {
       void (row.horas_normais + row.horas_50 + row.horas_100 + row.horas_noturnas); // totalHoras
       
       // Determine tipo_hora based on which has the most hours
-      let tipoHora: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA' = 'NORMAL'; // eslint-disable-line @typescript-eslint/no-unused-vars
+      // @ts-ignore TS6133
+      let tipoHora: 'NORMAL' | 'H50' | 'H100' | 'NOTURNA' = 'NORMAL';
       if (row.horas_50 > row.horas_normais && row.horas_50 > row.horas_100 && row.horas_50 > row.horas_noturnas) {
         tipoHora = 'H50';
       } else if (row.horas_100 > row.horas_normais && row.horas_100 > row.horas_noturnas) {

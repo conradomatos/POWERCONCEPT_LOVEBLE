@@ -52,6 +52,7 @@ const routeToArea: Record<string, NavigationArea> = {
   // Financeiro
   '/financeiro': 'financeiro',
   '/financeiro/conciliacao': 'financeiro',
+  '/financeiro/cartao-de-credito': 'financeiro',
   '/financeiro/categorias': 'financeiro',
   '/financeiro/dre': 'financeiro',
   '/financeiro/mapeamento-categorias': 'financeiro',

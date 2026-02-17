@@ -77,22 +77,6 @@ export default function ResultTabs({ resultado, activeTab, onTabChange }: Result
     { key: 'categoria', label: 'Categoria' },
   ], []);
 
-  // === Cartão p/ Importação ===
-  const cartaoImport = useMemo(() =>
-    resultado.divergencias.filter(d => d.tipo === 'I'),
-  [resultado.divergencias]);
-
-  const cartaoCols: ColumnDef<Divergencia>[] = useMemo(() => [
-    { key: '#', label: '#', render: (_, i) => <span className="text-muted-foreground">{i + 1}</span>, sortable: false },
-    { key: 'data', label: 'Data' },
-    { key: 'descricao', label: 'Descrição', render: r => <span className="truncate max-w-[250px] inline-block">{r.descricao || '—'}</span> },
-    { key: 'valor', label: 'Valor', align: 'right', render: r => <ValueCell value={r.valor} />, getValue: r => r.valor },
-    { key: 'categoriaSugerida', label: 'Categoria', render: r => r.categoriaSugerida || '—' },
-    { key: 'obs', label: 'Cód. Integração', render: r => <span className="font-mono text-xs">{r.obs || '—'}</span> },
-  ], []);
-
-  const cartaoTotal = useMemo(() => cartaoImport.reduce((s, d) => s + d.valor, 0), [cartaoImport]);
-
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
       <TabsList className="w-full justify-start flex-wrap h-auto gap-1 p-1">
@@ -104,9 +88,6 @@ export default function ResultTabs({ resultado, activeTab, onTabChange }: Result
         </TabsTrigger>
         <TabsTrigger value="sem-match" className="text-xs">
           Sem Match ({semMatchBanco.length + semMatchOmie.length})
-        </TabsTrigger>
-        <TabsTrigger value="cartao" className="text-xs">
-          Cartão p/ Importação ({cartaoImport.length})
         </TabsTrigger>
       </TabsList>
 
@@ -170,16 +151,6 @@ export default function ResultTabs({ resultado, activeTab, onTabChange }: Result
             />
           </div>
         </div>
-      </TabsContent>
-
-      <TabsContent value="cartao">
-        <DataTable
-          columns={cartaoCols}
-          data={cartaoImport}
-          searchKeys={['descricao', 'categoriaSugerida', 'obs']}
-          totalLabel="Total p/ importação"
-          totalValue={cartaoTotal}
-        />
       </TabsContent>
     </Tabs>
   );

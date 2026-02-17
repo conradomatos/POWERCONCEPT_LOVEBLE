@@ -4,37 +4,123 @@ import { parseBanco, parseOmie, parseCartaoFromText, workbookToRows, csvToText }
 import { suggestCategoria } from './categorias';
 import type { LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo, Match, Divergencia, ResultadoConciliacao } from './types';
 
+// ============================================================
+// AUTO-DETECT CONTA CORRENTE + FILTER
+// ============================================================
+function filtrarPorContaCorrente(
+  banco: LancamentoBanco[],
+  omie: LancamentoOmie[],
+): {
+  omieFiltrado: LancamentoOmie[];
+  contaCorrenteSelecionada: string;
+  contasExcluidas: { nome: string; count: number }[];
+  totalOmieOriginal: number;
+  totalOmieFiltrado: number;
+} {
+  const totalOmieOriginal = omie.length;
+
+  // Filter out individual card transaction entries (CARTAO-XXXX-XXX pattern)
+  const cartaoDocRegex = /^CARTAO-\d{4}-\d{3}/;
+  const omieFiltered = omie.filter(o => !cartaoDocRegex.test(o.documento || ''));
+
+  // Group by contaCorrente
+  const contaGroups = new Map<string, LancamentoOmie[]>();
+  for (const o of omieFiltered) {
+    const conta = (o.contaCorrente || '').trim();
+    if (!conta) continue;
+    if (!contaGroups.has(conta)) contaGroups.set(conta, []);
+    contaGroups.get(conta)!.push(o);
+  }
+
+  if (contaGroups.size <= 1) {
+    const conta = contaGroups.size === 1 ? [...contaGroups.keys()][0] : '';
+    return {
+      omieFiltrado: omieFiltered,
+      contaCorrenteSelecionada: conta,
+      contasExcluidas: [],
+      totalOmieOriginal,
+      totalOmieFiltrado: omieFiltered.length,
+    };
+  }
+
+  // Score each account by value match overlap with banco
+  const bancoValues = new Map<string, number>();
+  for (const b of banco) {
+    const key = Math.abs(b.valor).toFixed(2);
+    bancoValues.set(key, (bancoValues.get(key) || 0) + 1);
+  }
+
+  let bestConta = '';
+  let bestScore = -1;
+
+  for (const [conta, entries] of contaGroups) {
+    let score = 0;
+    for (const o of entries) {
+      const key = Math.abs(o.valor).toFixed(2);
+      if (bancoValues.has(key)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestConta = conta;
+    }
+  }
+
+  const omieFiltrado = omieFiltered.filter(o => (o.contaCorrente || '').trim() === bestConta);
+  const contasExcluidas: { nome: string; count: number }[] = [];
+  for (const [conta, entries] of contaGroups) {
+    if (conta !== bestConta) {
+      contasExcluidas.push({ nome: conta, count: entries.length });
+    }
+  }
+
+  // Also count CARTAO-filtered entries
+  const cartaoFiltered = omie.length - omieFiltered.length;
+  if (cartaoFiltered > 0) {
+    contasExcluidas.push({ nome: 'CARTAO (individual)', count: cartaoFiltered });
+  }
+
+  return {
+    omieFiltrado,
+    contaCorrenteSelecionada: bestConta,
+    contasExcluidas,
+    totalOmieOriginal,
+    totalOmieFiltrado: omieFiltrado.length,
+  };
+}
+
 // Core matching logic shared between file-based and data-based flows
 function executarMatchingEClassificacao(
   banco: LancamentoBanco[],
   omie: LancamentoOmie[],
-  cartaoTransacoes: TransacaoCartao[],
-  cartaoInfo: CartaoInfo,
+  cartaoTransacoes: TransacaoCartao[] = [],
+  cartaoInfo: CartaoInfo = { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 },
   saldoBanco: number | null,
   saldoOmie: number | null,
 ): ResultadoConciliacao {
-  // Sugestão de categoria para cartão
-  for (const t of cartaoTransacoes) {
-    if (!t.isPagamentoFatura && !t.isEstorno) {
-      t.categoriaSugerida = suggestCategoria(t.descricao);
+  // Sugestão de categoria para cartão (only if cartao data present)
+  if (cartaoTransacoes.length > 0) {
+    for (const t of cartaoTransacoes) {
+      if (!t.isPagamentoFatura && !t.isEstorno) {
+        t.categoriaSugerida = suggestCategoria(t.descricao);
+      }
     }
   }
+
+  // Auto-detect and filter by conta corrente
+  const filtro = filtrarPorContaCorrente(banco, omie);
+  const omieFiltrado = filtro.omieFiltrado;
 
   const matches: Match[] = [];
   const divergencias: Divergencia[] = [];
 
-  matchCamadaA(banco, omie, matches);
+  matchCamadaA(banco, omieFiltrado, matches);
+  matchCamadaB(banco, omieFiltrado, matches);
+  matchCamadaC(banco, omieFiltrado, matches);
+  matchCamadaD(banco, omieFiltrado, matches);
+  matchFaturaCartao(banco, omieFiltrado, matches);
 
-  matchCamadaB(banco, omie, matches);
-
-  matchCamadaC(banco, omie, matches);
-
-  matchCamadaD(banco, omie, matches);
-
-  matchFaturaCartao(banco, omie, matches);
-
-  detectDuplicates(omie, divergencias);
-  classifyDivergencias(banco, omie, cartaoTransacoes, divergencias, matches);
+  detectDuplicates(omieFiltrado, divergencias);
+  classifyDivergencias(banco, omieFiltrado, cartaoTransacoes, divergencias, matches);
 
   const camadaCounts: Record<string, number> = {};
   for (const m of matches) {
@@ -55,7 +141,7 @@ function executarMatchingEClassificacao(
     matches,
     divergencias,
     banco,
-    omieSicredi: omie,
+    omieSicredi: omieFiltrado,
     cartaoTransacoes,
     cartaoInfo,
     saldoBanco,
@@ -68,6 +154,10 @@ function executarMatchingEClassificacao(
     cartaoImportaveis,
     mesLabel: mesAno.mesLabel,
     anoLabel: mesAno.anoLabel,
+    contaCorrenteSelecionada: filtro.contaCorrenteSelecionada,
+    contasExcluidas: filtro.contasExcluidas,
+    totalOmieOriginal: filtro.totalOmieOriginal,
+    totalOmieFiltrado: filtro.totalOmieFiltrado,
   };
 }
 
@@ -75,10 +165,10 @@ function executarMatchingEClassificacao(
 export function executarConciliacaoFromData(
   banco: LancamentoBanco[],
   omie: LancamentoOmie[],
-  cartaoTransacoes: TransacaoCartao[],
-  cartaoInfo: CartaoInfo,
-  saldoBanco: number | null,
-  saldoOmie: number | null,
+  cartaoTransacoes: TransacaoCartao[] = [],
+  cartaoInfo: CartaoInfo = { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 },
+  saldoBanco: number | null = null,
+  saldoOmie: number | null = null,
 ): ResultadoConciliacao {
   // Reset matched flags
   for (const b of banco) { b.matched = false; b.matchType = null; b.matchCamada = null; b.matchOmieIdx = null; }
@@ -91,7 +181,7 @@ export function executarConciliacaoFromData(
 export async function executarConciliacao(
   bancoFile: File,
   omieFile: File,
-  cartaoFile: File | null
+  cartaoFile: File | null = null,
 ): Promise<ResultadoConciliacao> {
 
   // 1. Parse dos arquivos

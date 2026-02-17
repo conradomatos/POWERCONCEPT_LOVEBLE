@@ -241,7 +241,7 @@ function DREAnualView({ dreAnual, showAV, showAH, expandAll }: {
   });
 
   // Helper to get value for a line in a specific month
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-ignore TS6133 - kept for future use
   const getMonthVal = (sectionIdx: number, linhaIdx: number, monthIdx: number): number => {
     const mDre = dreAnual.meses[monthIdx];
     if (!mDre || !mDre.secoes[sectionIdx]) return 0;
@@ -354,7 +354,8 @@ function DREAnualView({ dreAnual, showAV, showAH, expandAll }: {
           const sIdx = currentSection;
           const lIdx = linhaInSection;
           const l = row.linha;
-          const hasCats = l.categorias && l.categorias.length > 0; // eslint-disable-line @typescript-eslint/no-unused-vars
+          // @ts-ignore TS6133
+          const hasCats = l.categorias && l.categorias.length > 0; void hasCats;
 
           return (
             <AnualLinhaRow

@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Plus, Trash2, RefreshCw, Search, Database, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Database, ExternalLink } from 'lucide-react';
 import { useLaborRoles } from '@/hooks/orcamentos/useLaborRoles';
 import { useLaborRoleCatalog, type LaborRoleCatalogItem } from '@/hooks/orcamentos/useLaborRoleCatalog';
 import { useLaborParameters, type LaborParametersFormData } from '@/hooks/orcamentos/useLaborParameters';
@@ -87,7 +87,7 @@ export default function MaoDeObra() {
   };
 
   const handleCalculateCosts = async () => {
-    await calculateCosts.mutateAsync({ roles, parameters });
+    await calculateCosts.mutateAsync({ roles, parameters: parameters ?? null });
   };
 
   // Filter catalog items based on search and already added roles
@@ -99,7 +99,7 @@ export default function MaoDeObra() {
     return matchesSearch && notAdded;
   });
 
-  const isLoading = rolesLoading || paramsLoading || snapshotsLoading;
+  const _isLoading = rolesLoading || paramsLoading || snapshotsLoading; void _isLoading;
 
   return (
     <TooltipProvider>

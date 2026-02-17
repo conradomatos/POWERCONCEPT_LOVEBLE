@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 import {
   Building2,
   FileSpreadsheet,
-  CreditCard,
   Play,
   Download,
   CheckCircle2,
@@ -18,12 +17,13 @@ import {
   ArrowLeftRight,
   Loader2,
   FileText,
+  Info,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { executarConciliacao, executarConciliacaoFromData } from '@/lib/conciliacao/engine';
-import type { ResultadoConciliacao, LancamentoBanco, LancamentoOmie, TransacaoCartao, CartaoInfo } from '@/lib/conciliacao/types';
-import { gerarRelatorioMD, gerarExcelDivergencias, gerarExcelImportacaoCartao, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
-import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateCartao, rehydrateResultado } from '@/hooks/useConciliacaoStorage';
+import { executarConciliacaoFromData } from '@/lib/conciliacao/engine';
+import type { ResultadoConciliacao, LancamentoBanco, LancamentoOmie } from '@/lib/conciliacao/types';
+import { gerarRelatorioMD, gerarExcelDivergencias, gerarRelatorioPDF } from '@/lib/conciliacao/outputs';
+import { useConciliacaoStorage, rehydrateBanco, rehydrateOmie, rehydrateResultado } from '@/hooks/useConciliacaoStorage';
 import ImportPreviewCard from '@/components/conciliacao/ImportPreviewCard';
 import ResultTabs from '@/components/conciliacao/ResultTabs';
 
@@ -36,25 +36,21 @@ interface ParsedFileInfo {
   fileName: string;
   parsedBanco?: LancamentoBanco[];
   parsedOmie?: LancamentoOmie[];
-  parsedCartao?: TransacaoCartao[];
-  parsedCartaoInfo?: CartaoInfo;
   saldoAnterior?: number | null;
 }
 
-type FileType = 'banco' | 'omie' | 'cartao';
+type FileType = 'banco' | 'omie';
 
 const ACCEPT_MAP: Record<FileType, string> = {
   banco: '.xlsx,.xls,.csv',
   omie: '.xlsx,.xls',
-  cartao: '.xlsx,.xls,.csv',
 };
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-const TIPO_MAP: Record<FileType, 'extrato_banco' | 'extrato_omie' | 'fatura_cartao'> = {
+const TIPO_MAP: Record<FileType, 'extrato_banco' | 'extrato_omie'> = {
   banco: 'extrato_banco',
   omie: 'extrato_omie',
-  cartao: 'fatura_cartao',
 };
 
 function parseExcelDate(value: unknown): Date | null {
@@ -113,28 +109,6 @@ function extractContasCorrentes(rows: Record<string, unknown>[]): string[] {
   return Array.from(set);
 }
 
-function sumValores(rows: Record<string, unknown>[]): number {
-  const keys = ['valor', 'Valor', 'VALOR', 'value', 'Value', 'vlr', 'total', 'Total'];
-  let sum = 0;
-  for (const row of rows) {
-    for (const key of keys) {
-      if (row[key] != null) {
-        const v = Number(row[key]);
-        if (!isNaN(v)) {
-          sum += Math.abs(v);
-          break;
-        }
-      }
-    }
-  }
-  return sum;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
 function buildPeriodOptions(): { label: string; value: string }[] {
   const now = new Date();
   const options: { label: string; value: string }[] = [];
@@ -162,10 +136,10 @@ export default function Conciliacao() {
 
   const [periodoRef, setPeriodoRef] = useState(initialPeriodo);
   const [files, setFiles] = useState<Record<FileType, ParsedFileInfo | null>>({
-    banco: null, omie: null, cartao: null,
+    banco: null, omie: null,
   });
   const [savedSources, setSavedSources] = useState<Record<FileType, boolean>>({
-    banco: false, omie: false, cartao: false,
+    banco: false, omie: false,
   });
 
   const [resultado, setResultado] = useState<ResultadoConciliacao | null>(null);
@@ -175,11 +149,10 @@ export default function Conciliacao() {
 
   const bancoRef = useRef<HTMLInputElement>(null);
   const omieRef = useRef<HTMLInputElement>(null);
-  const cartaoRef = useRef<HTMLInputElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const refs: Record<FileType, React.RefObject<HTMLInputElement>> = {
-    banco: bancoRef, omie: omieRef, cartao: cartaoRef,
+    banco: bancoRef, omie: omieRef,
   };
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
@@ -191,16 +164,16 @@ export default function Conciliacao() {
 
     async function load() {
       setLoadingImports(true);
-      setFiles({ banco: null, omie: null, cartao: null });
-      setSavedSources({ banco: false, omie: false, cartao: false });
+      setFiles({ banco: null, omie: null });
+      setSavedSources({ banco: false, omie: false });
       setResultado(null);
 
       try {
         const imports = await loadImports(periodoRef);
         if (cancelled) return;
 
-        const newFiles: Record<FileType, ParsedFileInfo | null> = { banco: null, omie: null, cartao: null };
-        const newSaved: Record<FileType, boolean> = { banco: false, omie: false, cartao: false };
+        const newFiles: Record<FileType, ParsedFileInfo | null> = { banco: null, omie: null };
+        const newSaved: Record<FileType, boolean> = { banco: false, omie: false };
 
         if (imports.extratoBanco) {
           const d = imports.extratoBanco;
@@ -224,17 +197,6 @@ export default function Conciliacao() {
           newSaved.omie = true;
         }
 
-        if (imports.faturaCartao) {
-          const d = imports.faturaCartao;
-          newFiles.cartao = {
-            file: null, fileName: d.nome_arquivo || 'Fatura cartão',
-            rowCount: d.total_lancamentos, valorTotal: d.valor_total,
-            parsedCartao: rehydrateCartao(d.dados as any[]),
-            parsedCartaoInfo: d.metadata?.cartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 },
-          };
-          newSaved.cartao = true;
-        }
-
         setFiles(newFiles);
         setSavedSources(newSaved);
 
@@ -245,9 +207,11 @@ export default function Conciliacao() {
             const rehydrated = rehydrateResultado(savedResultado);
             setResultado(rehydrated);
           }
-        } catch (err) {
+        } catch {
+          // ignore
         }
-      } catch (err) {
+      } catch {
+        // ignore
       } finally {
         if (!cancelled) setLoadingImports(false);
       }
@@ -273,12 +237,9 @@ export default function Conciliacao() {
         } else if (type === 'omie') {
           info.period = detectPeriod(rows);
           info.contasCorrentes = extractContasCorrentes(rows);
-        } else if (type === 'cartao') {
-          info.valorTotal = sumValores(rows);
-          info.period = detectPeriod(rows);
         }
 
-        const { parseBanco, parseOmie, parseCartaoFromText, workbookToRows, csvToText } = await import('@/lib/conciliacao/parsers');
+        const { parseBanco, parseOmie, workbookToRows } = await import('@/lib/conciliacao/parsers');
 
         if (type === 'banco') {
           const bancoRows = await workbookToRows(file);
@@ -292,20 +253,6 @@ export default function Conciliacao() {
           info.parsedOmie = lancamentos;
           info.saldoAnterior = saldoAnterior;
           info.rowCount = lancamentos.length;
-        } else if (type === 'cartao') {
-          const fileName = file.name.toLowerCase();
-          let text: string;
-          if (fileName.endsWith('.csv')) {
-            text = await csvToText(file);
-          } else {
-            const cartaoRows = await workbookToRows(file);
-            text = cartaoRows.map(r => (r || []).join(';')).join('\n');
-          }
-          const result = parseCartaoFromText(text);
-          info.parsedCartao = result.transacoes;
-          info.parsedCartaoInfo = result.info;
-          info.rowCount = result.transacoes.length;
-          info.valorTotal = result.info.valorTotal;
         }
 
         setFiles((prev) => ({ ...prev, [type]: info }));
@@ -315,19 +262,16 @@ export default function Conciliacao() {
         try {
           await invalidateResultado(periodoRef);
           setResultado(null);
-        } catch (err) {
+        } catch {
+          // ignore
         }
 
         try {
-          const valorTotal = type === 'cartao'
-            ? (info.parsedCartaoInfo?.valorTotal || 0)
-            : (type === 'banco'
-              ? (info.parsedBanco || []).reduce((s, b) => s + Math.abs(b.valor), 0)
-              : (info.parsedOmie || []).reduce((s, o) => s + Math.abs(o.valor), 0));
+          const valorTotal = type === 'banco'
+            ? (info.parsedBanco || []).reduce((s, b) => s + Math.abs(b.valor), 0)
+            : (info.parsedOmie || []).reduce((s, o) => s + Math.abs(o.valor), 0);
 
-          const dados = type === 'banco' ? info.parsedBanco
-            : type === 'omie' ? info.parsedOmie
-            : info.parsedCartao;
+          const dados = type === 'banco' ? info.parsedBanco : info.parsedOmie;
 
           await saveImport({
             tipo: TIPO_MAP[type],
@@ -337,13 +281,12 @@ export default function Conciliacao() {
             valorTotal,
             saldoAnterior: info.saldoAnterior ?? undefined,
             dados: dados || [],
-            metadata: type === 'cartao' ? { cartaoInfo: info.parsedCartaoInfo } : undefined,
           });
 
           setSavedSources((prev) => ({ ...prev, [type]: true }));
           const label = periodoRefToLabel(periodoRef);
           toast.success(`${file.name} salvo para ${label}`);
-        } catch (saveErr) {
+        } catch {
           toast.success(`${file.name} carregado — ${info.rowCount} registros`);
           toast.error('Erro ao salvar no banco de dados');
         }
@@ -378,7 +321,8 @@ export default function Conciliacao() {
       await deleteImport(TIPO_MAP[type], periodoRef);
       await invalidateResultado(periodoRef);
       toast.success('Arquivo removido');
-    } catch (err) {
+    } catch {
+      // ignore
     }
     setFiles((prev) => ({ ...prev, [type]: null }));
     setSavedSources((prev) => ({ ...prev, [type]: false }));
@@ -404,12 +348,6 @@ export default function Conciliacao() {
     catch { toast.error('Falha ao gerar Excel de divergências'); }
   };
 
-  const handleDownloadImportacao = () => {
-    if (!resultado) return;
-    try { gerarExcelImportacaoCartao(resultado); toast.success('Download do Excel de importação iniciado'); }
-    catch { toast.error('Falha ao gerar Excel de importação'); }
-  };
-
   const handleDownloadPDF = () => {
     if (!resultado) return;
     try { gerarRelatorioPDF(resultado); toast.success('Download do relatório PDF iniciado'); }
@@ -428,15 +366,11 @@ export default function Conciliacao() {
       const hasParsedData = bancoInfo.parsedBanco && omieInfo.parsedOmie;
 
       if (hasParsedData) {
-        const cartaoTransacoes = files.cartao?.parsedCartao || [];
-        const cartaoInfo = files.cartao?.parsedCartaoInfo || { vencimento: '', valorTotal: 0, situacao: '', despesasBrasil: 0, despesasExterior: 0, pagamentos: 0 };
         result = executarConciliacaoFromData(
           bancoInfo.parsedBanco!, omieInfo.parsedOmie!,
-          cartaoTransacoes, cartaoInfo,
+          [], undefined,
           bancoInfo.saldoAnterior ?? null, omieInfo.saldoAnterior ?? null,
         );
-      } else if (bancoInfo.file && omieInfo.file) {
-        result = await executarConciliacao(bancoInfo.file, omieInfo.file, files.cartao?.file || null);
       } else {
         toast.error('Dados insuficientes para executar a conciliação');
         return;
@@ -446,12 +380,11 @@ export default function Conciliacao() {
       setActiveTab('conciliados');
       toast.success(`Conciliação concluída: ${result.totalConciliados} matches, ${result.totalDivergencias} divergências`);
 
-      // Save resultado to Supabase
       try {
         await saveResultado(periodoRef, result);
         const label = periodoRefToLabel(periodoRef);
         toast.success(`Conciliação salva para ${label}`);
-      } catch (saveErr) {
+      } catch {
         toast.error('Erro ao salvar resultado no banco de dados');
       }
     } catch (err: any) {
@@ -476,7 +409,6 @@ export default function Conciliacao() {
   }[] = [
     { type: 'banco', title: 'Extrato Bancário (Sicredi)', icon: Building2, headerClass: 'bg-blue-50 dark:bg-blue-950/30', iconClass: 'text-blue-600' },
     { type: 'omie', title: 'Extrato Omie', icon: FileSpreadsheet, headerClass: 'bg-green-50 dark:bg-green-950/30', iconClass: 'text-green-600' },
-    { type: 'cartao', title: 'Fatura Cartão de Crédito', icon: CreditCard, headerClass: 'bg-purple-50 dark:bg-purple-950/30', iconClass: 'text-purple-600' },
   ];
 
   return (
@@ -490,7 +422,7 @@ export default function Conciliacao() {
               Conciliação Financeira
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Cruze extrato bancário, Omie e fatura do cartão para identificar divergências
+              Compare extrato bancário vs Omie para identificar divergências
             </p>
           </div>
           <div className="flex items-center gap-2 self-start">
@@ -517,7 +449,7 @@ export default function Conciliacao() {
         )}
 
         {/* Upload Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {cardConfigs.map(({ type, title, icon, headerClass, iconClass }) => (
             <ImportPreviewCard
               key={type}
@@ -537,6 +469,27 @@ export default function Conciliacao() {
           ))}
         </div>
 
+        {/* Account filter info */}
+        {resultado && resultado.contaCorrenteSelecionada && (
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-blue-600 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    Conta: {resultado.contaCorrenteSelecionada} ({resultado.totalOmieFiltrado} de {resultado.totalOmieOriginal} lançamentos)
+                  </p>
+                  {resultado.contasExcluidas && resultado.contasExcluidas.length > 0 && (
+                    <p className="text-blue-700 dark:text-blue-300 mt-1">
+                      Excluídos: {resultado.contasExcluidas.map(c => `${c.nome} (${c.count})`).join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Action + Results */}
         <div className="space-y-4">
           <Button onClick={handleExecute} disabled={!canExecute} className="gap-2" size="lg">
@@ -548,7 +501,7 @@ export default function Conciliacao() {
           </Button>
 
           {/* KPI Cards — clickable */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'conciliados' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('conciliados')}>
               <CardContent className="p-4 text-center">
                 <CheckCircle2 className="h-5 w-5 mx-auto text-green-500 mb-1" />
@@ -568,13 +521,6 @@ export default function Conciliacao() {
                 <Clock className="h-5 w-5 mx-auto text-red-500 mb-1" />
                 <p className="text-2xl font-bold">{resultado?.contasAtraso ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Em Atraso</p>
-              </CardContent>
-            </Card>
-            <Card className={`cursor-pointer transition-shadow hover:shadow-md ${activeTab === 'cartao' && resultado ? 'ring-2 ring-primary/30' : ''}`} onClick={() => handleKPIClick('cartao')}>
-              <CardContent className="p-4 text-center">
-                <CreditCard className="h-5 w-5 mx-auto text-purple-500 mb-1" />
-                <p className="text-2xl font-bold">{resultado?.cartaoImportaveis ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Cartão Importáveis</p>
               </CardContent>
             </Card>
           </div>
@@ -613,9 +559,6 @@ export default function Conciliacao() {
             </Button>
             <Button variant="outline" disabled={!resultado} onClick={handleDownloadDivergencias} className="gap-2">
               <Download className="h-4 w-4" /> Divergências (.xlsx)
-            </Button>
-            <Button variant="outline" disabled={!resultado} onClick={handleDownloadImportacao} className="gap-2">
-              <Download className="h-4 w-4" /> Importação Cartão (.xlsx)
             </Button>
           </div>
         </div>

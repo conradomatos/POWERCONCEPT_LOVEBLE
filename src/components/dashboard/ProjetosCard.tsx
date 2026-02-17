@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FolderKanban, CheckCircle, AlertTriangle, XCircle, ArrowRight } from 'lucide-react';
+import { FolderKanban, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProjetoResumo {

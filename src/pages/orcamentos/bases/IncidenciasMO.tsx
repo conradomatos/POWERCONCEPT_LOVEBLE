@@ -22,9 +22,7 @@ import {
   Eye,
   Users,
   Tent,
-  Plus,
-  Pencil,
-  Trash2
+  Plus
 } from 'lucide-react';
 import { useBudgetLaborCatalog } from '@/hooks/orcamentos/useBudgetLaborCatalog';
 import { useLaborIncidenceGroups, useLaborIncidenceItems, useLaborIncidenceCatalog, type LaborIncidenceGroup, type LaborIncidenceItemInsert } from '@/hooks/orcamentos/useLaborIncidenceCatalog';

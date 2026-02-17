@@ -35,7 +35,7 @@ import {
 import { Plus, Trash2, Search, Database, ExternalLink } from 'lucide-react';
 import { useMaterials } from '@/hooks/orcamentos/useMaterials';
 import { useMaterialCatalog, type CatalogItem } from '@/hooks/orcamentos/useMaterialCatalog';
-import { SUPPLY_TYPE_CONFIG, type SupplyType } from '@/lib/orcamentos/types';
+import { SUPPLY_TYPE_CONFIG } from '@/lib/orcamentos/types';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 

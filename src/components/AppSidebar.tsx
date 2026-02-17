@@ -1,4 +1,5 @@
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { CreditCard } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Users,
@@ -105,6 +106,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
     label: 'Financeiro',
     items: [
       { title: 'Conciliação', url: '/financeiro/conciliacao', icon: ArrowLeftRight },
+      { title: 'Cartão de Crédito', url: '/financeiro/cartao-de-credito', icon: CreditCard },
       { title: 'Categorias', url: '/financeiro/categorias', icon: Tags },
       { title: 'DRE', url: '/financeiro/dre', icon: BarChart3 },
       { title: 'Mapeamento Omie', url: '/financeiro/mapeamento-categorias', icon: ArrowLeftRight },

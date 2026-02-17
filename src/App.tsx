@@ -42,6 +42,7 @@ import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
 import ApontamentoDiario from "./pages/ApontamentoDiario";
 import Conciliacao from "./pages/Conciliacao";
+import CartaoCredito from "./pages/financeiro/CartaoCredito";
 import FinanceiroCategorias from "./pages/FinanceiroCategorias";
 import FinanceiroDRE from "./pages/FinanceiroDRE";
 import MapeamentoCategorias from "./pages/MapeamentoCategorias";
@@ -97,6 +98,7 @@ const App = () => (
             <Route path="/rentabilidade/receitas" element={<ReceitasConferencia />} />
             <Route path="/rentabilidade/:id" element={<RentabilidadeProjeto />} />
             <Route path="/financeiro/conciliacao" element={<Conciliacao />} />
+            <Route path="/financeiro/cartao-de-credito" element={<CartaoCredito />} />
             <Route path="/financeiro/categorias" element={<FinanceiroCategorias />} />
             <Route path="/financeiro/dre" element={<FinanceiroDRE />} />
             <Route path="/financeiro/mapeamento-categorias" element={<MapeamentoCategorias />} />
