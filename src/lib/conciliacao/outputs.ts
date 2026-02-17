@@ -39,19 +39,26 @@ function descricaoLegivel(d: Divergencia): string {
   const omie = d.omie;
   if (omie) {
     const nome = omie.clienteFornecedor || omie.razaoSocial || '';
-    if (nome && nome.length > 3 && !nome.toUpperCase().includes('SALDO')) {
+    if (nome && nome.length > 3 &&
+        !nome.toUpperCase().includes('SALDO') &&
+        !/^\d{2}\.\d{3}\.\d{3}/.test(nome)) {
       return nome.substring(0, 40);
     }
   }
+  if (d.nome && d.nome.length > 3) {
+    return d.nome.substring(0, 40);
+  }
   if (d.descricao) {
     return d.descricao
-      .replace(/LIQUIDACAO BOLETO /g, '')
+      .replace(/LIQUIDACAO BOLETO \d*/g, '')
       .replace(/PAGAMENTO PIX\w*/g, 'PIX')
       .replace(/PIXDEB /g, '')
       .replace(/PIXCRED /g, '')
+      .replace(/DEBCTAFATURA/g, 'DEB FATURA')
+      .trim()
       .substring(0, 40);
   }
-  return d.cnpjCpf || '—';
+  return d.cnpjCpf || '--';
 }
 
 // ============================================================
@@ -89,11 +96,13 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
     }
   }
 
-  L('| Fonte | Período | Lançamentos | Entradas | Saídas | Líquido |');
-  L('|-------|---------|-------------|----------|--------|---------|');
-  L(`| Banco | ${periodoBanco} | ${r.banco.length} | ${formatBRL(totalEntradasBanco)} | ${formatBRL(totalSaidasBanco)} | ${formatBRL(totalEntradasBanco + totalSaidasBanco)} |`);
-  L(`| Omie (Sicredi) | ${periodoBanco} | ${r.omieSicredi.length} | ${formatBRL(totalEntradasOmie)} | ${formatBRL(totalSaidasOmie)} | ${formatBRL(totalEntradasOmie + totalSaidasOmie)} |`);
+  const totalAtrasoMD = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
+  const entradasOmieSemAtrasoMD = totalEntradasOmie - totalAtrasoMD;
 
+  L('| Fonte | Período | Lanç. | Entradas | Saídas | Em Atraso | Líquido |');
+  L('|-------|---------|-------|----------|--------|-----------|---------|');
+  L(`| Banco | ${periodoBanco} | ${r.banco.length} | ${formatBRL(totalEntradasBanco)} | ${formatBRL(totalSaidasBanco)} | -- | ${formatBRL(totalEntradasBanco + totalSaidasBanco)} |`);
+  L(`| Omie (Sicredi) | ${periodoBanco} | ${r.omieSicredi.length} | ${formatBRL(entradasOmieSemAtrasoMD)} | ${formatBRL(totalSaidasOmie)} | ${formatBRL(totalAtrasoMD)} | ${formatBRL(totalEntradasOmie + totalSaidasOmie)} |`);
   if (r.cartaoInfo && r.cartaoTransacoes?.length > 0) {
     L(`| Cartão | Venc. ${r.cartaoInfo.vencimento} | ${r.cartaoTransacoes.length} trans. | — | ${formatBRL(-r.cartaoInfo.valorTotal)} | — |`);
   }
@@ -101,7 +110,7 @@ export function gerarRelatorioMD(resultado: ResultadoConciliacao): void {
 
   // Banner de lançamentos zerados
   if (r.lancamentosZerados && r.lancamentosZerados.total > 0) {
-    L(`> ℹ️ **${r.lancamentosZerados.total} lançamentos com valor R$ 0,00 foram ignorados** (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`);
+    L(`> **${r.lancamentosZerados.total} lancamentos com valor R$ 0,00 foram ignorados** (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`);
     L('');
   }
 
@@ -394,7 +403,8 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
     '#', 'Tipo', 'Descrição Tipo', 'Fonte', 'Data', 'Valor (R$)',
     'Descrição/Fornecedor', 'CNPJ/CPF', 'Situação', 'Origem',
     'Valor Banco', 'Valor Omie', 'Diferença', 'Dias Diferença',
-    'Titular Cartão', 'Categoria Sugerida', 'NF', 'Ação Sugerida', 'Observação'
+    'Titular Cartão', 'Categoria Sugerida', 'NF', 'Ação Sugerida', 'Observação',
+    'Fornecedor (Razão Social)', 'Categoria', 'Situação Omie', 'Projeto', 'Observações Omie'
   ];
 
   const rows: unknown[][] = [headers];
@@ -420,6 +430,11 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
       d.nf || '',
       d.acao || '',
       d.obs || '',
+      d.omie?.clienteFornecedor || d.omie?.razaoSocial || '',
+      d.omie?.categoria || '',
+      d.omie?.situacao || '',
+      d.omie?.projeto || '',
+      d.omie?.observacoes || '',
     ]);
   });
 
@@ -441,9 +456,10 @@ export function gerarExcelDivergencias(resultado: ResultadoConciliacao): void {
     { wch: 42 }, { wch: 20 }, { wch: 12 }, { wch: 16 },
     { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 8 },
     { wch: 16 }, { wch: 32 }, { wch: 12 }, { wch: 30 }, { wch: 50 },
+    { wch: 40 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 },
   ];
 
-  ws['!autofilter'] = { ref: `A1:S${rows.length}` };
+  ws['!autofilter'] = { ref: `A1:X${rows.length}` };
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Divergências');
@@ -661,12 +677,15 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
 
   // Banner de lançamentos zerados
   if (r.lancamentosZerados && r.lancamentosZerados.total > 0) {
+    const bannerText = `${r.lancamentosZerados.total} lancamentos com valor R$ 0,00 foram ignorados (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`;
+    doc.setFillColor(230, 242, 255);
+    doc.rect(margin, y - 3, pageWidth - 2 * margin, 7, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
-    doc.setTextColor(120, 120, 120);
-    doc.text(`ℹ ${r.lancamentosZerados.total} lançamentos com valor R$ 0,00 foram ignorados (${r.lancamentosZerados.banco} do banco, ${r.lancamentosZerados.omie} do Omie).`, margin, y);
+    doc.setTextColor(60, 80, 120);
+    doc.text(bannerText, margin + 2, y + 1);
     doc.setTextColor(0, 0, 0);
-    y += 6;
+    y += 8;
   }
 
   // Tabela Fontes
@@ -675,13 +694,16 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
   const totalEntradasOmie = r.omieSicredi.filter(o => o.valor > 0).reduce((s, o) => s + o.valor, 0);
   const totalSaidasOmie = r.omieSicredi.filter(o => o.valor < 0).reduce((s, o) => s + o.valor, 0);
 
+  const totalAtrasoPDF = r.divergencias.filter(d => d.tipo === 'B*').reduce((s, d) => s + Math.abs(d.valor), 0);
+  const entradasOmieSemAtrasoPDF = totalEntradasOmie - totalAtrasoPDF;
+
   autoTable(doc, {
     startY: y,
-    head: [['Fonte', 'Lançamentos', 'Entradas', 'Saídas', 'Líquido']],
+    head: [['Fonte', 'Lanc.', 'Entradas', 'Saidas', 'Em Atraso', 'Liquido']],
     body: [
-      ['Banco (Sicredi)', String(r.banco.length), fmt(totalEntradasBanco), fmt(totalSaidasBanco), fmt(totalEntradasBanco + totalSaidasBanco)],
-      ['Omie (Sicredi)', String(r.omieSicredi.length), fmt(totalEntradasOmie), fmt(totalSaidasOmie), fmt(totalEntradasOmie + totalSaidasOmie)],
-      ...(r.cartaoInfo ? [['Cartão', `${r.cartaoTransacoes.length} trans.`, '—', fmt(-r.cartaoInfo.valorTotal), '—']] : []),
+      ['Banco (Sicredi)', String(r.banco.length), fmt(totalEntradasBanco), fmt(totalSaidasBanco), '--', fmt(totalEntradasBanco + totalSaidasBanco)],
+      ['Omie (Sicredi)', String(r.omieSicredi.length), fmt(entradasOmieSemAtrasoPDF), fmt(totalSaidasOmie), fmt(totalAtrasoPDF), fmt(totalEntradasOmie + totalSaidasOmie)],
+      ...(r.cartaoInfo && r.cartaoTransacoes?.length > 0 ? [['Cartao', `${r.cartaoTransacoes.length} trans.`, '--', fmt(-r.cartaoInfo.valorTotal), '--', '--']] : []),
     ],
     theme: 'grid',
     headStyles: { fillColor: azulEscuro, fontSize: 8, fontStyle: 'bold' },
@@ -748,21 +770,56 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
     doc.text(`${titulo} (${divs.length})`, margin, y);
     y += 5;
 
-    const bodyRows = divs.map((d, i) => [
-      String(i + 1),
-      d.data || '',
-      fmt(d.valor),
-      descricaoLegivel(d),
-      d.omie?.categoria || '',
-      d.acao || '',
-    ]);
+    const hasNF = ['B', 'F', 'B*'].includes(tipo);
+
+    const bodyRows = divs.map((d, i) => {
+      const base = [
+        String(i + 1),
+        d.data || '',
+        fmt(d.valor),
+        descricaoLegivel(d),
+      ];
+      if (hasNF) {
+        base.push(d.omie?.notaFiscal || '--');
+      }
+      base.push(d.omie?.categoria || '');
+      base.push(d.acao || '');
+      return base;
+    });
 
     const totalTipo = divs.reduce((s, d) => s + (d.valor || 0), 0);
-    bodyRows.push(['', '', fmt(totalTipo), `${divs.length} itens`, '', '']);
+    if (hasNF) {
+      bodyRows.push(['', '', fmt(totalTipo), `${divs.length} itens`, '', '', '']);
+    } else {
+      bodyRows.push(['', '', fmt(totalTipo), `${divs.length} itens`, '', '']);
+    }
+
+    const headRow = hasNF
+      ? [['#', 'Data', 'Valor', 'Fornecedor', 'NF', 'Categoria', 'Acao']]
+      : [['#', 'Data', 'Valor', 'Fornecedor', 'Categoria', 'Acao']];
+
+    const colStyles: any = hasNF
+      ? {
+          0: { cellWidth: 7 },
+          1: { cellWidth: 18 },
+          2: { cellWidth: 22, halign: 'right' },
+          3: { cellWidth: 38 },
+          4: { cellWidth: 18 },
+          5: { cellWidth: 30 },
+          6: { cellWidth: 47 },
+        }
+      : {
+          0: { cellWidth: 8 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 25, halign: 'right' },
+          3: { cellWidth: 45 },
+          4: { cellWidth: 35 },
+          5: { cellWidth: 47 },
+        };
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Data', 'Valor', 'Fornecedor', 'Categoria', 'Ação']],
+      head: headRow,
       body: bodyRows,
       theme: 'grid',
       headStyles: { fillColor: azulEscuro, fontSize: 7, fontStyle: 'bold' },
@@ -770,14 +827,7 @@ export function gerarRelatorioPDF(resultado: ResultadoConciliacao): void {
       alternateRowStyles: { fillColor: cor },
       margin: { left: margin, right: margin },
       styles: { cellPadding: 1.5, overflow: 'linebreak' },
-      columnStyles: {
-        0: { cellWidth: 8 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 25, halign: 'right' },
-        3: { cellWidth: 45 },
-        4: { cellWidth: 35 },
-        5: { cellWidth: 47 },
-      },
+      columnStyles: colStyles,
     });
     y = (doc as any).lastAutoTable.finalY + 8;
   }

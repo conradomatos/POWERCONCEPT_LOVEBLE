@@ -79,7 +79,7 @@ export function parseOmie(rows: any[][]): { lancamentos: LancamentoOmie[], saldo
         else if (cn.includes('PARCELA')) colMap['parcela'] = j;
         else if (cn.includes('ORIGEM')) colMap['origem'] = j;
         else if (cn.includes('PROJETO')) colMap['projeto'] = j;
-        else if (cn.includes('RAZÃO') || cn.includes('RAZAO')) colMap['razaoSocial'] = j;
+        else if ((cn.includes('RAZÃO') || cn.includes('RAZAO')) && !colMap['cliente']) colMap['razaoSocial'] = j;
         else if (cn.includes('CNPJ') || cn.includes('CPF')) colMap['cnpjCpf'] = j;
         else if (cn.includes('OBSERV')) colMap['observacoes'] = j;
       }
