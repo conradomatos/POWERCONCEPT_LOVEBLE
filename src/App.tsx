@@ -67,6 +67,7 @@ import AILabPlaceholder from "./pages/ai-lab/AILabPlaceholder";
 import FrotasDashboard from "./pages/frotas/FrotasDashboard";
 import Veiculos from "./pages/frotas/Veiculos";
 import KmRodado from "./pages/frotas/KmRodado";
+import Abastecimentos from "./pages/frotas/Abastecimentos";
 
 const queryClient = new QueryClient();
 
@@ -144,6 +145,7 @@ const App = () => (
             <Route path="/frotas" element={<FrotasDashboard />} />
             <Route path="/frotas/veiculos" element={<Veiculos />} />
             <Route path="/frotas/km" element={<KmRodado />} />
+            <Route path="/frotas/abastecimentos" element={<Abastecimentos />} />
             {/* AI Lab routes */}
             <Route path="/ai-lab" element={<AILabDashboard />} />
             <Route path="/ai-lab/chat/:threadId" element={<AILabChat />} />
