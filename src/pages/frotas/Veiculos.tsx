@@ -34,8 +34,12 @@ export type Veiculo = {
   placa: string;
   apelido: string | null;
   modelo: string | null;
+  marca: string | null;
   ano: number | null;
+  cor: string | null;
+  renavam: string | null;
   valor_compra: number | null;
+  valor_fipe: number | null;
   data_compra: string | null;
   vida_util_meses: number | null;
   km_atual: number | null;
@@ -87,6 +91,7 @@ export default function Veiculos() {
     return veiculos.filter((v) =>
       v.placa.toLowerCase().includes(searchLower) ||
       v.apelido?.toLowerCase().includes(searchLower) ||
+      v.marca?.toLowerCase().includes(searchLower) ||
       v.modelo?.toLowerCase().includes(searchLower)
     );
   }, [veiculos, search]);
@@ -199,6 +204,7 @@ export default function Veiculos() {
                     <TableRow>
                       <TableHead>Placa</TableHead>
                       <TableHead>Apelido</TableHead>
+                      <TableHead>Marca</TableHead>
                       <TableHead>Modelo</TableHead>
                       <TableHead>Ano</TableHead>
                       <TableHead>KM Atual</TableHead>
@@ -216,6 +222,7 @@ export default function Veiculos() {
                           </code>
                         </TableCell>
                         <TableCell className="font-medium">{veiculo.apelido || '-'}</TableCell>
+                        <TableCell>{veiculo.marca || '-'}</TableCell>
                         <TableCell>{veiculo.modelo || '-'}</TableCell>
                         <TableCell>{veiculo.ano || '-'}</TableCell>
                         <TableCell className="font-mono text-sm">{formatKm(veiculo.km_atual)}</TableCell>
