@@ -14,6 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      abastecimentos: {
+        Row: {
+          chave_nfce: string | null
+          colaborador_id: string | null
+          conciliado_omie: boolean | null
+          created_at: string
+          dados_nfce_json: Json | null
+          data_abastecimento: string | null
+          encerrante_final: number | null
+          encerrante_inicial: number | null
+          forma_pagamento: string | null
+          foto_cupom_url: string | null
+          id: string
+          km_atual: number | null
+          km_por_litro: number | null
+          litros: number | null
+          omie_lancamento_id: string | null
+          posto_cidade: string | null
+          posto_cnpj: string | null
+          posto_nome: string | null
+          preco_litro: number | null
+          projeto_id: string | null
+          tipo_combustivel: string | null
+          ultimos_digitos_cartao: string | null
+          updated_at: string
+          valor_total: number | null
+          veiculo_id: string
+        }
+        Insert: {
+          chave_nfce?: string | null
+          colaborador_id?: string | null
+          conciliado_omie?: boolean | null
+          created_at?: string
+          dados_nfce_json?: Json | null
+          data_abastecimento?: string | null
+          encerrante_final?: number | null
+          encerrante_inicial?: number | null
+          forma_pagamento?: string | null
+          foto_cupom_url?: string | null
+          id?: string
+          km_atual?: number | null
+          km_por_litro?: number | null
+          litros?: number | null
+          omie_lancamento_id?: string | null
+          posto_cidade?: string | null
+          posto_cnpj?: string | null
+          posto_nome?: string | null
+          preco_litro?: number | null
+          projeto_id?: string | null
+          tipo_combustivel?: string | null
+          ultimos_digitos_cartao?: string | null
+          updated_at?: string
+          valor_total?: number | null
+          veiculo_id: string
+        }
+        Update: {
+          chave_nfce?: string | null
+          colaborador_id?: string | null
+          conciliado_omie?: boolean | null
+          created_at?: string
+          dados_nfce_json?: Json | null
+          data_abastecimento?: string | null
+          encerrante_final?: number | null
+          encerrante_inicial?: number | null
+          forma_pagamento?: string | null
+          foto_cupom_url?: string | null
+          id?: string
+          km_atual?: number | null
+          km_por_litro?: number | null
+          litros?: number | null
+          omie_lancamento_id?: string | null
+          posto_cidade?: string | null
+          posto_cnpj?: string | null
+          posto_nome?: string | null
+          preco_litro?: number | null
+          projeto_id?: string | null
+          tipo_combustivel?: string | null
+          ultimos_digitos_cartao?: string | null
+          updated_at?: string
+          valor_total?: number | null
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "abastecimentos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "abastecimentos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "abastecimentos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "abastecimentos_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "abastecimentos_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
           color: string | null
@@ -959,6 +1079,44 @@ export type Database = {
           usuario_id?: string | null
         }
         Relationships: []
+      }
+      bot_sessions: {
+        Row: {
+          collaborator_id: string | null
+          created_at: string | null
+          id: string
+          phone: string
+          updated_at: string | null
+          verification_code: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          collaborator_id?: string | null
+          created_at?: string | null
+          id?: string
+          phone: string
+          updated_at?: string | null
+          verification_code?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          collaborator_id?: string | null
+          created_at?: string | null
+          id?: string
+          phone?: string
+          updated_at?: string | null
+          verification_code?: string | null
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_sessions_collaborator_id_fkey"
+            columns: ["collaborator_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       budget_circuits: {
         Row: {
@@ -2268,6 +2426,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           user_id: string | null
+          whatsapp_number: string | null
         }
         Insert: {
           birth_date?: string | null
@@ -2288,6 +2447,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           user_id?: string | null
+          whatsapp_number?: string | null
         }
         Update: {
           birth_date?: string | null
@@ -2308,6 +2468,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           user_id?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
@@ -2640,6 +2801,122 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_rentabilidade_projeto"
             referencedColumns: ["projeto_id"]
+          },
+        ]
+      }
+      depreciacao_config: {
+        Row: {
+          created_at: string
+          depreciacao_mensal: number | null
+          id: string
+          metodo: string | null
+          updated_at: string
+          valor_residual: number | null
+          veiculo_id: string
+        }
+        Insert: {
+          created_at?: string
+          depreciacao_mensal?: number | null
+          id?: string
+          metodo?: string | null
+          updated_at?: string
+          valor_residual?: number | null
+          veiculo_id: string
+        }
+        Update: {
+          created_at?: string
+          depreciacao_mensal?: number | null
+          id?: string
+          metodo?: string | null
+          updated_at?: string
+          valor_residual?: number | null
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depreciacao_config_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: true
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despesas_deslocamento: {
+        Row: {
+          colaborador_id: string | null
+          comprovante_url: string | null
+          created_at: string
+          data_despesa: string | null
+          descricao: string | null
+          id: string
+          projeto_id: string | null
+          tipo: string
+          updated_at: string
+          valor: number | null
+          veiculo_id: string
+        }
+        Insert: {
+          colaborador_id?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_despesa?: string | null
+          descricao?: string | null
+          id?: string
+          projeto_id?: string | null
+          tipo: string
+          updated_at?: string
+          valor?: number | null
+          veiculo_id: string
+        }
+        Update: {
+          colaborador_id?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_despesa?: string | null
+          descricao?: string | null
+          id?: string
+          projeto_id?: string | null
+          tipo?: string
+          updated_at?: string
+          valor?: number | null
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despesas_deslocamento_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_deslocamento_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_deslocamento_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "despesas_deslocamento_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "despesas_deslocamento_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4032,6 +4309,68 @@ export type Database = {
           },
         ]
       }
+      manutencoes: {
+        Row: {
+          alertas_enviados: number | null
+          comprovante_url: string | null
+          created_at: string
+          data_prevista: string | null
+          data_realizada: string | null
+          descricao: string | null
+          fornecedor: string | null
+          id: string
+          km_previsto: number | null
+          km_realizado: number | null
+          status: string | null
+          tipo: string
+          updated_at: string
+          valor: number | null
+          veiculo_id: string
+        }
+        Insert: {
+          alertas_enviados?: number | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_prevista?: string | null
+          data_realizada?: string | null
+          descricao?: string | null
+          fornecedor?: string | null
+          id?: string
+          km_previsto?: number | null
+          km_realizado?: number | null
+          status?: string | null
+          tipo: string
+          updated_at?: string
+          valor?: number | null
+          veiculo_id: string
+        }
+        Update: {
+          alertas_enviados?: number | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_prevista?: string | null
+          data_realizada?: string | null
+          descricao?: string | null
+          fornecedor?: string | null
+          id?: string
+          km_previsto?: number | null
+          km_realizado?: number | null
+          status?: string | null
+          tipo?: string
+          updated_at?: string
+          valor?: number | null
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manutencoes_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       markup_rule_sets: {
         Row: {
           created_at: string
@@ -4675,6 +5014,63 @@ export type Database = {
           },
         ]
       }
+      multas_veiculo: {
+        Row: {
+          colaborador_id: string | null
+          comprovante_url: string | null
+          created_at: string
+          data_infracao: string | null
+          data_vencimento: string | null
+          id: string
+          status: string | null
+          tipo: string | null
+          updated_at: string
+          valor: number | null
+          veiculo_id: string
+        }
+        Insert: {
+          colaborador_id?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_infracao?: string | null
+          data_vencimento?: string | null
+          id?: string
+          status?: string | null
+          tipo?: string | null
+          updated_at?: string
+          valor?: number | null
+          veiculo_id: string
+        }
+        Update: {
+          colaborador_id?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          data_infracao?: string | null
+          data_vencimento?: string | null
+          id?: string
+          status?: string | null
+          tipo?: string | null
+          updated_at?: string
+          valor?: number | null
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multas_veiculo_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "multas_veiculo_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omie_categoria_mapeamento: {
         Row: {
           ativo: boolean | null
@@ -5103,6 +5499,50 @@ export type Database = {
           },
         ]
       }
+      plano_manutencao: {
+        Row: {
+          created_at: string
+          id: string
+          intervalo_km: number | null
+          intervalo_meses: number | null
+          tipo: string
+          ultima_data: string | null
+          ultimo_km: number | null
+          updated_at: string
+          veiculo_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intervalo_km?: number | null
+          intervalo_meses?: number | null
+          tipo: string
+          ultima_data?: string | null
+          ultimo_km?: number | null
+          updated_at?: string
+          veiculo_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intervalo_km?: number | null
+          intervalo_meses?: number | null
+          tipo?: string
+          ultima_data?: string | null
+          ultimo_km?: number | null
+          updated_at?: string
+          veiculo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plano_manutencao_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricebooks: {
         Row: {
           ativo: boolean
@@ -5336,6 +5776,87 @@ export type Database = {
           },
         ]
       }
+      registros_km: {
+        Row: {
+          colaborador_id: string | null
+          created_at: string
+          data_registro: string
+          foto_odometro_url: string | null
+          id: string
+          km_calculado: number | null
+          km_registrado: number
+          origem_whatsapp: boolean | null
+          projeto_id: string | null
+          tipo: string
+          updated_at: string
+          veiculo_id: string
+        }
+        Insert: {
+          colaborador_id?: string | null
+          created_at?: string
+          data_registro?: string
+          foto_odometro_url?: string | null
+          id?: string
+          km_calculado?: number | null
+          km_registrado: number
+          origem_whatsapp?: boolean | null
+          projeto_id?: string | null
+          tipo: string
+          updated_at?: string
+          veiculo_id: string
+        }
+        Update: {
+          colaborador_id?: string | null
+          created_at?: string
+          data_registro?: string
+          foto_odometro_url?: string | null
+          id?: string
+          km_calculado?: number | null
+          km_registrado?: number
+          origem_whatsapp?: boolean | null
+          projeto_id?: string | null
+          tipo?: string
+          updated_at?: string
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_km_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_km_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_km_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "registros_km_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "registros_km_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_maintenance_catalog: {
         Row: {
           created_at: string
@@ -5524,6 +6045,97 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      veiculos: {
+        Row: {
+          ano: number | null
+          apelido: string | null
+          cor: string | null
+          created_at: string
+          created_by: string | null
+          data_compra: string | null
+          id: string
+          km_atual: number | null
+          marca: string | null
+          media_km_litro_ref: number | null
+          modelo: string | null
+          placa: string
+          projeto_atual_id: string | null
+          renavam: string | null
+          status: string | null
+          tipo_combustivel: string | null
+          updated_at: string
+          valor_compra: number | null
+          valor_fipe: number | null
+          vida_util_meses: number | null
+        }
+        Insert: {
+          ano?: number | null
+          apelido?: string | null
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_compra?: string | null
+          id?: string
+          km_atual?: number | null
+          marca?: string | null
+          media_km_litro_ref?: number | null
+          modelo?: string | null
+          placa: string
+          projeto_atual_id?: string | null
+          renavam?: string | null
+          status?: string | null
+          tipo_combustivel?: string | null
+          updated_at?: string
+          valor_compra?: number | null
+          valor_fipe?: number | null
+          vida_util_meses?: number | null
+        }
+        Update: {
+          ano?: number | null
+          apelido?: string | null
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_compra?: string | null
+          id?: string
+          km_atual?: number | null
+          marca?: string | null
+          media_km_litro_ref?: number | null
+          modelo?: string | null
+          placa?: string
+          projeto_atual_id?: string | null
+          renavam?: string | null
+          status?: string | null
+          tipo_combustivel?: string | null
+          updated_at?: string
+          valor_compra?: number | null
+          valor_fipe?: number | null
+          vida_util_meses?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veiculos_projeto_atual_id_fkey"
+            columns: ["projeto_atual_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veiculos_projeto_atual_id_fkey"
+            columns: ["projeto_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_custo_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+          {
+            foreignKeyName: "veiculos_projeto_atual_id_fkey"
+            columns: ["projeto_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vw_rentabilidade_projeto"
+            referencedColumns: ["projeto_id"]
+          },
+        ]
       }
       wbs_template_items: {
         Row: {
