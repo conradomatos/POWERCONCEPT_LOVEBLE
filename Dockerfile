@@ -1,13 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_PUBLISHABLE_KEY
-ARG VITE_SUPABASE_PROJECT_ID
-
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
-ENV VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
+ENV VITE_SUPABASE_URL=https://shgnpbrfkqkcuyjddojp.supabase.co
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoZ25wYnJma3FrY3V5amRkb2pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjgwODksImV4cCI6MjA4NzkwNDA4OX0.XEbZWm7wMhff9zHKLCx9DgyXE_3C5RpkiphcAW1GoZU
 
 COPY package.json package-lock.json ./
 RUN npm install
@@ -17,9 +12,6 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# SPA support - all routes redirect to index.html
-RUN echo 'server { listen 80; location / { root /usr/share/nginx/html; index index.html; try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
-
+RUN printf 'server {\n  listen 80;\n  location / {\n    root /usr/share/nginx/html;\n    index index.html;\n    try_files $uri $uri/ /index.html;\n  }\n}\n' > /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
