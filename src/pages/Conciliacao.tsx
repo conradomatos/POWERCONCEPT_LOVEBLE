@@ -239,7 +239,7 @@ export default function Conciliacao() {
           info.contasCorrentes = extractContasCorrentes(rows);
         }
 
-        const { parseBanco, parseOmie, workbookToRows } = await import('@/lib/conciliacao/parsers');
+        const { parseBanco, parseOmie, workbookToRows } = await import('@/calculations/conciliacao/parsers');
 
         if (type === 'banco') {
           const bancoRows = await workbookToRows(file);
