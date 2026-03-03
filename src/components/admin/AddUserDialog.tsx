@@ -161,6 +161,10 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isSuperAdmin }: A
           roles: selectedRoles,
           collaboratorId: selectedColaborador,
         },
+              headers: {
+                        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                      
+        },
       });
 
       if (invokeError) {
