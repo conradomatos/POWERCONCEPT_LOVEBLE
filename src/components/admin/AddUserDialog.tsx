@@ -161,39 +161,40 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isSuperAdmin }: A
       }
 
       // Call edge function to create user securely
-      const headers = {
-        Authorization: `Bearer ${session.access_token}`,
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-      };
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            fullName: colaboradores?.find(c => c.id === selectedColaborador)?.full_name || '',
+            roles: selectedRoles,
+            collaboratorId: selectedColaborador,
+          }),
+        }
+      );
 
-      console.log("Calling create-user function with explicit headers:", Object.keys(headers));
-      const { data: result, error: invokeError } = await supabase.functions.invoke('create-user', {
-        body: {
-          email,
-          password,
-          fullName: colaboradores?.find(c => c.id === selectedColaborador)?.full_name || '',
-          roles: selectedRoles,
-          collaboratorId: selectedColaborador,
-        },
-        headers
-      });
+      const result = await response.json();
 
-      if (invokeError || result?.error) {
-        console.error("DEBUG Edge Function Error:", invokeError, result);
-        const errorMsg = invokeError?.message || result?.error || 'Erro ao criar usuário';
-        if (errorMsg.includes('already registered') || errorMsg.includes('já está cadastrado') || errorMsg.includes('already been registered')) {
+      if (!response.ok) {
+        if (result.error?.includes('already registered') || result.error?.includes('already been registered')) {
           toast.error('Este email já está cadastrado');
         } else {
-          toast.error(`Erro Função: ${errorMsg}`);
+          toast.error(result.error || 'Erro ao criar usuário');
         }
         return;
       }
 
       // Atribuir perfis RBAC se selecionados
-      if (selectedRbacRoles.length > 0 && result.userId) {
+      if (selectedRbacRoles.length > 0 && data?.userId) {
         for (const roleId of selectedRbacRoles) {
           try {
-            await assignRbacRole.mutateAsync({ userId: result.userId, roleId });
+            await assignRbacRole.mutateAsync({ userId: data.userId, roleId });
           } catch {
             // Erros individuais já tratados pelo mutation
           }
