@@ -117,7 +117,7 @@ export default function Auth() {
       return;
     }
 
-    toast.success('Email enviado! Verifique sua caixa de entrada.');
+    toast.success('Se este email estiver cadastrado, enviaremos instruções para redefinição.');
     setShowForgotPassword(false);
     setForgotEmail('');
   };

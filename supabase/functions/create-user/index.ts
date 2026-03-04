@@ -33,11 +33,14 @@ function isValidRole(role: string): role is AppRole {
 function sanitizeErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
-    if (msg.includes('duplicate') || msg.includes('already exists')) {
+    if (msg.includes('duplicate') || msg.includes('already exists') || msg.includes('already been registered')) {
       return 'Este email já está cadastrado';
     }
     if (msg.includes('foreign key') || msg.includes('violates')) {
       return 'Referência inválida';
+    }
+    if (msg.includes('password') && (msg.includes('short') || msg.includes('length') || msg.includes('weak'))) {
+      return 'PIN deve ter no mínimo 6 dígitos numéricos';
     }
     if (msg.includes('permission') || msg.includes('denied')) {
       return 'Sem permissão para esta operação';
@@ -66,6 +69,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  let isGodMode = false
 
   try {
     // Verificar se o chamador é admin
@@ -120,8 +125,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    const isGodMode = callerRoles?.some(r => r.role === 'super_admin') ||
-      callerRbac?.some((r: any) => r.rbac_roles?.code === 'god_mode')
+    isGodMode = !!(callerRoles?.some(r => r.role === 'super_admin') ||
+      callerRbac?.some((r: any) => r.rbac_roles?.code === 'god_mode'))
 
     // Parse and validate input
     let body: {
@@ -168,13 +173,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Roles legado agora é opcional (se rbacRoleId fornecido)
-    if (!rbacRoleId && (!roles || !Array.isArray(roles) || roles.length === 0)) {
-      return new Response(
-        JSON.stringify({ error: 'Perfil de acesso é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Perfil e roles são opcionais — usuário pode ser criado sem perfil
 
     // Se roles legado fornecido, validar
     if (roles && roles.length > 0) {
@@ -342,8 +341,13 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     console.error('Error in create-user function:', error)
+    const errorPayload: Record<string, unknown> = { error: sanitizeErrorMessage(error) }
+    // God Mode recebe detalhes técnicos para debug
+    if (isGodMode && error instanceof Error) {
+      errorPayload._debug = { message: error.message, stack: error.stack }
+    }
     return new Response(
-      JSON.stringify({ error: sanitizeErrorMessage(error) }),
+      JSON.stringify(errorPayload),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

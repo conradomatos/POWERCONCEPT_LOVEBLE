@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Eye, EyeOff, RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Copy, Loader2, Mail } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UserInfo {
@@ -20,167 +20,153 @@ interface ResetPasswordDialogProps {
   onSuccess: () => void;
 }
 
-function generatePassword(): string {
-  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const numbers = '0123456789';
-  const symbols = '!@#$%&*';
-  const all = lowercase + uppercase + numbers + symbols;
-  
-  let password = '';
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += symbols[Math.floor(Math.random() * symbols.length)];
-  
-  for (let i = 4; i < 8; i++) {
-    password += all[Math.floor(Math.random() * all.length)];
-  }
-  
-  return password.split('').sort(() => Math.random() - 0.5).join('');
-}
-
-function getPasswordStrength(password: string): { label: string; color: string; width: string } {
-  if (!password) return { label: '', color: 'bg-muted', width: '0%' };
-  
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
-  
-  if (score <= 2) return { label: 'Fraca', color: 'bg-red-500', width: '33%' };
-  if (score <= 4) return { label: 'Média', color: 'bg-amber-500', width: '66%' };
-  return { label: 'Forte', color: 'bg-green-500', width: '100%' };
+function generatePin(): string {
+  return Array.from({length: 6}, () => Math.floor(Math.random() * 10)).join('');
 }
 
 export function ResetPasswordDialog({ open, onOpenChange, user, onSuccess }: ResetPasswordDialogProps) {
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [pin, setPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setPassword('');
-      setShowPassword(false);
+      setPin('');
     }
   }, [open]);
 
-  const handleSubmit = async () => {
+  const handleResetDirect = async () => {
     if (!user) return;
-    
-    if (password.length < 8) {
-      toast.error('A senha deve ter no mínimo 8 caracteres');
+
+    if (pin.length < 6 || !/^\d+$/.test(pin)) {
+      toast.error('PIN deve ter 6 dígitos numéricos');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Note: This requires admin privileges - normally done via edge function
-      // For now, we'll send a password reset email instead
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/auth`,
+      const { data, error: invokeError } = await supabase.functions.invoke('reset-user-password', {
+        body: { userId: user.id, newPassword: pin },
       });
 
-      if (error) {
-        toast.error(`Erro ao enviar email de redefinição: ${error.message}`);
+      let result: any = data;
+      if (typeof data === 'string') {
+        try { result = JSON.parse(data); } catch { result = data; }
+      }
+
+      if (invokeError || result?.error) {
+        toast.error(result?.error || 'Erro ao redefinir PIN');
         return;
       }
 
-      toast.success('Email de redefinição de senha enviado');
+      toast.success('PIN redefinido com sucesso!');
       onSuccess();
       onOpenChange(false);
-    } catch (error) {
-      toast.error('Erro ao redefinir senha');
+    } catch {
+      toast.error('Erro ao redefinir PIN');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const passwordStrength = getPasswordStrength(password);
+  const handleSendEmail = async () => {
+    if (!user) return;
+
+    setEmailSending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    setEmailSending(false);
+
+    if (error) {
+      toast.error('Erro ao enviar email de redefinição');
+      return;
+    }
+
+    toast.success('Email de redefinição enviado!');
+  };
+
+  const handleCopyPin = () => {
+    if (!pin) return;
+    navigator.clipboard.writeText(pin);
+    toast.success('PIN copiado!');
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Redefinir Senha</DialogTitle>
+          <DialogTitle>Redefinir PIN de Acesso</DialogTitle>
           <DialogDescription>
-            Enviar email de redefinição para {user?.full_name || user?.email}
+            Redefina o PIN de {user?.full_name || user?.email}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Ao clicar em "Enviar", um email será enviado para <strong>{user?.email}</strong> com 
-            instruções para redefinir a senha.
-          </p>
-
-          {/* Preview da nova senha (opcional) */}
           <div className="space-y-2">
-            <Label htmlFor="new-password">Sugestão de nova senha</Label>
+            <Label>Novo PIN</Label>
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  id="new-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Gere uma senha para copiar"
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={pin}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, '');
+                  setPin(v.slice(0, 6));
+                }}
+                placeholder="000000"
+                className="font-mono text-lg tracking-[0.5em] text-center"
+              />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                onClick={() => {
-                  const newPass = generatePassword();
-                  setPassword(newPass);
-                  navigator.clipboard.writeText(newPass);
-                  toast.success('Senha gerada e copiada!');
-                }}
-                title="Gerar e copiar senha"
+                onClick={() => setPin(generatePin())}
+                title="Gerar PIN"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCopyPin}
+                disabled={!pin}
+                title="Copiar PIN"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
             </div>
-            {password && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${passwordStrength.color}`}
-                      style={{ width: passwordStrength.width }}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{passwordStrength.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Copie esta senha e compartilhe com o usuário após a redefinição
-                </p>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              6 dígitos numéricos. Copie e compartilhe com o usuário.
+            </p>
           </div>
+
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={handleSendEmail}
+            disabled={emailSending}
+          >
+            {emailSending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            Enviar link por email
+          </Button>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <Button onClick={handleResetDirect} disabled={isSubmitting || pin.length < 6}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Enviar Email
+            Redefinir Agora
           </Button>
         </DialogFooter>
       </DialogContent>

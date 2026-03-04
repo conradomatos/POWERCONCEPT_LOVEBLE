@@ -91,10 +91,6 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
       toast.error('PIN deve ter exatamente 6 dígitos numéricos');
       return;
     }
-    if (!selectedRbacRoleId) {
-      toast.error('Selecione um perfil de acesso');
-      return;
-    }
 
     // Determine collaboratorId and fullName
     let collaboratorId = selectedColaborador;
@@ -150,24 +146,30 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
           email,
           password: pin,
           fullName,
-          rbacRoleId: selectedRbacRoleId,
+          rbacRoleId: selectedRbacRoleId || undefined,
           collaboratorId,
           username,
         },
       });
 
+      // O SDK pode retornar erro em invokeError OU em data.error
+      // Quando verify_jwt=false, o comportamento varia
+      let result: any = data;
+      if (typeof data === 'string') {
+        try { result = JSON.parse(data); } catch { result = data; }
+      }
+
       if (invokeError) {
-        toast.error('Erro ao chamar a função de criação de usuário');
+        toast.error(result?.error || 'Erro ao criar usuário');
         return;
       }
 
-      // Verificar resposta da Edge Function
-      if (data?.error) {
-        toast.error(data.error);
+      if (result?.error) {
+        toast.error(result.error);
         return;
       }
 
-      toast.success('Usuário criado com sucesso');
+      toast.success('Usuário criado com sucesso!');
       onSuccess();
       onOpenChange(false);
     } catch {
@@ -295,7 +297,7 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
 
           {/* Perfil RBAC */}
           <div className="space-y-2">
-            <Label>Perfil de Acesso *</Label>
+            <Label>Perfil de Acesso (opcional)</Label>
             <Select value={selectedRbacRoleId} onValueChange={setSelectedRbacRoleId}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o perfil" />
