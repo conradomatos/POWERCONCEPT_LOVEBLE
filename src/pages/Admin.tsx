@@ -38,7 +38,7 @@ interface UserWithRole {
 export default function Admin() {
   const navigate = useNavigate();
   const { user, loading, hasRole, isGodMode } = useAuth();
-  const { canModule } = usePermissions();
+  const { canModule, can, isGodMode: isGodModePermission } = usePermissions();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -57,6 +57,7 @@ export default function Admin() {
   const rbacRolesCount = rbacRoles.filter(r => r.is_active).length;
 
   const canAccessAdmin = hasRole('admin') || hasRole('super_admin') || canModule('admin');
+  const canCreateUser = isGodModePermission || can('admin.usuarios.criar');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -322,10 +323,12 @@ export default function Admin() {
                   {allUsers.length} usuário{allUsers.length !== 1 && 's'} no sistema
                 </CardDescription>
               </div>
-              <Button onClick={() => setAddDialogOpen(true)} className="gap-2">
-                <UserPlus className="h-4 w-4" />
-                Adicionar Usuário
-              </Button>
+              {canCreateUser && (
+                <Button onClick={() => setAddDialogOpen(true)} className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Adicionar Usuário
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
