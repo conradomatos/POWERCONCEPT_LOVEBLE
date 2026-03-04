@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { useRbacRoles } from '@/hooks/useRbacAdmin';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface AddUserDialogProps {
   open: boolean;
@@ -42,6 +43,8 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: rbacRoles = [] } = useRbacRoles();
+  const { can, isGodMode: isGodModePermission } = usePermissions();
+  const canCreateCollaborator = isGodModePermission || can('recursos.colaboradores.criar');
 
   // Fetch collaborators that don't have a linked user
   const { data: colaboradores } = useQuery({
@@ -219,13 +222,15 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
                     ))}
                   </SelectContent>
                 </Select>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => { setCreateNewCollaborator(true); setSelectedColaborador(''); }}
-                >
-                  + Criar novo colaborador
-                </button>
+                {canCreateCollaborator && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => { setCreateNewCollaborator(true); setSelectedColaborador(''); }}
+                  >
+                    + Criar novo colaborador
+                  </button>
+                )}
               </>
             ) : (
               <div className="space-y-3 rounded-md border p-3">
@@ -315,9 +320,9 @@ export function AddUserDialog({ open, onOpenChange, onSuccess, isGodMode }: AddU
                 <SelectValue placeholder="Selecione o perfil" />
               </SelectTrigger>
               <SelectContent>
-                {rbacRoles.filter(r => r.is_active).map((role) => (
+                {rbacRoles.filter(r => r.is_active && r.code !== 'god_mode').map((role) => (
                   <SelectItem key={role.id} value={role.id}>
-                    {role.code === 'god_mode' ? '\u2605 ' : ''}{role.name}
+                    {role.name}
                   </SelectItem>
                 ))}
               </SelectContent>
