@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useQuery } from '@tanstack/react-query';
 import { formatCPF, cleanCPF, validateCPF } from '@/lib/cpf';
 import { Database } from '@/integrations/supabase/types';
@@ -45,6 +46,7 @@ export default function CollaboratorForm({
   onSuccess,
 }: CollaboratorFormProps) {
   const { user } = useAuth();
+  const { isGodMode } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   
@@ -189,6 +191,7 @@ export default function CollaboratorForm({
   // Validate step 1
   const validateStep1 = (): boolean => {
     const cleanedCPF = cleanCPF(formData.cpf);
+    // Nome e CPF sempre obrigatórios (mesmo God Mode)
     if (!formData.full_name.trim()) {
       toast.error('Nome completo é obrigatório');
       return false;
@@ -197,7 +200,8 @@ export default function CollaboratorForm({
       toast.error('CPF inválido');
       return false;
     }
-    if (!formData.hire_date) {
+    // Data de admissão: God Mode pode pular
+    if (!isGodMode && !formData.hire_date) {
       toast.error('Data de admissão é obrigatória');
       return false;
     }
@@ -206,6 +210,12 @@ export default function CollaboratorForm({
 
   // Validate step 2 (custo)
   const validateCusto = (): boolean => {
+    // God Mode: pular todas as validações de custo
+    if (isGodMode) {
+      setCustoErrors({});
+      return true;
+    }
+
     const errors: Record<string, string> = {};
     const isPJ = custoData.classificacao === 'PJ';
 
