@@ -1,16 +1,15 @@
 /**
- * Dialog para atribuir/remover perfis RBAC de um usuário.
- * Substitui o ManageRolesDialog antigo com perfis dinâmicos.
+ * Dialog para atribuir perfil RBAC a um usuário.
+ * Seleção única (radio) — cada usuário tem exatamente um perfil ativo.
  */
 
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 import {
   useRbacRoles,
@@ -41,47 +40,49 @@ export function ManageRbacRolesDialog({ open, onOpenChange, user, onSuccess }: M
   const assignRole = useAssignRoleToUser();
   const removeRole = useRemoveRoleFromUser();
 
-  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Popular com roles atuais do usuário quando os dados carregam
+  // Popular com role atual do usuário quando os dados carregam
   useEffect(() => {
     if (userRoles && userRoles.length > 0) {
-      setSelectedRoleIds(new Set(userRoles.map((ur) => ur.role_id)));
+      setSelectedRoleId(userRoles[0].role_id);
     } else {
-      setSelectedRoleIds(new Set());
+      setSelectedRoleId(null);
     }
   }, [userRoles]);
 
   // Filtrar apenas roles ativos
   const activeRoles = allRoles.filter((r) => r.is_active);
 
-  const handleToggleRole = (roleId: string) => {
-    setSelectedRoleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(roleId)) {
-        next.delete(roleId);
-      } else {
-        next.add(roleId);
-      }
-      return next;
-    });
-  };
+  // Encontrar o role selecionado para verificar se é god_mode
+  const selectedRole = activeRoles.find((r) => r.id === selectedRoleId);
+  const isGodModeSelected = selectedRole?.code === 'god_mode';
 
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
 
     try {
-      const currentIds = new Set(userRoles.map((ur) => ur.role_id));
-      const toAdd = [...selectedRoleIds].filter((id) => !currentIds.has(id));
-      const toRemove = [...currentIds].filter((id) => !selectedRoleIds.has(id));
+      const currentIds = userRoles.map((ur) => ur.role_id);
 
-      for (const roleId of toAdd) {
-        await assignRole.mutateAsync({ userId: user.id, roleId });
+      // Remover roles atuais que não são o selecionado
+      for (const roleId of currentIds) {
+        if (roleId !== selectedRoleId) {
+          await removeRole.mutateAsync({ userId: user.id, roleId });
+        }
       }
-      for (const roleId of toRemove) {
-        await removeRole.mutateAsync({ userId: user.id, roleId });
+
+      // Adicionar o selecionado se não estava atribuído
+      if (selectedRoleId && !currentIds.includes(selectedRoleId)) {
+        await assignRole.mutateAsync({ userId: user.id, roleId: selectedRoleId });
+      }
+
+      // Se nenhum selecionado, remover todos
+      if (!selectedRoleId) {
+        for (const roleId of currentIds) {
+          await removeRole.mutateAsync({ userId: user.id, roleId });
+        }
       }
 
       onSuccess();
@@ -97,11 +98,11 @@ export function ManageRbacRolesDialog({ open, onOpenChange, user, onSuccess }: M
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5" />
-            Gerenciar Perfis de Acesso
+            Alterar Perfil de Acesso
           </DialogTitle>
           <DialogDescription>
             {user?.full_name || user?.email}
@@ -114,15 +115,27 @@ export function ManageRbacRolesDialog({ open, onOpenChange, user, onSuccess }: M
           </div>
         ) : (
           <ScrollArea className="max-h-[400px]">
-            <div className="space-y-3 py-4">
-              {activeRoles.map((role) => (
-                <div
-                  key={role.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-md border hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
+            <div className="space-y-2 py-4">
+              {activeRoles.map((role) => {
+                const isSelected = selectedRoleId === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => setSelectedRoleId(isSelected ? null : role.id)}
+                    className={`w-full text-left p-3 rounded-md border transition-colors ${
+                      isSelected
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
                     <div className="flex items-center gap-2">
-                      <Label htmlFor={`rbac-role-${role.id}`} className="text-sm font-medium cursor-pointer">
+                      <div className={`h-3 w-3 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'border-primary' : 'border-muted-foreground/40'
+                      }`}>
+                        {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                      </div>
+                      <Label className="text-sm font-medium cursor-pointer">
                         {role.name}
                       </Label>
                       {role.is_system && (
@@ -132,18 +145,13 @@ export function ManageRbacRolesDialog({ open, onOpenChange, user, onSuccess }: M
                       )}
                     </div>
                     {role.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      <p className="text-xs text-muted-foreground mt-1 ml-5">
                         {role.description}
                       </p>
                     )}
-                  </div>
-                  <Switch
-                    id={`rbac-role-${role.id}`}
-                    checked={selectedRoleIds.has(role.id)}
-                    onCheckedChange={() => handleToggleRole(role.id)}
-                  />
-                </div>
-              ))}
+                  </button>
+                );
+              })}
               {activeRoles.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhum perfil disponível.
@@ -151,6 +159,16 @@ export function ManageRbacRolesDialog({ open, onOpenChange, user, onSuccess }: M
               )}
             </div>
           </ScrollArea>
+        )}
+
+        {/* God Mode warning */}
+        {isGodModeSelected && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-yellow-500/10 border border-yellow-500/30 text-yellow-500">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <p className="text-xs">
+              <strong>God Mode</strong> concede acesso total ao sistema, incluindo gerenciamento de todos os perfis e permissões. Atribua apenas a administradores de confiança.
+            </p>
+          </div>
         )}
 
         <DialogFooter>

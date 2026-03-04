@@ -1,7 +1,9 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   LogOut,
@@ -70,6 +72,8 @@ const routeToArea: Record<string, NavigationArea> = {
   '/frotas/custos': 'frotas',
   '/frotas/relatorios': 'frotas',
   '/ai-lab': 'ailab',
+  '/admin': 'home',
+  '/admin/roles': 'home',
 };
 
 export default function Layout({ children }: LayoutProps) {
@@ -77,6 +81,21 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, signOut, roles, hasRole } = useAuth();
   const { canModule, loading: permLoading } = usePermissions();
+
+  const { data: userRbacRole } = useQuery({
+    queryKey: ['user-rbac-display', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from('rbac_user_roles')
+        .select('rbac_roles(name, code)')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      return (data as any)?.rbac_roles || null;
+    },
+    enabled: !!user?.id,
+  });
   
   // Determine active area based on current route
   const getAreaFromPath = (path: string): NavigationArea => {
@@ -86,7 +105,7 @@ export default function Layout({ children }: LayoutProps) {
     for (const [route, area] of Object.entries(routeToArea)) {
       if (path.startsWith(route) && route !== '/') return area;
     }
-    return 'relatorios'; // Default
+    return 'home'; // Default
   };
   
   const [activeArea, setActiveArea] = useState<NavigationArea>(() => 
@@ -187,9 +206,14 @@ export default function Layout({ children }: LayoutProps) {
                   <span className="text-sm text-muted-foreground hidden sm:block truncate max-w-[180px]">
                     {user?.email}
                   </span>
-                  {roles.length > 0 && (
-                    <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
-                      {roles[0].toUpperCase()}
+                  {(userRbacRole || roles.length > 0) && (
+                    <span className={cn(
+                      "text-xs px-2 py-1 rounded font-medium",
+                      userRbacRole?.code === 'god_mode'
+                        ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                        : "bg-secondary text-secondary-foreground"
+                    )}>
+                      {userRbacRole?.code === 'god_mode' ? '\u2605 GOD MODE' : (userRbacRole?.name || roles[0]?.toUpperCase())}
                     </span>
                   )}
                   

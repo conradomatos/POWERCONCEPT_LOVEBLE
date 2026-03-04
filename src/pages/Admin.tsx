@@ -25,6 +25,7 @@ interface UserWithRole {
   id: string;
   email: string;
   full_name: string | null;
+  username?: string | null;
   roles: AppRole[];
   rbacProfile?: { name: string; code: string } | null;
   created_at?: string;
@@ -60,7 +61,7 @@ export default function Admin() {
     // Get all profiles (including is_active which may not be in generated types yet)
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, full_name, email, created_at, is_active')
+      .select('user_id, full_name, email, username, created_at, is_active')
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -98,6 +99,7 @@ export default function Admin() {
       id: profile.user_id,
       email: profile.email || '',
       full_name: profile.full_name,
+      username: (profile as any).username || null,
       roles: (roles || [])
         .filter((r) => r.user_id === profile.user_id)
         .map((r) => r.role),
@@ -290,34 +292,6 @@ export default function Admin() {
           </Card>
         </div>
 
-        {/* Roles Legend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Níveis de Acesso</CardTitle>
-            <CardDescription>Cada papel define o que o usuário pode fazer no sistema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="destructive">SUPER ADMIN</Badge>
-                <span>Acesso máximo: pode alterar OS de projetos e todas as configurações críticas</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="default">ADMIN</Badge>
-                <span>Acesso total: gerencia usuários, colaboradores e configurações</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">RH</Badge>
-                <span>Cadastra e edita colaboradores, importa dados</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">FINANCEIRO</Badge>
-                <span>Visualiza colaboradores e relatórios (somente leitura)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Users Table */}
         <Card>
           <CardHeader>
@@ -348,6 +322,7 @@ export default function Admin() {
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Username</TableHead>
                       <TableHead>Perfil</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Criado em</TableHead>
@@ -359,6 +334,7 @@ export default function Admin() {
                       <TableRow key={u.id} className={!u.is_active ? 'opacity-60' : ''}>
                         <TableCell className="font-medium">{u.email}</TableCell>
                         <TableCell>{u.full_name || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-xs">{u.username || '-'}</TableCell>
                         <TableCell>
                           {u.rbacProfile ? (
                             <Badge variant={u.rbacProfile.code === 'god_mode' ? 'destructive' : 'default'}>

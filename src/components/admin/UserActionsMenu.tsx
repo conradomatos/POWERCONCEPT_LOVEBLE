@@ -57,11 +57,11 @@ export function UserActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onManageRoles(user)} disabled={!canModify}>
           <Shield className="mr-2 h-4 w-4" />
-          Gerenciar Papéis
+          Alterar Perfil
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onResetPassword(user)} disabled={!canModify}>
           <Key className="mr-2 h-4 w-4" />
-          Redefinir Senha
+          Redefinir PIN
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onToggleActive(user)} disabled={!canModify}>
           <UserX className="mr-2 h-4 w-4" />
