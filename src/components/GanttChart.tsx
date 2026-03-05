@@ -94,9 +94,10 @@ export default function GanttChart({
     if (!col) return;
     
     const day = period.days[dayIndex];
-    const hireDate = parseISO(col.hire_date);
+    const hireDate = col.hire_date ? parseISO(col.hire_date) : null;
     const termDate = col.termination_date ? parseISO(col.termination_date) : null;
-    if (day < hireDate || (termDate && day > termDate)) return;
+    if (hireDate && day < hireDate) return;
+    if (termDate && day > termDate) return;
 
     setDragState({
       type: 'create',
@@ -122,8 +123,8 @@ export default function GanttChart({
       blockId: block.id,
       startDayIndex: dayIndex,
       currentDayIndex: dayIndex,
-      originalStart: parseISO(block.data_inicio),
-      originalEnd: parseISO(block.data_fim),
+      originalStart: block.data_inicio ? parseISO(block.data_inicio) : new Date(),
+      originalEnd: block.data_fim ? parseISO(block.data_fim) : new Date(),
     });
   }, [getDayIndexFromEvent]);
 
@@ -342,9 +343,9 @@ export default function GanttChart({
                   {/* Day columns (subtle grid) */}
                   <div className="absolute inset-0 flex pointer-events-none">
                     {period.days.map((day, index) => {
-                      const hireDate = parseISO(col.hire_date);
+                      const hireDate = col.hire_date ? parseISO(col.hire_date) : null;
                       const termDate = col.termination_date ? parseISO(col.termination_date) : null;
-                      const isDisabled = day < hireDate || (termDate && day > termDate);
+                      const isDisabled = (hireDate && day < hireDate) || (termDate && day > termDate);
 
                       return (
                         <div
@@ -383,6 +384,7 @@ export default function GanttChart({
 
                   {/* Allocation blocks */}
                   {colBlocks.map((block) => {
+                    if (!block.data_inicio || !block.data_fim) return null;
                     const blockStart = parseISO(block.data_inicio);
                     const blockEnd = parseISO(block.data_fim);
                     
@@ -679,11 +681,12 @@ function GridView({
                   )}
 
                   {period.days.map((day, index) => {
-                    const hireDate = parseISO(col.hire_date);
+                    const hireDate = col.hire_date ? parseISO(col.hire_date) : null;
                     const termDate = col.termination_date ? parseISO(col.termination_date) : null;
-                    const isDisabled = day < hireDate || (termDate && day > termDate);
-                    
+                    const isDisabled = (hireDate && day < hireDate) || (termDate && day > termDate);
+
                     const blockForDay = colBlocks.find(b => {
+                      if (!b.data_inicio || !b.data_fim) return false;
                       const start = parseISO(b.data_inicio);
                       const end = parseISO(b.data_fim);
                       return day >= start && day <= end;

@@ -175,6 +175,7 @@ export function calculateStackedBlocks(
   for (const day of periodDays) {
     const dayStr = format(day, 'yyyy-MM-dd');
     const activeBlocks = colBlocks.filter(block => {
+      if (!block.data_inicio || !block.data_fim) return false;
       const start = parseISO(block.data_inicio);
       const end = parseISO(block.data_fim);
       return day >= start && day <= end;
