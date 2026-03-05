@@ -700,12 +700,12 @@ export default function Planejamento() {
     }
   };
 
-  // Auth check - redirect in useEffect to avoid calling navigate during render
+  // Auth check - only redirect if no user at all
   useEffect(() => {
-    if (!authLoading && (!user || !hasAnyRole())) {
+    if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [authLoading, user, hasAnyRole, navigate]);
+  }, [authLoading, user, navigate]);
 
   if (authLoading) {
     return (
@@ -717,8 +717,17 @@ export default function Planejamento() {
     );
   }
 
-  if (!user || !hasAnyRole()) {
-    return null;
+  if (!hasAnyRole()) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-16">
+          <h2 className="text-xl font-semibold mb-2">Acesso Pendente</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Sua conta ainda não possui permissões atribuídas. Solicite acesso ao administrador.
+          </p>
+        </div>
+      </Layout>
+    );
   }
 
   return (
