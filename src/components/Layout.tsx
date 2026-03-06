@@ -162,13 +162,13 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full overflow-hidden">
         <AppSidebar activeArea={activeArea} />
-        <SidebarInset className="flex flex-col flex-1">
+        <SidebarInset className="flex flex-col flex-1 overflow-hidden">
           {/* Header */}
           <header className="border-b border-border bg-card sticky top-0 z-10">
             <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex h-14 items-center gap-3">
+              <div className="flex h-14 items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
                 <SidebarTrigger className="-ml-1">
                   <PanelLeft className="h-5 w-5" />
                 </SidebarTrigger>
@@ -195,37 +195,38 @@ export default function Layout({ children }: LayoutProps) {
                   })}
                 </nav>
 
-                <div className="ml-auto flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground hidden sm:block truncate max-w-[180px]">
+                <div className="ml-auto flex items-center gap-1 sm:gap-3 flex-wrap sm:flex-nowrap">
+                  <span className="text-xs sm:text-sm text-muted-foreground hidden sm:block truncate max-w-[140px] lg:max-w-[180px]">
                     {user?.email}
                   </span>
                   {userRbacRole && (
                     <span className={cn(
-                      "text-xs px-2 py-1 rounded font-medium",
+                      "text-[10px] sm:text-xs px-1.5 sm:px-2 py-1 rounded font-medium whitespace-nowrap",
                       userRbacRole?.code === 'god_mode'
                         ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
                         : "bg-secondary text-secondary-foreground"
                     )}>
-                      {userRbacRole?.code === 'god_mode' ? '\u2605 GOD MODE' : userRbacRole?.name}
+                      {userRbacRole?.code === 'god_mode' ? '★ GOD' : userRbacRole?.name}
                     </span>
                   )}
                   
                   {/* Settings Icon */}
                   {canAccessSettings && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => navigate('/admin')}
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className={cn(
+                        "px-1 sm:px-2",
                         location.pathname === '/admin' && 'bg-accent text-accent-foreground'
                       )}
+                      onClick={() => navigate('/admin')}
                     >
                       <Settings className="h-4 w-4" />
                     </Button>
                   )}
                   
                   <ThemeSwitcher />
-                  <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                  <Button variant="ghost" size="sm" className="px-1 sm:px-2" onClick={handleSignOut}>
                     <LogOut className="h-4 w-4" />
                   </Button>
                 </div>
@@ -254,7 +255,7 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Main Content */}
-          <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+          <main className="flex-1 w-full overflow-hidden px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto">
             {children}
           </main>
         </SidebarInset>
