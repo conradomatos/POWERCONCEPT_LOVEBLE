@@ -267,13 +267,12 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) {
       return jsonResponse({ ok: false, error: 'Nao autorizado' }, 401);
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     // Verificar roles: admin ou rh
     const { data: roles } = await userClient
