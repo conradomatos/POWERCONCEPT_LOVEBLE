@@ -2408,63 +2408,108 @@ export type Database = {
       }
       collaborators: {
         Row: {
+          bairro: string | null
           birth_date: string | null
+          cep: string | null
+          cidade: string | null
           cpf: string
           created_at: string
           created_by: string | null
           department: string | null
           email: string | null
+          endereco: string | null
           equipe: string | null
+          foto_url: string | null
           full_name: string
           hire_date: string
+          horario_descricao: string | null
           id: string
+          numero_folha: string | null
+          origem: string
           phone: string | null
+          pis: string | null
           position: string | null
           regiao: Database["public"]["Enums"]["regiao_colaborador"] | null
+          rg: string | null
+          secullum_data_alteracao: string | null
+          secullum_id: number | null
+          sexo: string | null
           status: Database["public"]["Enums"]["employee_status"]
           termination_date: string | null
+          uf: string | null
+          ultimo_sync_at: string | null
           updated_at: string
           updated_by: string | null
           user_id: string | null
           whatsapp_number: string | null
         }
         Insert: {
+          bairro?: string | null
           birth_date?: string | null
+          cep?: string | null
+          cidade?: string | null
           cpf: string
           created_at?: string
           created_by?: string | null
           department?: string | null
           email?: string | null
+          endereco?: string | null
           equipe?: string | null
+          foto_url?: string | null
           full_name: string
           hire_date: string
+          horario_descricao?: string | null
           id?: string
+          numero_folha?: string | null
+          origem?: string
           phone?: string | null
+          pis?: string | null
           position?: string | null
           regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
+          rg?: string | null
+          secullum_data_alteracao?: string | null
+          secullum_id?: number | null
+          sexo?: string | null
           status?: Database["public"]["Enums"]["employee_status"]
           termination_date?: string | null
+          uf?: string | null
+          ultimo_sync_at?: string | null
           updated_at?: string
           updated_by?: string | null
           user_id?: string | null
           whatsapp_number?: string | null
         }
         Update: {
+          bairro?: string | null
           birth_date?: string | null
+          cep?: string | null
+          cidade?: string | null
           cpf?: string
           created_at?: string
           created_by?: string | null
           department?: string | null
           email?: string | null
+          endereco?: string | null
           equipe?: string | null
+          foto_url?: string | null
           full_name?: string
           hire_date?: string
+          horario_descricao?: string | null
           id?: string
+          numero_folha?: string | null
+          origem?: string
           phone?: string | null
+          pis?: string | null
           position?: string | null
           regiao?: Database["public"]["Enums"]["regiao_colaborador"] | null
+          rg?: string | null
+          secullum_data_alteracao?: string | null
+          secullum_id?: number | null
+          sexo?: string | null
           status?: Database["public"]["Enums"]["employee_status"]
           termination_date?: string | null
+          uf?: string | null
+          ultimo_sync_at?: string | null
           updated_at?: string
           updated_by?: string | null
           user_id?: string | null
@@ -5916,6 +5961,197 @@ export type Database = {
           },
         ]
       }
+      secullum_afastamentos: {
+        Row: {
+          id: string
+          colaborador_id: string
+          data_inicio: string
+          data_fim: string
+          motivo: string | null
+          justificativa_nome: string | null
+          tipo: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          colaborador_id: string
+          data_inicio: string
+          data_fim: string
+          motivo?: string | null
+          justificativa_nome?: string | null
+          tipo?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          colaborador_id?: string
+          data_inicio?: string
+          data_fim?: string
+          motivo?: string | null
+          justificativa_nome?: string | null
+          tipo?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secullum_afastamentos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      secullum_calculos: {
+        Row: {
+          id: string
+          colaborador_id: string
+          data: string
+          horas_normais: number
+          horas_faltas: number
+          horas_extra_50: number
+          horas_extra_100: number
+          horas_extra_0: number
+          horas_noturnas: number
+          horas_extra_noturna: number
+          horas_atraso: number
+          horas_ajuste: number
+          horas_folga: number
+          carga_horaria: number
+          dsr: number
+          dsr_debito: number
+          total_horas_trabalhadas: number | null
+          tipo_dia: string
+          batidas_json: unknown | null
+          extras_json: unknown | null
+          sync_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          colaborador_id: string
+          data: string
+          horas_normais?: number
+          horas_faltas?: number
+          horas_extra_50?: number
+          horas_extra_100?: number
+          horas_extra_0?: number
+          horas_noturnas?: number
+          horas_extra_noturna?: number
+          horas_atraso?: number
+          horas_ajuste?: number
+          horas_folga?: number
+          carga_horaria?: number
+          dsr?: number
+          dsr_debito?: number
+          tipo_dia?: string
+          batidas_json?: unknown | null
+          extras_json?: unknown | null
+          sync_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          colaborador_id?: string
+          data?: string
+          horas_normais?: number
+          horas_faltas?: number
+          horas_extra_50?: number
+          horas_extra_100?: number
+          horas_extra_0?: number
+          horas_noturnas?: number
+          horas_extra_noturna?: number
+          horas_atraso?: number
+          horas_ajuste?: number
+          horas_folga?: number
+          carga_horaria?: number
+          dsr?: number
+          dsr_debito?: number
+          tipo_dia?: string
+          batidas_json?: unknown | null
+          extras_json?: unknown | null
+          sync_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secullum_calculos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      secullum_sync_log: {
+        Row: {
+          id: string
+          tipo: string
+          status: string
+          data_inicio: string | null
+          data_fim: string | null
+          funcionarios_sincronizados: number
+          funcionarios_criados: number
+          funcionarios_atualizados: number
+          calculos_sincronizados: number
+          afastamentos_sincronizados: number
+          fotos_sincronizadas: number
+          apontamentos_criados: number
+          requests_utilizadas: number
+          erro_mensagem: string | null
+          erro_detalhes: unknown | null
+          duracao_ms: number | null
+          triggered_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tipo: string
+          status: string
+          data_inicio?: string | null
+          data_fim?: string | null
+          funcionarios_sincronizados?: number
+          funcionarios_criados?: number
+          funcionarios_atualizados?: number
+          calculos_sincronizados?: number
+          afastamentos_sincronizados?: number
+          fotos_sincronizadas?: number
+          apontamentos_criados?: number
+          requests_utilizadas?: number
+          erro_mensagem?: string | null
+          erro_detalhes?: unknown | null
+          duracao_ms?: number | null
+          triggered_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tipo?: string
+          status?: string
+          data_inicio?: string | null
+          data_fim?: string | null
+          funcionarios_sincronizados?: number
+          funcionarios_criados?: number
+          funcionarios_atualizados?: number
+          calculos_sincronizados?: number
+          afastamentos_sincronizados?: number
+          fotos_sincronizadas?: number
+          apontamentos_criados?: number
+          requests_utilizadas?: number
+          erro_mensagem?: string | null
+          erro_detalhes?: unknown | null
+          duracao_ms?: number | null
+          triggered_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       tax_rule_sets: {
         Row: {
           created_at: string
@@ -6235,6 +6471,29 @@ export type Database = {
           tipo_hora: Database["public"]["Enums"]["tipo_hora"] | null
           updated_at: string | null
           usuario_lancamento: string | null
+        }
+        Relationships: []
+      }
+      vw_apontamentos_pendentes: {
+        Row: {
+          apontamento_dia_id: string | null
+          colaborador_id: string | null
+          colaborador_nome: string | null
+          cpf: string | null
+          departamento: string | null
+          foto_url: string | null
+          data: string | null
+          horas_base_dia: number | null
+          total_horas_apontadas: number | null
+          horas_pendentes: number | null
+          status: Database["public"]["Enums"]["apontamento_dia_status"] | null
+          fonte_base: Database["public"]["Enums"]["apontamento_fonte_base"] | null
+          horas_normais: number | null
+          horas_extra_50: number | null
+          horas_extra_100: number | null
+          horas_noturnas: number | null
+          tipo_dia: string | null
+          tipo_afastamento: string | null
         }
         Relationships: []
       }
@@ -6921,7 +7180,7 @@ export type Database = {
     }
     Enums: {
       alocacao_tipo: "planejado" | "realizado"
-      apontamento_dia_status: "RASCUNHO" | "ENVIADO" | "APROVADO" | "BLOQUEADO"
+      apontamento_dia_status: "RASCUNHO" | "ENVIADO" | "APROVADO" | "BLOQUEADO" | "PENDENTE" | "DIVERGENTE" | "CONCILIADO"
       apontamento_fonte_base: "PONTO" | "JORNADA" | "MANUAL" | "SECULLUM"
       apontamento_origem: "IMPORTACAO" | "MANUAL" | "SISTEMA"
       apontamento_status:
@@ -7111,7 +7370,7 @@ export const Constants = {
   public: {
     Enums: {
       alocacao_tipo: ["planejado", "realizado"],
-      apontamento_dia_status: ["RASCUNHO", "ENVIADO", "APROVADO", "BLOQUEADO"],
+      apontamento_dia_status: ["RASCUNHO", "ENVIADO", "APROVADO", "BLOQUEADO", "PENDENTE", "DIVERGENTE", "CONCILIADO"],
       apontamento_fonte_base: ["PONTO", "JORNADA", "MANUAL", "SECULLUM"],
       apontamento_origem: ["IMPORTACAO", "MANUAL", "SISTEMA"],
       apontamento_status: [

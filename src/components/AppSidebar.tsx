@@ -39,6 +39,7 @@ import {
   Archive,
   ScrollText,
   Settings,
+  RefreshCw,
 } from 'lucide-react';
 
 import {
@@ -94,7 +95,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
           { title: 'Padrões de Alocação', url: '/recursos/custos/alocacao', icon: Users },
         ],
       },
-      { title: 'Importar Colaboradores', url: '/import', icon: FileSpreadsheet, permission: 'recursos.importacao.importar', roles: ['admin', 'rh'] },
+      { title: 'Sincronização', url: '/import', icon: RefreshCw, permission: 'recursos.importacao.importar', roles: ['admin', 'rh'] },
     ],
   },
   projetos: {

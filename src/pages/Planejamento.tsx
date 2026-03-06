@@ -81,6 +81,7 @@ interface Collaborator {
   termination_date?: string | null;
   status: string;
   regiao?: RegiaoColaborador | null;
+  foto_url?: string | null;
 }
 
 export default function Planejamento() {
@@ -139,7 +140,7 @@ export default function Planejamento() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('collaborators')
-        .select('id, full_name, hire_date, termination_date, status, regiao')
+        .select('id, full_name, hire_date, termination_date, status, regiao, foto_url')
         .eq('status', 'ativo')
         .order('full_name');
       if (error) throw error;

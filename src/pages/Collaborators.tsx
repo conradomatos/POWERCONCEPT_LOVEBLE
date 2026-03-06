@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 import { formatCPF } from '@/lib/cpf';
+import { CollaboratorAvatar } from '@/components/CollaboratorAvatar';
 import { Plus, Search, Pencil, Eye, DollarSign, Target } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,6 +29,7 @@ export default function Collaborators() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [equipeFilter, setEquipeFilter] = useState<string>('all');
+  const [origemFilter, setOrigemFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
@@ -78,10 +80,12 @@ export default function Collaborators() {
 
       const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
       const matchesEquipe = equipeFilter === 'all' || c.equipe === equipeFilter;
+      const matchesOrigem = origemFilter === 'all' ||
+        (origemFilter === 'SECULLUM' ? (c as any).origem === 'SECULLUM' : (c as any).origem !== 'SECULLUM');
 
-      return matchesSearch && matchesStatus && matchesEquipe;
+      return matchesSearch && matchesStatus && matchesEquipe && matchesOrigem;
     });
-  }, [collaborators, search, statusFilter, equipeFilter]);
+  }, [collaborators, search, statusFilter, equipeFilter, origemFilter]);
 
   const handleEdit = (collaborator: Collaborator) => {
     setSelectedCollaborator(collaborator);
@@ -181,6 +185,16 @@ export default function Collaborators() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={origemFilter} onValueChange={setOrigemFilter}>
+            <SelectTrigger className="w-[180px] minw-filter">
+              <SelectValue placeholder="Origem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              <SelectItem value="SECULLUM">Secullum</SelectItem>
+              <SelectItem value="MANUAL">Manual</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Table */}
@@ -216,12 +230,30 @@ export default function Collaborators() {
                   <TableBody>
                     {filteredCollaborators.map((collaborator) => (
                       <TableRow key={collaborator.id}>
-                        <TableCell className="font-medium">{collaborator.full_name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <CollaboratorAvatar
+                              name={collaborator.full_name}
+                              fotoUrl={(collaborator as any).foto_url}
+                              size="sm"
+                            />
+                            {collaborator.full_name}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatCPF(collaborator.cpf)}</TableCell>
                         <TableCell>{collaborator.position || '-'}</TableCell>
                         <TableCell>{collaborator.department || '-'}</TableCell>
                         <TableCell>{collaborator.equipe || '-'}</TableCell>
-                        <TableCell>{getStatusBadge(collaborator.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {getStatusBadge(collaborator.status)}
+                            {(collaborator as any).origem === 'SECULLUM' ? (
+                              <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300">Secullum</Badge>
+                            ) : (
+                              <Badge variant="outline">Manual</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Tooltip delayDuration={300}>

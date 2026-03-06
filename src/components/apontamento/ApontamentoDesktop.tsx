@@ -52,6 +52,10 @@ import {
   useMyColaborador 
 } from '@/hooks/useApontamentoSimplificado';
 import { cn } from '@/lib/utils';
+import { SecullumResumo } from '@/components/secullum/SecullumResumo';
+import { DistribuicaoProgress } from '@/components/secullum/DistribuicaoProgress';
+import { AfastamentoBadge } from '@/components/secullum/AfastamentoBadge';
+import { useSecullumCalculos, useSecullumAfastamento } from '@/hooks/useSecullumCalculos';
 
 export function ApontamentoDesktop() {
   const navigate = useNavigate();
@@ -95,6 +99,9 @@ export function ApontamentoDesktop() {
   // Use the first selected collaborator for the hook (primary view)
   const primaryColaboradorId = selectedColaboradores[0] || null;
   const dataStr = format(selectedDate, 'yyyy-MM-dd');
+
+  const { calculo } = useSecullumCalculos(primaryColaboradorId ?? undefined, dataStr);
+  const { afastamento } = useSecullumAfastamento(primaryColaboradorId ?? undefined, dataStr);
 
   const {
     lancamentosDoDia,
@@ -262,10 +269,22 @@ export function ApontamentoDesktop() {
                 <Button variant="ghost" size="sm" onClick={goToToday}>
                   Hoje
                 </Button>
+                {afastamento && (
+                  <AfastamentoBadge
+                    tipo={afastamento.tipo}
+                    dataInicio={afastamento.data_inicio}
+                    dataFim={afastamento.data_fim}
+                  />
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Secullum Resumo */}
+        {calculo && primaryColaboradorId && (
+          <SecullumResumo colaboradorId={primaryColaboradorId} data={dataStr} />
+        )}
 
         {/* Add Entry Form */}
         {primaryColaboradorId && (
@@ -504,6 +523,16 @@ export function ApontamentoDesktop() {
                       )}
                     </Button>
                   </div>
+
+                  {/* Distribuição Secullum */}
+                  {calculo && calculo.total_horas_trabalhadas > 0 && (
+                    <div className="mt-3">
+                      <DistribuicaoProgress
+                        horasBase={calculo.total_horas_trabalhadas}
+                        horasApontadas={totalHoras}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
