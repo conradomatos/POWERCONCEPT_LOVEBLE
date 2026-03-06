@@ -21,10 +21,12 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { useApontamentosPendentes } from '@/hooks/useApontamentosPendentes';
+import { PendenciasIndicator } from '@/components/secullum/PendenciasIndicator';
 
 type ApontamentoOrigem = 'IMPORTACAO' | 'MANUAL' | 'SISTEMA';
 type TipoHora = 'NORMAL' | 'H50' | 'H100' | 'NOTURNA';
-type ApontamentoStatus = 'PENDENTE' | 'LANCADO' | 'APROVADO' | 'REPROVADO' | 'NAO_LANCADO';
+type ApontamentoStatus = 'PENDENTE' | 'LANCADO' | 'APROVADO' | 'REPROVADO' | 'NAO_LANCADO' | 'CONCILIADO' | 'DIVERGENTE';
 type IntegracaoStatus = 'OK' | 'ERRO' | 'PENDENTE';
 
 interface ApontamentoConsolidado {
@@ -68,6 +70,7 @@ export default function ApontamentosConsolidado() {
   const [filterProjeto, setFilterProjeto] = useState<string>('all');
   const [filterEquipe, setFilterEquipe] = useState<string>('all');
   const [filterFuncionario, setFilterFuncionario] = useState<string>('');
+  const [filterFonte, setFilterFonte] = useState<string>('all');
   const [filterDataInicio, setFilterDataInicio] = useState<string>('');
   const [filterDataFim, setFilterDataFim] = useState<string>('');
 
@@ -83,6 +86,8 @@ export default function ApontamentosConsolidado() {
   const [newProjetoId, setNewProjetoId] = useState<string>('');
   const [newDate, setNewDate] = useState<string>('');
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
+  const { total: pendentesCount } = useApontamentosPendentes();
 
   const canAccess = hasRole('admin') || hasRole('rh');
 
@@ -159,6 +164,15 @@ export default function ApontamentosConsolidado() {
       if (filterStatus !== 'all' && a.status_apontamento !== filterStatus) return false;
       if (filterIntegracao !== 'all' && a.status_integracao !== filterIntegracao) return false;
       if (filterOrigem !== 'all' && a.origem !== filterOrigem) return false;
+      if (filterFonte !== 'all') {
+        const fonteMap: Record<string, string[]> = {
+          PONTO: ['IMPORTACAO'],
+          MANUAL: ['MANUAL'],
+          SECULLUM: ['SISTEMA'],
+        };
+        const origens = fonteMap[filterFonte];
+        if (origens && !origens.includes(a.origem)) return false;
+      }
       if (filterProjeto !== 'all' && a.projeto_id !== filterProjeto) return false;
       
       // Filter by equipe using CPF mapping
@@ -179,7 +193,7 @@ export default function ApontamentosConsolidado() {
       
       return true;
     });
-  }, [apontamentos, filterStatus, filterIntegracao, filterOrigem, filterProjeto, filterEquipe, filterFuncionario, filterDataInicio, filterDataFim, cpfToEquipe]);
+  }, [apontamentos, filterStatus, filterIntegracao, filterOrigem, filterFonte, filterProjeto, filterEquipe, filterFuncionario, filterDataInicio, filterDataFim, cpfToEquipe]);
 
   // Displayed data (limited to 100)
   const displayedData = useMemo(() => filteredData.slice(0, 100), [filteredData]);
@@ -507,6 +521,7 @@ export default function ApontamentosConsolidado() {
     setFilterStatus('all');
     setFilterIntegracao('all');
     setFilterOrigem('all');
+    setFilterFonte('all');
     setFilterProjeto('all');
     setFilterEquipe('all');
     setFilterFuncionario('');
@@ -515,15 +530,17 @@ export default function ApontamentosConsolidado() {
   };
 
   const getStatusBadge = (status: ApontamentoStatus) => {
-    const variants: Record<ApontamentoStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'warning' | 'success' | 'pending'; label: string }> = {
-      PENDENTE: { variant: 'pending', label: 'Pendente' },
+    const variants: Record<ApontamentoStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'warning' | 'success' | 'pending'; label: string; className?: string }> = {
+      PENDENTE: { variant: 'outline', label: 'Pendente', className: 'border-yellow-500/50 text-yellow-600 dark:text-yellow-400' },
       LANCADO: { variant: 'success', label: 'Lançado' },
       APROVADO: { variant: 'success', label: 'Aprovado' },
       REPROVADO: { variant: 'destructive', label: 'Reprovado' },
       NAO_LANCADO: { variant: 'warning', label: 'Não Lançado' },
+      CONCILIADO: { variant: 'outline', label: 'Conciliado', className: 'border-green-500/50 text-green-600 dark:text-green-400' },
+      DIVERGENTE: { variant: 'outline', label: 'Divergente', className: 'border-orange-500/50 text-orange-600 dark:text-orange-400' },
     };
-    const { variant, label } = variants[status];
-    return <Badge variant={variant}>{label}</Badge>;
+    const config = variants[status] || { variant: 'outline' as const, label: status };
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const getIntegracaoBadge = (status: IntegracaoStatus) => {
@@ -664,7 +681,7 @@ export default function ApontamentosConsolidado() {
         )}
 
         {/* Counters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card 
             className="cursor-pointer hover:border-primary/50 transition-colors" 
             onClick={() => setFilterStatus('NAO_LANCADO')}
@@ -734,6 +751,24 @@ export default function ApontamentosConsolidado() {
               </div>
             </CardContent>
           </Card>
+          <Card className="border-yellow-500/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Pendentes Secullum
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-yellow-500" />
+                </div>
+                <div>
+                  <span className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{pendentesCount}</span>
+                  <p className="text-xs text-muted-foreground">dias sem distribuição</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filters */}
@@ -764,6 +799,8 @@ export default function ApontamentosConsolidado() {
                     <SelectItem value="LANCADO">Lançado</SelectItem>
                     <SelectItem value="APROVADO">Aprovado</SelectItem>
                     <SelectItem value="REPROVADO">Reprovado</SelectItem>
+                    <SelectItem value="CONCILIADO">Conciliado</SelectItem>
+                    <SelectItem value="DIVERGENTE">Divergente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -792,6 +829,20 @@ export default function ApontamentosConsolidado() {
                     <SelectItem value="IMPORTACAO">Importação</SelectItem>
                     <SelectItem value="MANUAL">Manual</SelectItem>
                     <SelectItem value="SISTEMA">Sistema (Pendências)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Fonte</label>
+                <Select value={filterFonte} onValueChange={setFilterFonte}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="PONTO">Ponto</SelectItem>
+                    <SelectItem value="MANUAL">Manual</SelectItem>
+                    <SelectItem value="SECULLUM">Secullum</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

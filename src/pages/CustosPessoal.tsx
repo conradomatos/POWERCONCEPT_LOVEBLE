@@ -29,6 +29,8 @@ import {
 import { format, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CollaboratorAvatar } from '@/components/CollaboratorAvatar';
+import { AlertTriangle } from 'lucide-react';
 
 interface Collaborator {
   id: string;
@@ -37,6 +39,7 @@ interface Collaborator {
   position: string | null;
   department: string | null;
   status: string;
+  foto_url: string | null;
 }
 
 interface CustoWithColaborador extends CustoColaborador {
@@ -120,7 +123,7 @@ export default function CustosPessoal() {
     queryFn: async () => {
       let query = supabase
         .from('collaborators')
-        .select('id, full_name, cpf, position, department, status')
+        .select('id, full_name, cpf, position, department, status, foto_url')
         .order('full_name');
 
       if (statusFilter !== 'all') {
@@ -549,6 +552,20 @@ export default function CustosPessoal() {
           </Card>
         </div>
 
+        {/* Alert sem custo */}
+        {(() => {
+          const semCustoCount = dadosProcessados.filter(d => !d.custo).length;
+          if (semCustoCount === 0) return null;
+          return (
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 text-sm">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <span>
+                <strong>{semCustoCount}</strong> colaborador{semCustoCount !== 1 ? 'es' : ''} sem custo vigente cadastrado.
+              </span>
+            </div>
+          );
+        })()}
+
         {/* Table */}
         <Card>
           <CardContent className="p-0">
@@ -589,7 +606,12 @@ export default function CustosPessoal() {
                       ) : (
                         dadosPaginados.map((item) => (
                           <TableRow key={item.colaborador.id}>
-                            <TableCell className="font-medium">{item.colaborador.full_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <CollaboratorAvatar name={item.colaborador.full_name} fotoUrl={item.colaborador.foto_url} size="sm" />
+                                {item.colaborador.full_name}
+                              </div>
+                            </TableCell>
                             <TableCell>{formatCPF(item.colaborador.cpf)}</TableCell>
                             <TableCell>{item.colaborador.position || '—'}</TableCell>
                             <TableCell>{item.colaborador.department || '—'}</TableCell>

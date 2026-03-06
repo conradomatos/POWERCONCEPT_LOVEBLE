@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { format, isWeekend, isToday, parseISO, addDays, differenceInDays, isMonday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { CollaboratorAvatar } from '@/components/CollaboratorAvatar';
 import {
   getBlockPosition,
   getProjectColor,
@@ -28,6 +29,7 @@ interface Collaborator {
   full_name: string;
   hire_date: string;
   termination_date?: string | null;
+  foto_url?: string | null;
 }
 
 interface GanttChartProps {
@@ -324,9 +326,10 @@ export default function GanttChart({
                 onMouseLeave={() => setHoveredRow(null)}
               >
                 {/* Sticky collaborator name */}
-                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center">
-                  <span 
-                    className="text-sm font-medium text-foreground truncate" 
+                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center gap-2">
+                  <CollaboratorAvatar name={col.full_name} fotoUrl={col.foto_url} size="sm" />
+                  <span
+                    className="text-sm font-medium text-foreground truncate"
                     title={col.full_name}
                   >
                     {col.full_name}
@@ -664,7 +667,8 @@ function GridView({
             return (
               <div key={col.id} className="flex h-12 hover:bg-accent/10 transition-colors">
                 {/* Sticky name */}
-                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center">
+                <div className="w-56 flex-shrink-0 sticky left-0 z-10 bg-card border-r border-border px-4 flex items-center gap-2">
+                  <CollaboratorAvatar name={col.full_name} fotoUrl={col.foto_url} size="sm" />
                   <span className="text-sm font-medium truncate" title={col.full_name}>
                     {col.full_name}
                   </span>

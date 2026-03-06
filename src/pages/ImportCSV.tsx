@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, cleanCPF } from '@/lib/cpf';
-import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SecullumSyncPanel } from '@/components/secullum/SecullumSyncPanel';
+import { Upload, FileText, CheckCircle2, XCircle, AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -454,9 +456,27 @@ export default function ImportCSV() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Importar CSV</h2>
-          <p className="text-muted-foreground">Importe colaboradores a partir de um arquivo CSV</p>
+          <h2 className="text-2xl font-semibold tracking-tight">Sincronização</h2>
+          <p className="text-muted-foreground">Sincronize colaboradores do Secullum ou importe via planilha</p>
         </div>
+
+        <Tabs defaultValue="secullum">
+          <TabsList>
+            <TabsTrigger value="secullum" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Secullum
+            </TabsTrigger>
+            <TabsTrigger value="csv" className="gap-2">
+              <FileText className="h-4 w-4" />
+              CSV / Excel
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="secullum" className="mt-4">
+            <SecullumSyncPanel />
+          </TabsContent>
+
+          <TabsContent value="csv" className="mt-4 space-y-6">
 
         {/* Instructions */}
         <Card>
@@ -604,6 +624,9 @@ export default function ImportCSV() {
             </CardContent>
           </Card>
         )}
+
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );

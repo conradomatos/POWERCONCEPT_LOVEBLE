@@ -49,6 +49,9 @@ export default function CollaboratorForm({
   const { isGodMode } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  /** Campos do Secullum ficam somente leitura */
+  const isSecullum = (collaborator as any)?.origem === 'SECULLUM';
   
   // State for linked user (edit mode only)
   const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
@@ -420,6 +423,11 @@ export default function CollaboratorForm({
   // Render step 1: Collaborator data
   const renderStep1 = () => (
     <div className="space-y-4">
+      {isSecullum && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3 text-sm text-yellow-800 dark:text-yellow-300">
+          Dados sincronizados do Secullum Ponto Web. Campos do Secullum são somente leitura.
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="full_name">Nome completo *</Label>
@@ -428,6 +436,8 @@ export default function CollaboratorForm({
             value={formData.full_name}
             onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
             required
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -439,6 +449,8 @@ export default function CollaboratorForm({
             onChange={(e) => handleCPFChange(e.target.value)}
             placeholder="000.000.000-00"
             required
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -449,6 +461,8 @@ export default function CollaboratorForm({
             type="date"
             value={formData.birth_date}
             onChange={(e) => setFormData((prev) => ({ ...prev, birth_date: e.target.value }))}
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -460,6 +474,8 @@ export default function CollaboratorForm({
             value={formData.hire_date}
             onChange={(e) => setFormData((prev) => ({ ...prev, hire_date: e.target.value }))}
             required
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -470,6 +486,8 @@ export default function CollaboratorForm({
             type="date"
             value={formData.termination_date}
             onChange={(e) => setFormData((prev) => ({ ...prev, termination_date: e.target.value }))}
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -496,6 +514,8 @@ export default function CollaboratorForm({
             id="position"
             value={formData.position}
             onChange={(e) => setFormData((prev) => ({ ...prev, position: e.target.value }))}
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
@@ -505,6 +525,8 @@ export default function CollaboratorForm({
             id="department"
             value={formData.department}
             onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))}
+            disabled={isSecullum}
+            className={isSecullum ? 'bg-muted' : ''}
           />
         </div>
 
