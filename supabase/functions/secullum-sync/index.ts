@@ -130,6 +130,12 @@ function classificarTipoDia(
   return 'NORMAL';
 }
 
+/** Normaliza timestamp para comparacao: remove timezone e microsegundos */
+function normalizeTs(ts: string | null | undefined): string {
+  if (!ts) return '';
+  return ts.replace(/\+.*$/, '').replace(/\.\d+$/, '').substring(0, 19);
+}
+
 /** Delay em milissegundos */
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -291,7 +297,7 @@ async function stepFuncionarios(
 
     // SMART UPDATE: Se DataAlteracao nao mudou, skip (nada mudou no Secullum)
     if (existing && existing.origem === 'SECULLUM') {
-      if (existing.secullum_data_alteracao === func.DataAlteracao) {
+      if (normalizeTs(existing.secullum_data_alteracao) === normalizeTs(func.DataAlteracao)) {
         counts.funcionarios.ignorados++;
         continue;
       }
@@ -657,6 +663,9 @@ async function stepCalculos(
           batidas_json: batidas,
           extras_json: Object.keys(extras).length > 0 ? extras : null,
         };
+
+        // total_horas_trabalhadas é generated column no Postgres — nao pode ser inserido
+        delete (calculoRow as Record<string, unknown>)['total_horas_trabalhadas'];
 
         const { error } = await supabase
           .from('secullum_calculos')
