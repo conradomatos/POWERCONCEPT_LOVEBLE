@@ -149,11 +149,6 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
       return;
     }
 
-    if (!formData.observacao.trim()) {
-      toast({ title: 'Erro', description: 'Observação é obrigatória', variant: 'destructive' });
-      return;
-    }
-
     // CLT requires beneficios
     if (!isPJ) {
       const beneficiosValue = parseCurrencyToNumber(formData.beneficios);
@@ -280,7 +275,7 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
           </div>
 
           <div>
-            <Label htmlFor="salario_base">Salário Base *</Label>
+            <Label htmlFor="salario_base">{isPJ ? 'Valor Mensal Fechado *' : 'Salário Base *'}</Label>
             <Input
               id="salario_base"
               type="text"
@@ -427,24 +422,32 @@ export function CustoForm({ open, onOpenChange, colaboradorId, custo, onSuccess,
 
           <div>
             <Label htmlFor="motivo_alteracao">Motivo da Alteração *</Label>
-            <Input
-              id="motivo_alteracao"
+            <Select
               value={formData.motivo_alteracao}
-              onChange={(e) => setFormData(prev => ({ ...prev, motivo_alteracao: e.target.value }))}
-              placeholder="Ex: Reajuste anual, Promoção, Novo contrato"
-              required
-            />
+              onValueChange={(value) => setFormData(prev => ({ ...prev, motivo_alteracao: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o motivo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Admissão">Admissão</SelectItem>
+                <SelectItem value="Reajuste anual">Reajuste anual</SelectItem>
+                <SelectItem value="Promoção">Promoção</SelectItem>
+                <SelectItem value="Acordo coletivo">Acordo coletivo</SelectItem>
+                <SelectItem value="Correção">Correção</SelectItem>
+                <SelectItem value="Outro">Outro</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <Label htmlFor="observacao">Observação *</Label>
+            <Label htmlFor="observacao">Observação</Label>
             <Textarea
               id="observacao"
               value={formData.observacao}
               onChange={(e) => setFormData(prev => ({ ...prev, observacao: e.target.value }))}
               placeholder="Observações adicionais sobre este registro de custo..."
               rows={2}
-              required
             />
           </div>
 

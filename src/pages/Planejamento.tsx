@@ -148,6 +148,31 @@ export default function Planejamento() {
     },
   });
 
+  // Fetch apontamento_dia data (Secullum) for visual indicators in Gantt
+  const { data: apontamentoDiaMap = new Map() } = useQuery({
+    queryKey: ['apontamento-dia-gantt', period.start.toISOString(), period.end.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('apontamento_dia')
+        .select('colaborador_id, data, horas_base_dia, fonte_base, status')
+        .eq('fonte_base', 'PONTO')
+        .gte('data', format(period.start, 'yyyy-MM-dd'))
+        .lte('data', format(period.end, 'yyyy-MM-dd'));
+
+      if (error) throw error;
+
+      // Map: "colaboradorId_yyyy-MM-dd" -> { horas, status }
+      const map = new Map<string, { horas: number; status: string }>();
+      for (const row of data || []) {
+        map.set(`${row.colaborador_id}_${row.data}`, {
+          horas: row.horas_base_dia || 0,
+          status: row.status || 'PENDENTE',
+        });
+      }
+      return map;
+    },
+  });
+
   // Fetch blocks for the period
   const { data: blocks = [], isLoading: loadingBlocks } = useQuery({
     queryKey: ['alocacoes-blocos', period.start.toISOString(), period.end.toISOString()],
@@ -980,6 +1005,7 @@ export default function Planejamento() {
                   onResizeBlock={handleResizeBlock}
                   viewMode={viewMode}
                   canDeleteRealized={isGodMode()}
+                  apontamentoDiaMap={apontamentoDiaMap}
                 />
               </div>
             )}

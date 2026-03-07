@@ -44,6 +44,7 @@ import ResumoPrecos from "./pages/orcamentos/ResumoPrecos";
 import Documentos from "./pages/orcamentos/Documentos";
 import AlimentacaoIndustrial from "./pages/orcamentos/AlimentacaoIndustrial";
 import ApontamentoDiario from "./pages/ApontamentoDiario";
+import ApontamentoPeriodo from "./pages/ApontamentoPeriodo";
 import Conciliacao from "./pages/Conciliacao";
 import CartaoCredito from "./pages/financeiro/CartaoCredito";
 import FinanceiroCategorias from "./pages/FinanceiroCategorias";
@@ -99,6 +100,7 @@ const App = () => (
             <Route path="/import-apontamentos" element={<ImportApontamentos />} />
             <Route path="/apontamentos" element={<ApontamentosConsolidado />} />
             <Route path="/apontamento-diario" element={<ApontamentoDiario />} />
+            <Route path="/apontamento-periodo" element={<ApontamentoPeriodo />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/roles" element={<RbacRoles />} />
             <Route path="/aprovacoes-projetos" element={<AprovacoesProjetos />} />

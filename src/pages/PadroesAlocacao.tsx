@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCPF } from '@/lib/cpf';
@@ -19,13 +20,21 @@ export default function PadroesAlocacao() {
 
   const canAccess = hasRole('super_admin') || hasRole('admin') || hasRole('rh') || hasRole('financeiro');
 
+  const [statusFilter, setStatusFilter] = useState<string>('ativo');
+
   const { data: collaborators, isLoading } = useQuery({
-    queryKey: ['collaborators-alocacao'],
+    queryKey: ['collaborators-alocacao', statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('collaborators')
         .select('id, full_name, cpf, position, department, status, equipe')
         .order('full_name');
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter as 'ativo' | 'afastado' | 'desligado');
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -71,20 +80,33 @@ export default function PadroesAlocacao() {
       <div className="space-y-6">
         <div>
           <nav className="text-sm text-muted-foreground mb-2">
-            Recursos &gt; Custos &gt; Padroes de Alocacao
+            Recursos &gt; Custos &gt; Projetos Padrão
           </nav>
-          <h1 className="text-2xl font-bold tracking-tight">Padroes de Alocacao</h1>
-          <p className="text-muted-foreground">Gerencie os padroes de alocacao dos colaboradores em projetos</p>
+          <h1 className="text-2xl font-bold tracking-tight">Projetos Padrão</h1>
+          <p className="text-muted-foreground">Defina os projetos padrão de cada colaborador para auto-distribuição de horas</p>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, CPF, cargo ou departamento..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, CPF, cargo ou departamento..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="ativo">Ativo</SelectItem>
+              <SelectItem value="afastado">Afastado</SelectItem>
+              <SelectItem value="desligado">Desligado</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <Card>
@@ -133,7 +155,7 @@ export default function PadroesAlocacao() {
                             onClick={() => navigate(`/collaborators/${c.id}/defaults`)}
                           >
                             <Target className="h-4 w-4" />
-                            Ver Padroes
+                            Ver Projetos Padrão
                           </Button>
                         </TableCell>
                       </TableRow>
