@@ -43,6 +43,8 @@ interface GanttChartProps {
   onResizeBlock?: (blockId: string, newStartDate: Date, newEndDate: Date) => void;
   viewMode: 'gantt' | 'grid';
   canDeleteRealized?: boolean;
+  /** Mapa de dias com dados Secullum: chave = "colaboradorId_yyyy-MM-dd" */
+  apontamentoDiaMap?: Map<string, { horas: number; status: string }>;
 }
 
 export default function GanttChart({
@@ -56,6 +58,7 @@ export default function GanttChart({
   onResizeBlock,
   viewMode,
   canDeleteRealized = false,
+  apontamentoDiaMap,
 }: GanttChartProps) {
   const [dragState, setDragState] = useState<{
     type: 'create' | 'move' | 'resize-left' | 'resize-right';
@@ -233,6 +236,7 @@ export default function GanttChart({
         allProjectIds={allProjectIds}
         onEditBlock={onEditBlock}
         onCreateBlock={onCreateBlock}
+        apontamentoDiaMap={apontamentoDiaMap}
       />
     );
   }
@@ -343,23 +347,30 @@ export default function GanttChart({
                   onMouseDown={(e) => handleMouseDown(e, col.id, e.currentTarget)}
                   onMouseMove={(e) => handleMouseMove(e, e.currentTarget)}
                 >
-                  {/* Day columns (subtle grid) */}
+                  {/* Day columns (subtle grid) + Secullum indicators */}
                   <div className="absolute inset-0 flex pointer-events-none">
                     {period.days.map((day, index) => {
                       const hireDate = col.hire_date ? parseISO(col.hire_date) : null;
                       const termDate = col.termination_date ? parseISO(col.termination_date) : null;
                       const isDisabled = (hireDate && day < hireDate) || (termDate && day > termDate);
+                      const dayKey = `${col.id}_${format(day, 'yyyy-MM-dd')}`;
+                      const secullumData = apontamentoDiaMap?.get(dayKey);
 
                       return (
                         <div
                           key={index}
                           className={cn(
-                            'flex-1',
+                            'flex-1 relative',
                             isWeekend(day) && 'bg-muted/20',
                             isDisabled && 'bg-muted/30',
-                            isMonday(day) && index > 0 && 'border-l border-border/50'
+                            isMonday(day) && index > 0 && 'border-l border-border/50',
+                            secullumData && !isDisabled && 'bg-emerald-500/8'
                           )}
-                        />
+                        >
+                          {secullumData && !isDisabled && (
+                            <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -576,6 +587,12 @@ export default function GanttChart({
           <div className="w-6 h-4 rounded bg-primary/60 border-2 border-dashed border-white/70" />
           <span>Planejado</span>
         </div>
+        {apontamentoDiaMap && apontamentoDiaMap.size > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span>Secullum (Ponto)</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -589,6 +606,7 @@ function GridView({
   allProjectIds,
   onEditBlock,
   onCreateBlock,
+  apontamentoDiaMap,
 }: {
   collaborators: Collaborator[];
   blocks: Block[];
@@ -596,6 +614,7 @@ function GridView({
   allProjectIds: string[];
   onEditBlock: (block: Block, clickedDate: Date) => void;
   onCreateBlock: (colaboradorId: string, startDate: Date, endDate: Date) => void;
+  apontamentoDiaMap?: Map<string, { horas: number; status: string }>;
 }) {
   const todayIndex = period.days.findIndex(day => isToday(day));
 
@@ -697,20 +716,24 @@ function GridView({
                     });
 
                     const color = blockForDay ? getProjectColor(blockForDay.projeto_id, allProjectIds) : undefined;
+                    const dayKey = `${col.id}_${format(day, 'yyyy-MM-dd')}`;
+                    const secullumData = apontamentoDiaMap?.get(dayKey);
+                    const hasSecullumOnly = secullumData && !blockForDay && !isDisabled;
 
                     return (
                       <Tooltip key={index}>
                         <TooltipTrigger asChild>
                           <div
                             className={cn(
-                              'flex-1 flex items-center justify-center text-xs font-bold cursor-pointer transition-all border-r border-border/20 last:border-r-0',
-                              isWeekend(day) && !blockForDay && 'bg-muted/15',
-                              isToday(day) && !blockForDay && 'bg-primary/5',
+                              'flex-1 flex items-center justify-center text-xs font-bold cursor-pointer transition-all border-r border-border/20 last:border-r-0 relative',
+                              isWeekend(day) && !blockForDay && !hasSecullumOnly && 'bg-muted/15',
+                              isToday(day) && !blockForDay && !hasSecullumOnly && 'bg-primary/5',
                               isDisabled && 'bg-muted/25 cursor-not-allowed',
                               isMonday(day) && index > 0 && 'border-l border-border/50',
-                              !blockForDay && !isDisabled && 'hover:bg-accent/20'
+                              !blockForDay && !isDisabled && !hasSecullumOnly && 'hover:bg-accent/20',
+                              hasSecullumOnly && 'bg-emerald-500/15 hover:bg-emerald-500/25'
                             )}
-                            style={{ 
+                            style={{
                               backgroundColor: blockForDay ? color : undefined,
                             }}
                             onClick={() => {
@@ -726,14 +749,27 @@ function GridView({
                                 {blockForDay.projeto_os}
                               </span>
                             )}
+                            {hasSecullumOnly && (
+                              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                            )}
                           </div>
                         </TooltipTrigger>
-                        {blockForDay && (
+                        {(blockForDay || hasSecullumOnly) && (
                           <TooltipContent className="z-50">
                             <div className="space-y-1">
-                              <div className="font-bold text-primary">OS {blockForDay.projeto_os}</div>
-                              <div className="font-medium">{blockForDay.projeto_nome}</div>
-                              <div className="text-muted-foreground text-xs">{blockForDay.empresa_nome}</div>
+                              {blockForDay ? (
+                                <>
+                                  <div className="font-bold text-primary">OS {blockForDay.projeto_os}</div>
+                                  <div className="font-medium">{blockForDay.projeto_nome}</div>
+                                  <div className="text-muted-foreground text-xs">{blockForDay.empresa_nome}</div>
+                                </>
+                              ) : secullumData ? (
+                                <>
+                                  <div className="font-bold text-emerald-600">Secullum</div>
+                                  <div className="text-sm">{secullumData.horas.toFixed(1)}h trabalhadas</div>
+                                  <div className="text-muted-foreground text-xs">Pendente de alocação</div>
+                                </>
+                              ) : null}
                             </div>
                           </TooltipContent>
                         )}

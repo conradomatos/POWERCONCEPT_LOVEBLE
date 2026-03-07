@@ -27,7 +27,7 @@ export default function Collaborators() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [equipeFilter, setEquipeFilter] = useState<string>('all');
   const [origemFilter, setOrigemFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
@@ -290,7 +290,7 @@ export default function Collaborators() {
                                   <Target className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>Padroes de Alocacao</p></TooltipContent>
+                              <TooltipContent><p>Projetos Padrão</p></TooltipContent>
                             </Tooltip>
                             {canEdit && (
                               <Tooltip delayDuration={300}>

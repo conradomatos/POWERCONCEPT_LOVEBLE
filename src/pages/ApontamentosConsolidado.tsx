@@ -87,7 +87,7 @@ export default function ApontamentosConsolidado() {
   const [newDate, setNewDate] = useState<string>('');
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  const { total: pendentesCount } = useApontamentosPendentes();
+  const { pendentes, total: pendentesCount } = useApontamentosPendentes();
 
   const canAccess = hasRole('admin') || hasRole('rh');
 
@@ -156,11 +156,52 @@ export default function ApontamentosConsolidado() {
     return map;
   }, [collaborators]);
 
+  // Merge pendentes do Secullum (apontamento_dia) com dados do consolidado
+  const allApontamentos = useMemo(() => {
+    const consolidated = apontamentos || [];
+
+    // IDs já presentes no consolidado para evitar duplicatas
+    const existingIds = new Set(consolidated.map(a => a.id));
+
+    const pendentesAsMapped: ApontamentoConsolidado[] = pendentes
+      .filter(p => !existingIds.has(p.apontamento_dia_id))
+      .map(p => ({
+        id: p.apontamento_dia_id,
+        origem: 'SISTEMA' as ApontamentoOrigem,
+        arquivo_importacao_id: null,
+        linha_arquivo: null,
+        data_importacao: null,
+        projeto_id: null,
+        projeto_nome: null,
+        os_numero: null,
+        tarefa_id: null,
+        tarefa_nome: null,
+        funcionario_id: p.colaborador_id,
+        cpf: p.cpf,
+        nome_funcionario: p.colaborador_nome,
+        data_apontamento: p.data,
+        horas: p.horas_base_dia,
+        tipo_hora: 'NORMAL' as TipoHora,
+        descricao: p.tipo_dia ? `${p.tipo_dia}` : null,
+        observacao: null,
+        status_apontamento: (p.status || 'PENDENTE') as ApontamentoStatus,
+        status_integracao: 'PENDENTE' as IntegracaoStatus,
+        motivo_erro: null,
+        gantt_atualizado: false,
+        data_atualizacao_gantt: null,
+        created_at: p.data,
+        updated_at: p.data,
+        is_pending: true,
+      }));
+
+    return [...consolidated, ...pendentesAsMapped];
+  }, [apontamentos, pendentes]);
+
   // Filter data
   const filteredData = useMemo(() => {
-    if (!apontamentos) return [];
-    
-    return apontamentos.filter((a) => {
+    if (!allApontamentos.length) return [];
+
+    return allApontamentos.filter((a) => {
       if (filterStatus !== 'all' && a.status_apontamento !== filterStatus) return false;
       if (filterIntegracao !== 'all' && a.status_integracao !== filterIntegracao) return false;
       if (filterOrigem !== 'all' && a.origem !== filterOrigem) return false;
@@ -447,14 +488,14 @@ export default function ApontamentosConsolidado() {
 
   // Counters
   const counters = useMemo(() => {
-    if (!apontamentos) return { naoLancados: 0, lancados: 0, erros: 0, total: 0 };
-    
-    const naoLancados = apontamentos.filter((a) => a.status_apontamento === 'NAO_LANCADO').length;
-    const lancados = apontamentos.filter((a) => a.status_integracao === 'OK').length;
-    const erros = apontamentos.filter((a) => a.status_integracao === 'ERRO').length;
-    
-    return { naoLancados, lancados, erros, total: apontamentos.length };
-  }, [apontamentos]);
+    if (!allApontamentos.length) return { naoLancados: 0, lancados: 0, erros: 0, total: 0 };
+
+    const naoLancados = allApontamentos.filter((a) => a.status_apontamento === 'NAO_LANCADO').length;
+    const lancados = allApontamentos.filter((a) => a.status_integracao === 'OK').length;
+    const erros = allApontamentos.filter((a) => a.status_integracao === 'ERRO').length;
+
+    return { naoLancados, lancados, erros, total: allApontamentos.length };
+  }, [allApontamentos]);
 
   // Export to XLSX
   const handleExportXLSX = () => {

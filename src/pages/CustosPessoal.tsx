@@ -479,79 +479,6 @@ export default function CustosPessoal() {
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Wallet className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Custo Mensal Total</p>
-                  <p className="text-lg font-bold">{formatCurrency(kpis.custoMensalTotal)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-secondary/50">
-                  <DollarSign className="h-5 w-5 text-secondary-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Salário Base</p>
-                  <p className="text-lg font-bold">{formatCurrency(kpis.salarioBase)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-accent/50">
-                  <Receipt className="h-5 w-5 text-accent-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Benefícios</p>
-                  <p className="text-lg font-bold">{formatCurrency(kpis.beneficios)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-muted">
-                  <Calculator className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Encargos + Provisões</p>
-                  <p className="text-lg font-bold">{formatCurrency(kpis.encargosProvisoes)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <UserCheck className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Custo Médio</p>
-                  <p className="text-lg font-bold">{formatCurrency(kpis.custoMedio)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Alert sem custo */}
         {(() => {
           const semCustoCount = dadosProcessados.filter(d => !d.custo).length;
@@ -619,13 +546,13 @@ export default function CustosPessoal() {
                               {item.custo ? formatCurrency(item.custo.salario_base) : '—'}
                             </TableCell>
                             <TableCell className="text-right">
-                              {item.custoCalculado ? formatCurrency(item.custoCalculado.beneficios) : '—'}
+                              {item.custo?.classificacao === 'PJ' ? '—' : (item.custoCalculado ? formatCurrency(item.custoCalculado.beneficios) : '—')}
                             </TableCell>
                             <TableCell className="text-right">
-                              {item.custoCalculado ? formatCurrency(item.custoCalculado.encargos) : '—'}
+                              {item.custo?.classificacao === 'PJ' ? '—' : (item.custoCalculado ? formatCurrency(item.custoCalculado.encargos) : '—')}
                             </TableCell>
                             <TableCell className="text-right">
-                              {item.custoCalculado ? formatCurrency(item.custoCalculado.provisoes) : '—'}
+                              {item.custo?.classificacao === 'PJ' ? '—' : (item.custoCalculado ? formatCurrency(item.custoCalculado.provisoes) : '—')}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               {item.custoCalculado ? formatCurrency(item.custoCalculado.custo_mensal_total) : '—'}

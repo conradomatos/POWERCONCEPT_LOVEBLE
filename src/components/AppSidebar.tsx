@@ -92,7 +92,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
         children: [
           { title: 'Visão Geral', url: '/recursos/custos', icon: Eye },
           { title: 'Vigência de Salário', url: '/recursos/custos/vigencia', icon: DollarSign },
-          { title: 'Padrões de Alocação', url: '/recursos/custos/alocacao', icon: Users },
+          { title: 'Projetos Padrão', url: '/recursos/custos/alocacao', icon: Users },
         ],
       },
       { title: 'Sincronização', url: '/import', icon: RefreshCw, permission: 'recursos.importacao.importar', roles: ['admin', 'rh'] },
@@ -106,6 +106,7 @@ const areaNavItems: Record<NavigationArea, AreaConfig> = {
       { title: 'Aprovações', url: '/aprovacoes-projetos', icon: FileCheck, permission: 'projetos.aprovacoes.aprovar', roles: ['admin'] },
       { title: 'Planejamento', url: '/planejamento', icon: GanttChart, permission: 'projetos.planejamento.visualizar' },
       { title: 'Apontamento Diário', url: '/apontamento-diario', icon: Clock, permission: 'projetos.apontamento_diario.visualizar', roles: ['admin', 'rh', 'super_admin'] },
+      { title: 'Apontamento Mensal', url: '/apontamento-periodo', icon: CalendarClock, permission: 'projetos.apontamento_diario.visualizar', roles: ['admin', 'rh', 'super_admin'] },
       { title: 'Apontamentos', url: '/apontamentos', icon: ClipboardList, permission: 'projetos.apontamentos.visualizar' },
       { title: 'Importar Apontamentos', url: '/import-apontamentos', icon: Upload, permission: 'projetos.import_apontamentos.importar', roles: ['admin', 'rh'] },
     ],

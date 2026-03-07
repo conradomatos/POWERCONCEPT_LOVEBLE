@@ -25,6 +25,7 @@ export default function VigenciaSalario() {
       const { data, error } = await supabase
         .from('collaborators')
         .select('id, full_name, cpf, position, department, status, equipe')
+        .eq('status', 'ativo')
         .order('full_name');
       if (error) throw error;
       return data;
